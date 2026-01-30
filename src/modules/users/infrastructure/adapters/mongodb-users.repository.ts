@@ -11,19 +11,59 @@ import type {
 import { UserStatus } from '../../domain/enums';
 
 export interface IUsersRepository {
+  /**
+   * Crear usuario.
+   */
   create(payload: CreateUserPayload): Promise<UserDocument>;
+
+  /**
+   * Obtener usuario por ID.
+   * @param id
+   */
   findById(id: string): Promise<UserDocument | null>;
+
+  /**
+   * Obtener usuario por email.
+   * @param email
+   */
   findByEmail(email: string): Promise<UserDocument | null>;
+
+  /**
+   * Obtener todos los usuarios activos.
+   */
   findAll(): Promise<UserDocument[]>;
+
+  /**
+   * Actualizar roles del usuario.
+   * @param id
+   * @param payload
+   */
   updateRoles(
     id: string,
     payload: UpdateUserRolesPayload,
   ): Promise<UserDocument | null>;
+
+  /**
+   * Actualizar contraseña del usuario.
+   * @param id
+   * @param payload
+   */
   updatePassword(
     id: string,
     payload: UpdateUserPasswordPayload,
   ): Promise<UserDocument | null>;
+
+  /**
+   * Actualizar datos del usuario (email, fullname, phone, etc).
+   * @param id
+   * @param payload
+   */
   updateUser(id: string, payload: any): Promise<UserDocument | null>;
+
+  /**
+   * Deshabilitar usuario (soft delete).
+   * @param id
+   */
   disable(id: string): Promise<boolean>;
 }
 
@@ -72,6 +112,16 @@ export class MongoDbUsersRepository implements IUsersRepository {
   async findByEmail(email: string): Promise<UserDocument | null> {
     return this.userModel
       .findOne({ email, status: UserStatus.ACTIVE })
+      .populate(this.populateOptions())
+      .exec();
+  }
+
+  /**
+   * Obtener usuario por phone.
+   */
+  async findByPhone(phone: string): Promise<UserDocument | null> {
+    return this.userModel
+      .findOne({ phone, status: UserStatus.ACTIVE })
       .populate(this.populateOptions())
       .exec();
   }

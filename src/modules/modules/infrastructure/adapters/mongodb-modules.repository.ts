@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { IModulesRepository } from '../../domain/ports';
-import { Module, Permission } from '../../domain/module.entity';
+import { Module } from '../../domain/module.entity';
 import { ModuleSchema } from '../schemas/module.schema';
 
 /**
@@ -10,7 +10,9 @@ import { ModuleSchema } from '../schemas/module.schema';
  */
 @Injectable()
 export class MongoDBModulesRepository implements IModulesRepository {
-  constructor(@InjectModel('Module') private readonly moduleModel: Model<ModuleSchema>) { }
+  constructor(
+    @InjectModel('Module') private readonly moduleModel: Model<ModuleSchema>,
+  ) {}
 
   async create(module: Module): Promise<Module> {
     const created = await this.moduleModel.create(module);
@@ -33,11 +35,16 @@ export class MongoDBModulesRepository implements IModulesRepository {
   }
 
   async findByIndicator(indicator: string): Promise<Module | null> {
-    const module = await this.moduleModel.findOne({ indicator: indicator.toLowerCase() }).exec();
+    const module = await this.moduleModel
+      .findOne({ indicator: indicator.toLowerCase() })
+      .exec();
     return module ? this.mapToEntity(module) : null;
   }
 
-  async update(id: string, moduleData: Partial<Module>): Promise<Module | null> {
+  async update(
+    id: string,
+    moduleData: Partial<Module>,
+  ): Promise<Module | null> {
     const updated = await this.moduleModel
       .findOneAndUpdate({ id }, moduleData, { new: true })
       .exec();

@@ -34,6 +34,9 @@ export class User extends AbstractSchema {
   @Prop({ type: String, required: true })
   phone: string;
 
+  @Prop({ type: Boolean, default: false })
+  phoneConfirmed?: boolean;
+
   @Prop({ type: String })
   avatarUrl?: string;
 
@@ -71,7 +74,7 @@ export const UserSchema = SchemaFactory.createForClass(User);
 // Índices adicionales
 UserSchema.index({ status: 1 });
 UserSchema.index({ roleId: 1 });
-UserSchema.index({ phone: 1 });
+UserSchema.index({ phone: 1 }, { unique: true });
 UserSchema.index({ email: 1 }, { sparse: true });
 UserSchema.index({ createdAt: -1 });
 UserSchema.index({ lastActive: -1 });

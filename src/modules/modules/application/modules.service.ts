@@ -1,20 +1,25 @@
-import { Injectable, Logger, HttpStatus, Inject } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 
+import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 import { MongoDBModulesRepository } from '../infrastructure/adapters';
 
-import { ModuleCreatedEvent, ModuleDisabledEvent, ModuleUpdatedEvent, NavigationCacheInvalidatedEvent, ModulesReorderedEvent } from '../events';
+import {
+  ModuleCreatedEvent,
+  ModuleDisabledEvent,
+  ModuleUpdatedEvent,
+  NavigationCacheInvalidatedEvent,
+  ModulesReorderedEvent,
+} from '../events';
 
 import { Module, Permission } from '../domain/module.entity';
 
 import { CreateModuleDto, UpdateModuleDto, ReorderModulesDto } from '../dto';
 
 import { ApiResponse } from 'src/common/types/api-response.type';
-import type { ICacheService } from 'src/common/interfaces/cache.interface';
-import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
-import { AsyncContextService } from 'src/common/context/async-context.service';
 
 /**
  * ModulesService - Servicio de aplicación para gestión de módulos
@@ -43,8 +48,8 @@ export class ModulesService {
     private readonly eventEmitter: EventEmitter2,
     private readonly auditService: AuditService,
     private readonly asyncContextService: AsyncContextService,
-    @Inject(INJECTION_TOKENS.CACHE_SERVICE) private readonly cacheService: ICacheService,
-  ) { }
+    private readonly cacheService: CacheService,
+  ) {}
 
   /**
    * Crear un nuevo módulo
@@ -56,10 +61,15 @@ export class ModulesService {
   async create(createModuleDto: CreateModuleDto): Promise<ApiResponse<Module>> {
     const requestId = this.asyncContextService.getRequestId();
     try {
-      this.logger.log(`Creando módulo: ${createModuleDto.indicator}`, requestId);
+      this.logger.log(
+        `Creando módulo: ${createModuleDto.indicator}`,
+        requestId,
+      );
 
       // Validar que el módulo no exista
-      const existing = await this.modulesRepository.findByIndicator(createModuleDto.indicator);
+      const existing = await this.modulesRepository.findByIndicator(
+        createModuleDto.indicator,
+      );
       if (existing) {
         const message = `El módulo con indicador '${createModuleDto.indicator}' ya existe`;
         this.logger.warn(message);
@@ -113,30 +123,28 @@ export class ModulesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar creación exitosa
-      this.auditService.logAllow(
-        'MODULE_CREATED',
-        'module',
-        created.id!,
-        {
-          module: 'modules',
-          severity: 'HIGH',
-          tags: ['module', 'creation', 'security'],
-          changes: {
-            after: {
-              id: created.id!,
-              indicator: created.indicator,
-              name: created.name,
-              actions: created.actions,
-              permissions: created.permissions.length,
-              isSystem: created.isSystem,
-              status: created.status,
-            },
+      this.auditService.logAllow('MODULE_CREATED', 'module', created.id, {
+        module: 'modules',
+        severity: 'HIGH',
+        tags: ['module', 'creation', 'security'],
+        changes: {
+          after: {
+            id: created.id,
+            indicator: created.indicator,
+            name: created.name,
+            actions: created.actions,
+            permissions: created.permissions.length,
+            isSystem: created.isSystem,
+            status: created.status,
           },
         },
-      );
+      });
 
       // Emitir evento
-      this.eventEmitter.emit('modules.module_created', new ModuleCreatedEvent(created, requestId));
+      this.eventEmitter.emit(
+        'modules.module_created',
+        new ModuleCreatedEvent(created, requestId),
+      );
 
       return ApiResponse.ok<Module>(
         HttpStatus.CREATED,
@@ -177,29 +185,26 @@ export class ModulesService {
     const requestId = 'findAll';
     try {
       const now = Date.now();
-      const isCached = this.modulesCache && now - this.modulesCacheTimestamp < this.CACHE_TTL_MS;
+      const isCached =
+        this.modulesCache &&
+        now - this.modulesCacheTimestamp < this.CACHE_TTL_MS;
 
       // Retornar desde caché si está válido
       if (isCached) {
         this.logger.debug('Retornando módulos desde caché');
 
         // Fire-and-forget: Auditar lectura desde caché
-        this.auditService.logAllow(
-          'MODULE_READ_ALL',
-          'modules',
-          'all',
-          {
-            module: 'modules',
-            severity: 'LOW',
-            tags: ['modules', 'read', 'cache'],
-            changes: {
-              after: {
-                cached: true,
-                count: this.modulesCache!.length,
-              },
+        this.auditService.logAllow('MODULE_READ_ALL', 'modules', 'all', {
+          module: 'modules',
+          severity: 'LOW',
+          tags: ['modules', 'read', 'cache'],
+          changes: {
+            after: {
+              cached: true,
+              count: this.modulesCache!.length,
             },
           },
-        );
+        });
 
         return ApiResponse.ok<Module[]>(
           HttpStatus.OK,
@@ -217,22 +222,17 @@ export class ModulesService {
       this.modulesCacheTimestamp = now;
 
       // Fire-and-forget: Auditar lectura desde DB
-      this.auditService.logAllow(
-        'MODULE_READ_ALL',
-        'modules',
-        'all',
-        {
-          module: 'modules',
-          severity: 'LOW',
-          tags: ['modules', 'read', 'database'],
-          changes: {
-            after: {
-              cached: false,
-              count: modules.length,
-            },
+      this.auditService.logAllow('MODULE_READ_ALL', 'modules', 'all', {
+        module: 'modules',
+        severity: 'LOW',
+        tags: ['modules', 'read', 'database'],
+        changes: {
+          after: {
+            cached: false,
+            count: modules.length,
           },
         },
-      );
+      });
 
       return ApiResponse.ok<Module[]>(
         HttpStatus.OK,
@@ -299,23 +299,18 @@ export class ModulesService {
       }
 
       // Fire-and-forget: Auditar lectura exitosa
-      this.auditService.logAllow(
-        'MODULE_READ_BY_ID',
-        'module',
-        module._id!,
-        {
-          module: 'modules',
-          severity: 'LOW',
-          tags: ['module', 'read'],
-          changes: {
-            after: {
-              id: module._id!,
-              indicator: module.indicator,
-              status: module.status,
-            },
+      this.auditService.logAllow('MODULE_READ_BY_ID', 'module', module._id!, {
+        module: 'modules',
+        severity: 'LOW',
+        tags: ['module', 'read'],
+        changes: {
+          after: {
+            id: module._id!,
+            indicator: module.indicator,
+            status: module.status,
           },
         },
-      );
+      });
 
       return ApiResponse.ok<Module>(
         HttpStatus.OK,
@@ -352,7 +347,9 @@ export class ModulesService {
   /**
    * Obtener módulo por indicador (interno - no retorna ApiResponse)
    */
-  private async findByIndicatorInternal(indicator: string): Promise<Module | null> {
+  private async findByIndicatorInternal(
+    indicator: string,
+  ): Promise<Module | null> {
     return this.modulesRepository.findByIndicator(indicator);
   }
 
@@ -445,7 +442,10 @@ export class ModulesService {
    * - Emite ModuleUpdatedEvent
    * - Invalida caché
    */
-  async update(id: string, updateModuleDto: UpdateModuleDto): Promise<ApiResponse<Module>> {
+  async update(
+    id: string,
+    updateModuleDto: UpdateModuleDto,
+  ): Promise<ApiResponse<Module>> {
     const requestId = this.asyncContextService.getRequestId();
     try {
       this.logger.log(`Actualizando módulo: ${id}`, requestId);
@@ -463,7 +463,11 @@ export class ModulesService {
       const existing = existingResponse.data;
 
       // Validar que no se intente cambiar indicador de módulo del sistema
-      if (existing.isSystem && updateModuleDto.indicator && updateModuleDto.indicator !== existing.indicator) {
+      if (
+        existing.isSystem &&
+        updateModuleDto.indicator &&
+        updateModuleDto.indicator !== existing.indicator
+      ) {
         const message = `No se puede cambiar el indicador de un módulo del sistema`;
         this.logger.warn(message);
 
@@ -491,8 +495,11 @@ export class ModulesService {
       // Regenerar permissions si las acciones cambian
       let permissions = existing.permissions;
       if (updateModuleDto.actions) {
-        const newActions = updateModuleDto.actions.map((a) => a.toLowerCase().trim());
-        const newIndicator = updateModuleDto.indicator?.toLowerCase().trim() || existing.indicator;
+        const newActions = updateModuleDto.actions.map((a) =>
+          a.toLowerCase().trim(),
+        );
+        const newIndicator =
+          updateModuleDto.indicator?.toLowerCase().trim() || existing.indicator;
         const newName = updateModuleDto.name || existing.name;
 
         permissions = this.generatePermissionsWithMerge(
@@ -541,35 +548,33 @@ export class ModulesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar actualización exitosa con cambios
-      this.auditService.logAllow(
-        'MODULE_UPDATED',
-        'module',
-        updated._id!,
-        {
-          module: 'modules',
-          severity: 'HIGH',
-          tags: ['module', 'update', 'security'],
-          changes: {
-            before: {
-              indicator: existing.indicator,
-              name: existing.name,
-              actions: existing.actions,
-              permissions: existing.permissions.length,
-              status: existing.status,
-            },
-            after: {
-              indicator: updated.indicator,
-              name: updated.name,
-              actions: updated.actions,
-              permissions: updated.permissions.length,
-              status: updated.status,
-            },
+      this.auditService.logAllow('MODULE_UPDATED', 'module', updated._id!, {
+        module: 'modules',
+        severity: 'HIGH',
+        tags: ['module', 'update', 'security'],
+        changes: {
+          before: {
+            indicator: existing.indicator,
+            name: existing.name,
+            actions: existing.actions,
+            permissions: existing.permissions.length,
+            status: existing.status,
+          },
+          after: {
+            indicator: updated.indicator,
+            name: updated.name,
+            actions: updated.actions,
+            permissions: updated.permissions.length,
+            status: updated.status,
           },
         },
-      );
+      });
 
       // Emitir evento
-      this.eventEmitter.emit('modules.module_updated', new ModuleUpdatedEvent(updated, existing, requestId));
+      this.eventEmitter.emit(
+        'modules.module_updated',
+        new ModuleUpdatedEvent(updated, existing, requestId),
+      );
 
       return ApiResponse.ok<Module>(
         HttpStatus.OK,
@@ -607,7 +612,10 @@ export class ModulesService {
    * Deshabilitar un módulo (soft-delete)
    * Emite ModuleDisabledEvent
    */
-  async disable(id: string, correlationId?: string): Promise<ApiResponse<Module>> {
+  async disable(
+    id: string,
+    correlationId?: string,
+  ): Promise<ApiResponse<Module>> {
     const requestId = correlationId || `disable-${id}`;
     try {
       this.logger.log(`Deshabilitando módulo: ${id}`, requestId);
@@ -627,7 +635,9 @@ export class ModulesService {
       // No permitir deshabilitar módulos del sistema
       if (existing.isSystem) {
         const message = `No se puede deshabilitar un módulo del sistema`;
-        this.logger.warn(`Intento de deshabilitar módulo del sistema: ${existing.indicator}`);
+        this.logger.warn(
+          `Intento de deshabilitar módulo del sistema: ${existing.indicator}`,
+        );
 
         // Fire-and-forget: Auditar intento fallido
         this.auditService.logError(
@@ -682,26 +692,21 @@ export class ModulesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar deshabilitación exitosa
-      this.auditService.logAllow(
-        'MODULE_DISABLED',
-        'module',
-        updated._id!,
-        {
-          module: 'modules',
-          severity: 'HIGH',
-          tags: ['module', 'disable', 'soft-delete'],
-          changes: {
-            before: {
-              indicator: existing.indicator,
-              status: existing.status,
-            },
-            after: {
-              indicator: updated.indicator,
-              status: updated.status,
-            },
+      this.auditService.logAllow('MODULE_DISABLED', 'module', updated._id!, {
+        module: 'modules',
+        severity: 'HIGH',
+        tags: ['module', 'disable', 'soft-delete'],
+        changes: {
+          before: {
+            indicator: existing.indicator,
+            status: existing.status,
+          },
+          after: {
+            indicator: updated.indicator,
+            status: updated.status,
           },
         },
-      );
+      });
 
       // Emitir evento
       this.eventEmitter.emit(
@@ -747,7 +752,10 @@ export class ModulesService {
    * - No es módulo del sistema (isSystem = false)
    * - Ya está deshabilitado (status = disabled)
    */
-  async hardDelete(id: string, correlationId?: string): Promise<ApiResponse<void>> {
+  async hardDelete(
+    id: string,
+    correlationId?: string,
+  ): Promise<ApiResponse<void>> {
     const requestId = correlationId || `delete-${id}`;
     try {
       this.logger.log(`Eliminando módulo (hard-delete): ${id}`, requestId);
@@ -778,7 +786,13 @@ export class ModulesService {
           {
             module: 'modules',
             severity: 'CRITICAL',
-            tags: ['module', 'delete', 'system-module', 'forbidden', 'destructive'],
+            tags: [
+              'module',
+              'delete',
+              'system-module',
+              'forbidden',
+              'destructive',
+            ],
           },
         );
 
@@ -804,7 +818,13 @@ export class ModulesService {
           {
             module: 'modules',
             severity: 'CRITICAL',
-            tags: ['module', 'delete', 'not-disabled', 'validation-error', 'destructive'],
+            tags: [
+              'module',
+              'delete',
+              'not-disabled',
+              'validation-error',
+              'destructive',
+            ],
           },
         );
 
@@ -848,30 +868,25 @@ export class ModulesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar eliminación exitosa (hard-delete)
-      this.auditService.logAllow(
-        'MODULE_DELETED',
-        'module',
-        id,
-        {
-          module: 'modules',
-          severity: 'CRITICAL',
-          tags: ['module', 'delete', 'hard-delete', 'destructive'],
-          changes: {
-            before: {
-              id: existing._id!,
-              indicator: existing.indicator,
-              name: existing.name,
-              status: existing.status,
-            },
-            after: {
-              id: 'deleted',
-              indicator: 'deleted',
-              name: 'deleted',
-              status: 'deleted',
-            },
+      this.auditService.logAllow('MODULE_DELETED', 'module', id, {
+        module: 'modules',
+        severity: 'CRITICAL',
+        tags: ['module', 'delete', 'hard-delete', 'destructive'],
+        changes: {
+          before: {
+            id: existing._id!,
+            indicator: existing.indicator,
+            name: existing.name,
+            status: existing.status,
+          },
+          after: {
+            id: 'deleted',
+            indicator: 'deleted',
+            name: 'deleted',
+            status: 'deleted',
           },
         },
-      );
+      });
 
       return ApiResponse.ok<void>(
         HttpStatus.NO_CONTENT,
@@ -914,22 +929,17 @@ export class ModulesService {
       const modules = await this.modulesRepository.findSystemModules();
 
       // Fire-and-forget: Auditar lectura de módulos del sistema
-      this.auditService.logAllow(
-        'MODULE_READ_SYSTEM',
-        'modules',
-        'system',
-        {
-          module: 'modules',
-          severity: 'LOW',
-          tags: ['modules', 'read', 'system'],
-          changes: {
-            after: {
-              count: modules.length,
-              indicators: modules.map((m) => m.indicator),
-            },
+      this.auditService.logAllow('MODULE_READ_SYSTEM', 'modules', 'system', {
+        module: 'modules',
+        severity: 'LOW',
+        tags: ['modules', 'read', 'system'],
+        changes: {
+          after: {
+            count: modules.length,
+            indicators: modules.map((m) => m.indicator),
           },
         },
-      );
+      });
 
       return ApiResponse.ok<Module[]>(
         HttpStatus.OK,
@@ -939,7 +949,10 @@ export class ModulesService {
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error al obtener módulos del sistema: ${errorMsg}`, error);
+      this.logger.error(
+        `Error al obtener módulos del sistema: ${errorMsg}`,
+        error,
+      );
 
       // Fire-and-forget: Auditar error
       this.auditService.logError(
@@ -967,13 +980,20 @@ export class ModulesService {
    * Generar array de permisos a partir de acciones
    * Se ejecuta al crear un módulo
    */
-  private generatePermissions(moduleIndicator: string, actions: string[], moduleName: string): Permission[] {
+  private generatePermissions(
+    moduleIndicator: string,
+    actions: string[],
+    moduleName: string,
+  ): Permission[] {
     const permissions: Permission[] = [];
     const seenIds = new Set<string>();
 
     for (const action of actions) {
       const normalized = action.toLowerCase().trim();
-      const permissionId = this.generatePermissionId(moduleIndicator, normalized);
+      const permissionId = this.generatePermissionId(
+        moduleIndicator,
+        normalized,
+      );
 
       // Evitar duplicados
       if (seenIds.has(permissionId)) {
@@ -1017,7 +1037,10 @@ export class ModulesService {
     for (const action of newActions) {
       const normalized = action.toLowerCase().trim();
       const indicator = `${moduleIndicator}.${normalized}`;
-      const permissionId = this.generatePermissionId(moduleIndicator, normalized);
+      const permissionId = this.generatePermissionId(
+        moduleIndicator,
+        normalized,
+      );
 
       // Evitar duplicados
       if (seenIds.has(permissionId)) {
@@ -1033,7 +1056,9 @@ export class ModulesService {
         id: permissionId,
         name: existing?.name || this.generatePermissionName(normalized),
         indicator: indicator,
-        description: existing?.description || `Acción: ${normalized} en módulo ${moduleName}`,
+        description:
+          existing?.description ||
+          `Acción: ${normalized} en módulo ${moduleName}`,
         icon: existing?.icon,
         enabled: existing?.enabled ?? true,
         requiresSuperAdmin: existing?.requiresSuperAdmin ?? false,
@@ -1048,7 +1073,10 @@ export class ModulesService {
    * Formato: primeras 2-3 letras del módulo + primeras 1-2 letras de la acción
    * Ej: "gateways" + "view" = "gw_v"
    */
-  private generatePermissionId(moduleIndicator: string, action: string): string {
+  private generatePermissionId(
+    moduleIndicator: string,
+    action: string,
+  ): string {
     const modulePart = moduleIndicator.substring(0, 2).toLowerCase();
     const actionPart = action.substring(0, 1).toLowerCase();
     return `${modulePart}_${actionPart}`;
@@ -1118,7 +1146,8 @@ export class ModulesService {
       }
 
       // Obtener todos los módulos con el mismo parent
-      const allModules = await this.modulesRepository.findAllIncludingDisabled();
+      const allModules =
+        await this.modulesRepository.findAllIncludingDisabled();
       const siblingModules = allModules.filter(
         (m) => (m.parent || '').toLowerCase().trim() === normalizedParent,
       );
@@ -1163,7 +1192,9 @@ export class ModulesService {
       });
 
       const updatedModules = await Promise.all(updatePromises);
-      const updatedModulesNonNull = updatedModules.filter((m): m is Module => m !== null);
+      const updatedModulesNonNull = updatedModules.filter(
+        (m): m is Module => m !== null,
+      );
 
       this.logger.log(
         `Módulos reordenados exitosamente: ${updatedModulesNonNull.map((m) => m.indicator).join(', ')}`,
@@ -1176,7 +1207,11 @@ export class ModulesService {
       // Fire-and-forget: Emitir evento de reordenamiento
       this.eventEmitter.emit(
         'modules.modules_reordered',
-        new ModulesReorderedEvent(updatedModulesNonNull, normalizedParent || undefined, requestId),
+        new ModulesReorderedEvent(
+          updatedModulesNonNull,
+          normalizedParent || undefined,
+          requestId,
+        ),
       );
 
       // Fire-and-forget: Auditar
@@ -1205,7 +1240,8 @@ export class ModulesService {
         { requestId },
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error desconocido';
+      const message =
+        error instanceof Error ? error.message : 'Error desconocido';
       this.logger.error(
         `Error al reordenar módulos: ${message}`,
         error instanceof Error ? error.stack : '',
@@ -1243,7 +1279,10 @@ export class ModulesService {
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);
     this.eventEmitter.emit(
       'modules.navigation_cache_invalidated',
-      new NavigationCacheInvalidatedEvent('Modules reordered', event.correlationId),
+      new NavigationCacheInvalidatedEvent(
+        'Modules reordered',
+        event.correlationId,
+      ),
     );
   }
 
@@ -1252,10 +1291,16 @@ export class ModulesService {
    */
   @OnEvent('modules.module_created')
   async onModuleCreated(event: ModuleCreatedEvent): Promise<void> {
-    this.logger.debug(`Invalidando caché de navegación: módulo creado (${event.module.indicator})`);
+    this.logger.debug(
+      `Invalidando caché de navegación: módulo creado (${event.module.indicator})`,
+    );
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);
-    this.eventEmitter.emit('modules.navigation_cache_invalidated',
-      new NavigationCacheInvalidatedEvent('Module created', event.correlationId)
+    this.eventEmitter.emit(
+      'modules.navigation_cache_invalidated',
+      new NavigationCacheInvalidatedEvent(
+        'Module created',
+        event.correlationId,
+      ),
     );
   }
 
@@ -1264,10 +1309,16 @@ export class ModulesService {
    */
   @OnEvent('modules.module_updated')
   async onModuleUpdated(event: ModuleUpdatedEvent): Promise<void> {
-    this.logger.debug(`Invalidando caché de navegación: módulo actualizado (${event.module.indicator})`);
+    this.logger.debug(
+      `Invalidando caché de navegación: módulo actualizado (${event.module.indicator})`,
+    );
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);
-    this.eventEmitter.emit('modules.navigation_cache_invalidated',
-      new NavigationCacheInvalidatedEvent('Module updated', event.correlationId)
+    this.eventEmitter.emit(
+      'modules.navigation_cache_invalidated',
+      new NavigationCacheInvalidatedEvent(
+        'Module updated',
+        event.correlationId,
+      ),
     );
   }
 
@@ -1276,11 +1327,16 @@ export class ModulesService {
    */
   @OnEvent('modules.module_disabled')
   async onModuleDisabled(event: ModuleDisabledEvent): Promise<void> {
-    this.logger.debug(`Invalidando caché de navegación: módulo deshabilitado (${event.moduleId})`);
+    this.logger.debug(
+      `Invalidando caché de navegación: módulo deshabilitado (${event.moduleId})`,
+    );
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);
-    this.eventEmitter.emit('modules.navigation_cache_invalidated',
-      new NavigationCacheInvalidatedEvent('Module disabled', event.correlationId)
+    this.eventEmitter.emit(
+      'modules.navigation_cache_invalidated',
+      new NavigationCacheInvalidatedEvent(
+        'Module disabled',
+        event.correlationId,
+      ),
     );
   }
 }
-

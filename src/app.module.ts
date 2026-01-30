@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthzModule } from './modules/authz/authz.module';
+import { BootstrapModule } from './common/bootstrap';
 import { ModulesModule } from './modules/modules';
 import { RolesModule } from './modules/roles';
 import { SharedContextModule } from './shared/shared-context.module';
@@ -25,8 +26,6 @@ import { AppController } from './app.controller';
 // Services
 import { AsyncContextService } from './common/context/async-context.service';
 import { InMemoryAntiReplayCacheService } from './common/cache/in-memory-anti-replay.service';
-import { InMemoryCacheService } from './common/cache/in-memory-cache.service';
-import { BootstrapModule } from './common/bootstrap';
 
 // Middlewares
 import {
@@ -43,6 +42,7 @@ import { configValidationSchema } from './config/config.schema';
 
 // Constants
 import { INJECTION_TOKENS } from './common/constants/injection-tokens';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -56,6 +56,7 @@ import { INJECTION_TOKENS } from './common/constants/injection-tokens';
     AuditModule,
     AuthModule,
     AuthzModule,
+    CommonModule,
     // KeysModule,
     ModulesModule,
     RolesModule,
@@ -100,19 +101,11 @@ import { INJECTION_TOKENS } from './common/constants/injection-tokens';
     // Services
     AsyncContextService,
     {
-      provide: INJECTION_TOKENS.CACHE_SERVICE,
-      useClass: InMemoryCacheService,
-    },
-    {
       provide: INJECTION_TOKENS.ANTI_REPLAY_CACHE,
       useClass: InMemoryAntiReplayCacheService,
     },
   ],
-  exports: [
-    AsyncContextService,
-    INJECTION_TOKENS.CACHE_SERVICE,
-    INJECTION_TOKENS.ANTI_REPLAY_CACHE,
-  ],
+  exports: [AsyncContextService, INJECTION_TOKENS.ANTI_REPLAY_CACHE],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
@@ -123,7 +116,7 @@ export class AppModule {
     consumer.apply(RequestIdMiddleware).forRoutes('*');
 
     // Luego aplicar AuthMiddleware a TODAS las rutas
-    consumer.apply(AuthMiddleware).forRoutes('*');
+    consumer.apply(AuthMiddleware).exclude('/auth/*path').forRoutes('*');
   }
   static port: number | string;
 

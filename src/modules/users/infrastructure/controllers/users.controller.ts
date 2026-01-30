@@ -16,7 +16,6 @@ import {
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse as ApiResponseDoc,
   ApiBody,
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -52,12 +51,12 @@ import { MODULES, ACTIONS } from 'src/modules/authz/authz.constants';
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   /**
    * Crear nuevo usuario
    * POST /users
-   * 
+   *
    * El userId se extrae automáticamente del JWT
    * El usuario se crea con UN SOLO rol (no array)
    * La contraseña se proporciona en texto plano
@@ -67,7 +66,8 @@ export class UsersController {
   @Permissions(`${MODULES.USERS}.${ACTIONS.CREATE}`)
   @ApiOperation({
     summary: 'Crear nuevo usuario',
-    description: 'Crea un nuevo usuario con un único rol. El userId se genera automáticamente y el creador se extrae del JWT.',
+    description:
+      'Crea un nuevo usuario con un único rol. El userId se genera automáticamente y el creador se extrae del JWT.',
   })
   @ApiCreatedResponse({
     description: 'Usuario creado exitosamente',
@@ -184,9 +184,7 @@ export class UsersController {
   @ApiUnauthorizedResponse({
     description: 'No autorizado',
   })
-  async listUsers(
-    @Res() res: Response,
-  ): Promise<Response> {
+  async listUsers(@Res() res: Response): Promise<Response> {
     const response = await this.usersService.list();
     return res.status(response.statusCode).json(response);
   }
@@ -314,7 +312,8 @@ export class UsersController {
   @Permissions(`${MODULES.USERS}.${ACTIONS.UPDATE}`)
   @ApiOperation({
     summary: 'Actualizar datos del usuario',
-    description: 'Actualiza los datos del usuario (email, fullname, phone). Todos los campos son opcionales.',
+    description:
+      'Actualiza los datos del usuario (email, fullname, phone). Todos los campos son opcionales.',
   })
   @ApiBody({
     type: UpdateUserDto,
@@ -398,4 +397,3 @@ export class UsersController {
     return res.status(response.statusCode).json(response);
   }
 }
-

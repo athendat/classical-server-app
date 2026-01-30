@@ -5,7 +5,6 @@ import { PermissionsGuard } from './guards/permissions.guard';
 
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuthzService } from './authz.service';
-import { InMemoryCacheService } from 'src/common/cache/in-memory-cache.service';
 
 import { Permission, PermissionSchema } from './schemas/permission.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
@@ -15,6 +14,7 @@ import { User, UserSchema } from '../users/infrastructure/schemas/user.schema';
 import { AuthzAdapter } from './infrastructure/adapters/authz.adapter';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { AuditModule } from '../audit/audit.module';
+import { CachingModule } from 'src/common/cache/cache.module';
 
 @Module({
   imports: [
@@ -25,13 +25,10 @@ import { AuditModule } from '../audit/audit.module';
       { name: User.name, schema: UserSchema },
     ]),
     forwardRef(() => AuditModule),
+    CachingModule,
   ],
   providers: [
     AsyncContextService,
-    {
-      provide: INJECTION_TOKENS.CACHE_SERVICE,
-      useClass: InMemoryCacheService,
-    },
     AuthzAdapter,
     {
       provide: INJECTION_TOKENS.AUTHZ_SERVICE,
@@ -42,7 +39,6 @@ import { AuditModule } from '../audit/audit.module';
   ],
   exports: [
     INJECTION_TOKENS.AUTHZ_SERVICE,
-    INJECTION_TOKENS.CACHE_SERVICE,
     AuthzService,
     PermissionsGuard,
     MongooseModule,

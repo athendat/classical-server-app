@@ -75,7 +75,7 @@ async function bootstrap() {
   app.enableCors();
 
   // Global configuration
-  app.setGlobalPrefix('api_055', {
+  app.setGlobalPrefix('api_053', {
     exclude: [
       { path: '', method: RequestMethod.GET },
       { path: 'health', method: RequestMethod.GET },
@@ -131,7 +131,7 @@ async function bootstrap() {
     .addApiKey(
       {
         type: 'apiKey', // this should be apiKey
-        name: 'apiKey', // this is the name of the key you expect in header
+        name: 'x-api-key', // this is the name of the key you expect in header
         in: 'header',
       },
       'access-key', // this is the name to show and used in swagger

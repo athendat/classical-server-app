@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 
 import { AsyncContextService } from 'src/common/context/async-context.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 import { Service, ServiceDocument } from '../../schemas/service.schema';
 import { Role, RoleDocument } from '../../schemas/role.schema';
@@ -17,10 +18,9 @@ import {
 import { AuthzOperationEvent } from '../../events/authz-operation.event';
 
 import { IAuthzService, AuthzError } from '../../domain/ports/authz.port';
-import type { ICacheService } from 'src/common/interfaces/cache.interface';
+import type { ICacheService } from 'src/common/cache/cache.interface';
 import { Result } from 'src/common/types/result.type';
 
-import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { Actor } from 'src/common/interfaces';
 
 /**
@@ -39,8 +39,7 @@ export class AuthzAdapter implements IAuthzService {
     private readonly config: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly asyncContext: AsyncContextService,
-    @Inject(INJECTION_TOKENS.CACHE_SERVICE)
-    private readonly cacheService: ICacheService,
+    private readonly cacheService: CacheService,
   ) {
     this.cacheTTL = config.get<number>('cache.ttlMs') ?? 60000;
   }
@@ -58,7 +57,7 @@ export class AuthzAdapter implements IAuthzService {
       const cacheKey = this.getCacheKey(actor);
 
       // Try cache first
-      const cached = await cacheService.get<Set<string>>(cacheKey);
+      const cached = await cacheService.getByKey<Set<string>>(cacheKey);
       if (cached) {
         this.logger.debug(`Permissions cache hit for ${cacheKey}`);
         const actorId = this.getActorId(actor) ?? '<unknown>';

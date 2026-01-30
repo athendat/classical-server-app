@@ -9,7 +9,9 @@ export interface CreateUserPayload {
   userId?: string;
   email?: string;
   fullname?: string;
-  roleId: string;
+  roleKey: string;
+  phone: string;
+  idNumber?: string;
   password: string;
   metadata?: Record<string, any>;
 }
@@ -34,6 +36,7 @@ export interface UserDTO {
   idNumber: string;
   userId?: string;
   phone: string;
+  phoneConfirmed?: boolean;
   email?: string;
   emailVerified?: boolean;
   fullname: string;

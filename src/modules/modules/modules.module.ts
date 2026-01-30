@@ -3,7 +3,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AuthzModule } from '../authz/authz.module';
 import { AuditModule } from '../audit/audit.module';
-import { SharedCacheModule } from 'src/shared/shared-cache.module';
 
 import { ModulesService } from './application/modules.service';
 import { NavigationService } from './application/navigation.service';
@@ -15,6 +14,7 @@ import { MongoDBModulesRepository } from './infrastructure/adapters';
 
 import { ModuleSchemaFactory } from './infrastructure/schemas/module.schema';
 import { AsyncContextService } from '../../common/context/async-context.service';
+import { CachingModule } from 'src/common/cache/cache.module';
 
 /**
  * ModulesModule - Módulo NestJS para gestión de módulos
@@ -24,7 +24,7 @@ import { AsyncContextService } from '../../common/context/async-context.service'
   imports: [
     AuthzModule,
     AuditModule,
-    SharedCacheModule,
+    CachingModule,
     MongooseModule.forFeature([
       {
         name: 'Module',

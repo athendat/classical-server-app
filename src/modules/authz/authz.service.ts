@@ -13,6 +13,7 @@ import {
 import { normalizePermissionKey } from './authz.constants';
 
 import { Actor } from 'src/common/interfaces';
+import { CacheService } from 'src/common/cache/cache.service';
 
 /**
  * Cache entry para permisos de un actor.
@@ -42,14 +43,8 @@ export class AuthzService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Service.name) private serviceModel: Model<ServiceDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
-  ) {
-    // TTL: 60 segundos (configurable vía env)
-    this.cacheTTL = parseInt(process.env.AUTHZ_CACHE_TTL_MS ?? '60000', 10);
-    this.maxCacheSize = parseInt(
-      process.env.AUTHZ_MAX_CACHE_SIZE ?? '1000',
-      10,
-    );
-  }
+    private readonly cacheService: CacheService,
+  ) {}
 
   /**
    * Resuelve permisos de un actor (con caché).
@@ -62,15 +57,19 @@ export class AuthzService {
     exactPermissions: Set<string>;
   }> {
     const cacheKey = `${actor.actorType}:${actor.actorId}`;
-    const cached = this.cache.get(cacheKey);
+    const cached =
+      await this.cacheService.getByKey<PermissionsCacheEntry>(cacheKey);
 
-    if (cached && Date.now() - cached.cachedAt < this.cacheTTL) {
+    if (cached) {
       return cached.permissions;
     }
 
     try {
       const permissions = await this.fetchPermissionsFromDB(actor);
-      this.setCacheEntry(cacheKey, permissions);
+      await this.cacheService.set(cacheKey, {
+        permissions,
+        cachedAt: Date.now(),
+      });
       return permissions;
     } catch (error) {
       this.logger.error(
@@ -207,25 +206,5 @@ export class AuthzService {
     }
 
     return false;
-  }
-
-  private setCacheEntry(
-    key: string,
-    permissions: {
-      hasGlobalWildcard: boolean;
-      moduleWildcards: Set<string>;
-      exactPermissions: Set<string>;
-    },
-  ): void {
-    // Evitar crecimiento ilimitado
-    if (this.cache.size >= this.maxCacheSize) {
-      const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
-    }
-
-    this.cache.set(key, {
-      permissions,
-      cachedAt: Date.now(),
-    });
   }
 }

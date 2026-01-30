@@ -67,7 +67,7 @@ export class UsersService implements IUsersService {
     const userId = this.asyncContextService.getActorId()!;
     try {
       this.logger.log(
-        `[${requestId}] Creating user with roleId: ${dto.roleId}`,
+        `[${requestId}] Creating user with roleKey: ${dto.roleKey}`,
       );
 
       // Hash de la contraseña
@@ -753,11 +753,135 @@ export class UsersService implements IUsersService {
       roleKey: user.roleKey,
       role: user.role,
       phone: user.phone,
+      phoneConfirmed: user.phoneConfirmed,
       status: user.status,
       isSystemAdmin: user.isSystemAdmin,
       userId: user.userId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+  }
+
+  /**
+   * Busca un usuario por número de teléfono
+   */
+  async findByPhone(phone: string): Promise<ApiResponse<UserDTO | null>> {
+    const requestId = this.asyncContextService.getRequestId();
+    const userId = this.asyncContextService.getActorId()!;
+    try {
+      this.logger.debug(`[${requestId}] Fetching user by phone: ${phone}`);
+      const user = await this.usersRepository.findByPhone(phone);
+
+      if (!user) {
+        this.logger.debug(`[${requestId}] User not found by phone: ${phone}`);
+        this.auditService.logDeny(
+          'USER_FIND_BY_PHONE_NOT_FOUND',
+          'user',
+          userId,
+          'User not found by phone',
+          {
+            module: 'users',
+            severity: 'LOW',
+            tags: ['user', 'read', 'phone_lookup'],
+          },
+        );
+        return ApiResponse.ok<UserDTO | null>(HttpStatus.OK, null, undefined, {
+          requestId,
+        });
+      }
+
+      const dto = this.mapToDTO(user);
+      this.auditService.logAllow('USER_FIND_BY_PHONE', 'user', userId, {
+        module: 'users',
+        severity: 'LOW',
+        tags: ['user', 'read', 'phone_lookup'],
+      });
+      return ApiResponse.ok<UserDTO>(HttpStatus.OK, dto, undefined, {
+        requestId,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[${requestId}] Failed to find user by phone: ${errorMsg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      this.auditService.logError(
+        'USER_FIND_BY_PHONE_FAILED',
+        'user',
+        phone,
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          module: 'users',
+          severity: 'MEDIUM',
+          tags: ['user', 'read', 'error'],
+        },
+      );
+
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        errorMsg,
+        'Error al obtener usuario por phone',
+        { requestId },
+      );
+    }
+  }
+
+  /**
+   * Verifica si un teléfono ya existe en la base de datos
+   */
+  async existsByPhone(phone: string): Promise<boolean> {
+    try {
+      const count = await this.userModel.countDocuments({ phone }).exec();
+      return count > 0;
+    } catch (error) {
+      this.logger.error(`Error checking if phone exists ${phone}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Marca el teléfono de un usuario como confirmado
+   */
+  async markPhoneConfirmed(userId: string): Promise<void> {
+    try {
+      await this.userModel
+        .findOneAndUpdate(
+          { id: userId },
+          { phoneConfirmed: true },
+          { new: true },
+        )
+        .exec();
+
+      this.logger.debug(`Phone confirmed for user ${userId}`);
+    } catch (error) {
+      this.logger.error(
+        `Error marking phone as confirmed for user ${userId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Actualiza la contraseña de un usuario por teléfono
+   */
+  async updatePasswordByPhone(
+    phone: string,
+    passwordHash: string,
+  ): Promise<void> {
+    try {
+      await this.userModel
+        .findOneAndUpdate({ phone }, { passwordHash }, { new: true })
+        .exec();
+
+      this.logger.debug(`Password updated for user with phone ${phone}`);
+    } catch (error) {
+      this.logger.error(
+        `Error updating password for user with phone ${phone}:`,
+        error,
+      );
+      throw error;
+    }
   }
 }

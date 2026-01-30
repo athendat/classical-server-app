@@ -67,10 +67,22 @@ export interface JwksKeyInvalidatedEvent {
   timestamp: number;
 }
 
+/**
+ * Evento emitido cuando se registra un usuario.
+ */
+export class UserRegisteredEvent {
+  constructor(
+    public readonly username: string,
+    public readonly phone: string,
+    public readonly code: string,
+  ) {}
+}
+
 export type AuthEvent =
   | JwtGeneratedEvent
   | JwtValidatedEvent
   | JwtValidationFailedEvent
   | ReplayAttackDetectedEvent
   | JwksKeyRotatedEvent
-  | JwksKeyInvalidatedEvent;
+  | JwksKeyInvalidatedEvent
+  | UserRegisteredEvent;

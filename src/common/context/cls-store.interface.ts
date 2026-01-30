@@ -1,5 +1,5 @@
 import { ClsStore } from 'nestjs-cls';
-import { ICacheService } from '../interfaces/cache.interface';
+import { ICacheService } from '../cache/cache.interface';
 import { Actor } from '../interfaces';
 
 /**

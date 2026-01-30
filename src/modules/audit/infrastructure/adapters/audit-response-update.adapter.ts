@@ -2,15 +2,18 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { AuditEvent, AuditEventDocument } from '../../schemas/audit-event.schema';
+import {
+  AuditEvent,
+  AuditEventDocument,
+} from '../../schemas/audit-event.schema';
 
 /**
  * Adapter para actualizar auditoría con respuesta capturada
- * 
+ *
  * ⭐ PROBLEMA RESUELTO:
  * Cuando AuditService.logAllow/logDeny/logError se llama DENTRO del controlador,
  * la response aún no ha sido capturada por AuditInterceptor.
- * 
+ *
  * SOLUCIÓN:
  * - AuditInterceptor emite evento 'audit.response-captured' con response y statusCode
  * - Este adapter escucha el evento y actualiza la auditoría existente
@@ -45,22 +48,28 @@ export class AuditResponseUpdateAdapter implements OnModuleInit {
     timestamp?: string;
   }) {
     try {
-      console.log(`[AUDIT-RESPONSE-UPDATE] requestId=${data.requestId} statusCode=${data.statusCode}`);
-      
+      console.log(
+        `[AUDIT-RESPONSE-UPDATE] requestId=${data.requestId} statusCode=${data.statusCode}`,
+      );
+
       // ⭐ Sanitizar response antes de guardar en BD
       // Evita problemas con referencias circulares en Error objects
       const sanitizedResponse = this.sanitizeForMongoDB(data.response);
 
       // ⭐ Agregar pequeño delay para asegurar que el documento ya fue guardado
       // Los eventos son síncronos pero la persistencia en background es asincrónica
-      console.log(`[AUDIT-RESPONSE-UPDATE] Waiting 50ms for document to be saved...`);
+      console.log(
+        `[AUDIT-RESPONSE-UPDATE] Waiting 50ms for document to be saved...`,
+      );
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // ⭐ Buscar auditorías para este requestId creadas en los últimos 5 segundos
       // Esto evita actualizar registros antiguos si se reutilizan requestIds
       const fiveSecondsAgo = new Date(Date.now() - 5000);
-      console.log(`[AUDIT-RESPONSE-UPDATE] Searching for records with requestId=${data.requestId} created after ${fiveSecondsAgo.toISOString()}`);
-      
+      console.log(
+        `[AUDIT-RESPONSE-UPDATE] Searching for records with requestId=${data.requestId} created after ${fiveSecondsAgo.toISOString()}`,
+      );
+
       const auditRecords = await this.auditEventModel
         .find({
           requestId: data.requestId,
@@ -69,20 +78,24 @@ export class AuditResponseUpdateAdapter implements OnModuleInit {
         .sort({ createdAt: -1 })
         .limit(5); // Limitar a últimas 5 para evitar actualizar muchas
 
-      console.log(`[AUDIT-RESPONSE-UPDATE] Found ${auditRecords.length} audit record(s) for requestId=${data.requestId}`);
+      console.log(
+        `[AUDIT-RESPONSE-UPDATE] Found ${auditRecords.length} audit record(s) for requestId=${data.requestId}`,
+      );
 
       // Actualizar TODOS los registros sin statusCode de esta request
       // (en caso de múltiples operaciones en la misma request)
       let updatedCount = 0;
       for (const auditRecord of auditRecords) {
-        console.log(`[AUDIT-RESPONSE-UPDATE] Processing record id=${auditRecord._id}, action=${auditRecord.action}, hasStatusCode=${!!auditRecord.statusCode}`);
-        
+        console.log(
+          `[AUDIT-RESPONSE-UPDATE] Processing record id=${auditRecord._id}, action=${auditRecord.action}, hasStatusCode=${!!auditRecord.statusCode}`,
+        );
+
         // Solo actualizar si aún no tiene statusCode
         if (!auditRecord.statusCode) {
           auditRecord.statusCode = data.statusCode;
           auditRecord.response = sanitizedResponse;
           auditRecord.latency = data.responseTime;
-          
+
           // Rellenar datos HTTP si no están presentes
           if (!auditRecord.method && data.method) {
             auditRecord.method = data.method;
@@ -93,9 +106,11 @@ export class AuditResponseUpdateAdapter implements OnModuleInit {
           if (!auditRecord.headers && data.headers) {
             auditRecord.headers = data.headers;
           }
-          
+
           await auditRecord.save();
-          console.log(`[AUDIT-RESPONSE-UPDATE] Updated record id=${auditRecord._id}`);
+          console.log(
+            `[AUDIT-RESPONSE-UPDATE] Updated record id=${auditRecord._id}`,
+          );
           updatedCount++;
         }
       }
@@ -104,12 +119,16 @@ export class AuditResponseUpdateAdapter implements OnModuleInit {
         this.logger.debug(
           `[${data.requestId}] Updated ${updatedCount} audit event(s) with response: statusCode=${data.statusCode}, latency=${data.responseTime}ms`,
         );
-        console.log(`[AUDIT-RESPONSE-UPDATE] SUCCESS: Updated ${updatedCount} record(s)`);
+        console.log(
+          `[AUDIT-RESPONSE-UPDATE] SUCCESS: Updated ${updatedCount} record(s)`,
+        );
       } else {
         this.logger.warn(
           `[${data.requestId}] No audit event found to update with response (found ${auditRecords.length} records but all had statusCode)`,
         );
-        console.log(`[AUDIT-RESPONSE-UPDATE] WARNING: Found records but none needed updating`);
+        console.log(
+          `[AUDIT-RESPONSE-UPDATE] WARNING: Found records but none needed updating`,
+        );
       }
     } catch (error) {
       console.log(`[AUDIT-RESPONSE-UPDATE-ERROR] ${error.message}`);

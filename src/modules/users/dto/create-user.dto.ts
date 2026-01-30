@@ -6,13 +6,13 @@ import {
   IsOptional,
   IsEmail,
   IsPhoneNumber,
-  IsUUID,
   Matches,
+  Length,
 } from 'class-validator';
 
 /**
  * CreateUserDto: DTO para creación de nuevos usuarios
- * 
+ *
  * IMPORTANTE:
  * - El userId se extrae automáticamente del JWT (contexto)
  * - El usuario solo puede tener UN ÚNICO rol (no array)
@@ -33,7 +33,7 @@ export class CreateUserDto {
   })
   @IsOptional()
   @IsPhoneNumber('CU', { message: 'Teléfono no válido' })
-  phone?: string;
+  phone: string;
 
   @ApiPropertyOptional({
     description: 'Nombre mostrable del usuario',
@@ -45,26 +45,33 @@ export class CreateUserDto {
   @MaxLength(100, { message: 'fullname no puede exceder 100 caracteres' })
   fullname?: string;
 
-  // @ApiProperty({
-  //   description: 'Rol único asignado al usuario (NOT an array - single role)',
-  //   example: 'user',
-  //   minLength: 1,
-  //   maxLength: 50,
-  // })
-  // @IsString({ message: 'roleKey debe ser una cadena de texto' })
-  // @MinLength(1, { message: 'roleKey debe tener al menos 1 carácter' })
-  // @MaxLength(50, { message: 'roleKey no puede exceder 50 caracteres' })
-  // @Matches(/^[a-zA-Z0-9_-]+$/, {
-  //   message: 'roleKey solo puede contener letras, números, guiones y guiones bajos',
-  // })
-  // roleKey: string;
-  
-  @ApiProperty({
-    description: 'Identificador del interno del rol (UUID v4)',
-    example: 'user',
+  @ApiPropertyOptional({
+    description: 'Número de identificación',
+    example: '12345678',
   })
-  @IsUUID('4', { message: 'roleId debe ser un UUID válido' })
-  roleId: string;
+  @IsOptional()
+  @IsString({
+    message: 'El número de identificación debe ser una cadena de texto',
+  })
+  @Length(11, 11, {
+    message: 'El número de identificación debe tener exactamente 11 caracteres',
+  })
+  idNumber: string;
+
+  @ApiProperty({
+    description: 'Rol único asignado al usuario (NOT an array - single role)',
+    example: 'user',
+    minLength: 1,
+    maxLength: 50,
+  })
+  @IsString({ message: 'roleKey debe ser una cadena de texto' })
+  @MinLength(1, { message: 'roleKey debe tener al menos 1 carácter' })
+  @MaxLength(50, { message: 'roleKey no puede exceder 50 caracteres' })
+  @Matches(/^[a-zA-Z0-9_-]+$/, {
+    message:
+      'roleKey solo puede contener letras, números, guiones y guiones bajos',
+  })
+  roleKey: string;
 
   @ApiProperty({
     description: 'Contraseña del usuario (texto plano, mínimo 8 caracteres)',
