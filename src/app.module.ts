@@ -7,7 +7,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { MongooseModule } from '@nestjs/mongoose';
 
 // Shared Modules
+import { AuditModule } from './modules/audit/audit.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AuthzModule } from './modules/authz/authz.module';
+import { ModulesModule } from './modules/modules';
+import { RolesModule } from './modules/roles';
 import { SharedContextModule } from './shared/shared-context.module';
+import { UsersModule } from './modules/users/users.module';
+import { VaultModule } from './modules/vault/vault.module';
 
 // Controller
 import { AppController } from './app.controller';
@@ -35,7 +42,19 @@ import { INJECTION_TOKENS } from './common/constants/injection-tokens';
 
 @Module({
   imports: [
+    // ⭐ SharedContextModule: Importar PRIMERO para que ClsService esté disponible globalmente
     SharedContextModule,
+
+    // Modules
+    AuditModule,
+    AuthModule,
+    AuthzModule,
+    // KeysModule,
+    ModulesModule,
+    RolesModule,
+    // TerminalsModule,
+    UsersModule,
+    VaultModule,
 
     // Validation Schemas
     ConfigModule.forRoot({
@@ -106,6 +125,6 @@ export class AppModule {
    */
   constructor(private readonly configService: ConfigService) {
     AppModule.port =
-      process.env.PORT ?? configService.get<number>('PORT') ?? '9055';
+      process.env.PORT ?? configService.get<number>('PORT') ?? '9053';
   }
 }

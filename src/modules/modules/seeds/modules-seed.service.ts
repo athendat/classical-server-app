@@ -1,0 +1,112 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { ModulesService } from '../application/modules.service';
+import { Module } from '../domain/module.entity';
+import { SYSTEM_MODULES } from './system-modules';
+
+/**
+ * ModulesSeedService - Servicio automático de seeding de módulos
+ *
+ * Estrategia: Auto-seed inteligente
+ * - Se ejecuta en onModuleInit SIEMPRE (no requiere SEED_ENABLED)
+ * - Verifica si la colección 'modules' está vacía
+ * - Si está vacía → seedea todos los SYSTEM_MODULES
+ * - Si no está vacía → no hace nada (datos preexistentes respetados)
+ */
+@Injectable()
+export class ModulesSeedService implements OnModuleInit {
+  private readonly logger = new Logger(ModulesSeedService.name);
+
+  constructor(
+    @InjectModel(Module.name) private moduleModel: Model<any>,
+    private readonly modulesService: ModulesService,
+  ) {}
+
+  /**
+   * Hook del ciclo de vida de NestJS
+   * Se ejecuta al inicializar el módulo
+   */
+
+  async onModuleInit(): Promise<void> {
+    await this.checkAndSeedModules();
+  }
+
+  private async checkAndSeedModules(): Promise<void> {
+    try {
+      // Verificar si la colección de módulos está vacía
+      const modulesCount = await this.moduleModel.countDocuments().exec();
+
+      if (modulesCount > 0) {
+        this.logger.debug(
+          `Modules collection already has ${modulesCount} documents - skipping auto-seed`,
+        );
+        return;
+      }
+
+      this.logger.log(
+        '🌱 Modules collection is empty - starting auto-seed process...',
+      );
+      await this.seedSystemModules();
+      this.logger.log('✅ Modules auto-seeding completed successfully');
+    } catch (error) {
+      this.logger.error(
+        `Error during modules auto-seed: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      // No lanzar error - permitir que la app inicie aunque falle el seed
+    }
+  }
+
+  /**
+   * Seedear módulos del sistema
+   * Inserta todos los SYSTEM_MODULES sin validación previa
+   */
+  private async seedSystemModules(): Promise<void> {
+    let seedCount = 0;
+
+    for (const module of SYSTEM_MODULES) {
+      try {
+        this.logger.debug(`Seeding module: ${module.name}`);
+
+        // Crear el módulo directamente usando el modelo
+        // Usar la estructura que espera el ModulesService
+        const createData = {
+          name: module.name,
+          parent: module.parent,
+          order: module.order,
+          indicator: module.indicator,
+          description: module.description,
+          icon: module.icon,
+          actions: module.actions,
+          permissions: module.permissions,
+          status: 'active',
+          isSystem: true,
+        };
+
+        await this.moduleModel.updateOne(
+          { indicator: module.indicator },
+          {
+            $set: createData,
+            $setOnInsert: {
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true },
+        );
+
+        seedCount++;
+        this.logger.debug(`   ✓ Seeded module: ${module.name}`);
+      } catch (error) {
+        this.logger.warn(
+          `   ⚠ Error seeding module '${module.name}': ${error instanceof Error ? error.message : String(error)}`,
+        );
+        // Continuar con otros módulos aunque uno falle
+      }
+    }
+
+    this.logger.log(
+      `📊 Modules auto-seed summary: ${seedCount}/${SYSTEM_MODULES.length} modules seeded`,
+    );
+  }
+}

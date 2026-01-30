@@ -5,7 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import * as jwt_decode from 'jwt-decode';
 import { ClsService } from 'nestjs-cls';
 
-import { AppClsStore, Actor } from '../common/context/cls-store.interface';
+import { AppClsStore } from '../common/context/cls-store.interface';
+import { Actor } from 'src/common/interfaces';
 
 /**
  * RequestIdMiddleware: Middleware global para gestionar IDs únicos de request
@@ -49,6 +50,7 @@ export class RequestIdMiddleware implements NestMiddleware {
       const decoded = (jwt_decode as any)(token);
 
       return {
+        actorId: decoded.actorId || 'unknown',
         sub: decoded.sub || 'unknown',
         kid: decoded.kid,
         scopes: decoded.scope ? decoded.scope.split(' ') : [],

@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
-import { AppClsStore, Actor, HttpAuditMetadata } from './cls-store.interface';
-import { ICacheService } from '../interfaces/cache.interface';
+import { AppClsStore, HttpAuditMetadata } from './cls-store.interface';
+import { Actor } from '../interfaces';
 
 /**
  * AsyncContextService: Wrapper alrededor de ClsService de nestjs-cls
- * 
+ *
  * ⭐ IMPORTANTE: Desde la introducción de nestjs-cls, este servicio es un adapter
  * que proporciona una interfaz más cómoda y tipada sobre ClsService<AppClsStore>
- * 
+ *
  * nestjs-cls maneja automáticamente la propagación de contexto async, por lo que
  * no necesitamos enterWith() ni run() manualmente - ClsModule lo hace por nosotros.
- * 
+ *
  * El contexto se propaga automáticamente a través de:
  * - Middleware (setup en ClsModule.forRoot)
  * - Todas las operaciones async (promesas, callbacks, etc.)

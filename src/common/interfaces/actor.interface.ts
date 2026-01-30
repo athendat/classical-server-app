@@ -3,14 +3,15 @@
  * NO incluir token completo ni secretos.
  */
 export interface Actor {
-  actorType: 'user' | 'service';
-  actorId: string;
-  sub: string;
-  iss?: string;
+  actorId: string; // subject (usuario/service)
+  actorType?: 'user' | 'service'; // tipo de actor
   aud?: string | string[];
-  kid?: string;
+  ipAddress?: string; // IP del cliente
+  iss?: string;
   jti?: string;
-  scopes?: string[];
+  kid?: string; // key ID usado para firma
+  scopes?: string[]; // permisos
+  sub: string; // subject (usuario/service)
 }
 
 /**

@@ -1,17 +1,6 @@
 import { ClsStore } from 'nestjs-cls';
 import { ICacheService } from '../interfaces/cache.interface';
-
-/**
- * Actor information extraído del JWT
- */
-export interface Actor {
-  sub: string; // subject (usuario/service)
-  actorId?: string; // subject (usuario/service)
-  kid?: string; // key ID usado para firma
-  scopes?: string[]; // permisos
-  ipAddress?: string; // IP del cliente
-  actorType?: 'user' | 'service'; // tipo de actor
-}
+import { Actor } from '../interfaces';
 
 /**
  * HTTP Metadata capturada por interceptor
