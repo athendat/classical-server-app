@@ -60,9 +60,9 @@ export class JwtTokenAdapter implements IJwtTokenPort {
     private eventEmitter: EventEmitter2,
     private configService: ConfigService,
   ) {
-    this.jwtIssuer = configService.get<string>('JWT_ISSUER') || 'fx-kms-api';
+    this.jwtIssuer = configService.get<string>('JWT_ISSUER') || 'classical-api';
     this.jwtAudience =
-      configService.get<string>('JWT_AUDIENCE') || 'fx-kms-service';
+      configService.get<string>('JWT_AUDIENCE') || 'classical-service';
     this.clockSkewSec = configService.get<number>('JWT_CLOCK_SKEW_SEC') || 10;
   }
 

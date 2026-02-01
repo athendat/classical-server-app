@@ -8,6 +8,7 @@ import { AsyncContextService } from 'src/common/context/async-context.service';
 import { UsersService } from './application/users.service';
 
 import { UsersController } from './infrastructure/controllers/users.controller';
+import { ProfileController } from './infrastructure/controllers/profile.controller';
 
 import { MongoDbUsersRepository } from './infrastructure/adapters/mongodb-users.repository';
 
@@ -51,7 +52,7 @@ import { User, UserSchema } from './infrastructure/schemas/user.schema';
     AuthzModule,
     AuditModule,
   ],
-  controllers: [UsersController],
+  controllers: [UsersController, ProfileController],
   providers: [AsyncContextService, UsersService, MongoDbUsersRepository],
   exports: [MongooseModule, UsersService, MongoDbUsersRepository],
 })

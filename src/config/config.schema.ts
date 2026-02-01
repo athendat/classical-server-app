@@ -6,7 +6,7 @@ import 'dotenv/config';
  * Variables de entorno
  */
 type EnvVars = {
-  API_KEY: string;
+  API_KEY_CLASSICAL: string;
   DB_HOST: string;
   JWT_SECRET: string;
   PORT: number;
@@ -23,7 +23,7 @@ type EnvVars = {
  */
 export const configValidationSchema: joi.ObjectSchema = joi
   .object({
-    API_KEY: joi.string().required(),
+    API_KEY_CLASSICAL: joi.string().required(),
     DB_HOST: joi.string().required(),
     JWT_SECRET: joi.string().required(),
     PORT: joi.number().required(),
@@ -55,7 +55,7 @@ const envVars: EnvVars = validationResult.value as unknown as EnvVars;
  * Exportar las variables de number
  */
 export const envs = {
-  API_KEY: envVars.API_KEY,
+  API_KEY_CLASSICAL: envVars.API_KEY_CLASSICAL,
   DB_HOST: envVars.DB_HOST,
   JWT_SECRET: envVars.JWT_SECRET,
   PORT: envVars.PORT,

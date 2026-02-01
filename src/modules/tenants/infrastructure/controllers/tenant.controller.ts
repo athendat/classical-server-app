@@ -19,6 +19,7 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiHeader,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -48,6 +49,10 @@ import type { QueryParams, SortOrder } from 'src/common/types';
  */
 @ApiTags('Tenants')
 @ApiBearerAuth()
+@ApiHeader({
+  name: 'x-api-key',
+  required: true,
+})
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('tenants')
 export class TenantController {

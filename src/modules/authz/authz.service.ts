@@ -61,7 +61,20 @@ export class AuthzService {
       await this.cacheService.getByKey<PermissionsCacheEntry>(cacheKey);
 
     if (cached) {
-      return cached.permissions;
+      // Reconstruir Sets desde arrays (JSON.parse pierde tipos)
+      return {
+        hasGlobalWildcard: cached.permissions.hasGlobalWildcard,
+        moduleWildcards: new Set(
+          Array.isArray(cached.permissions.moduleWildcards)
+            ? cached.permissions.moduleWildcards
+            : Object.values(cached.permissions.moduleWildcards || {}),
+        ),
+        exactPermissions: new Set(
+          Array.isArray(cached.permissions.exactPermissions)
+            ? cached.permissions.exactPermissions
+            : Object.values(cached.permissions.exactPermissions || {}),
+        ),
+      };
     }
 
     try {
@@ -109,7 +122,7 @@ export class AuthzService {
 
     if (actor.actorType === 'user') {
       const user = await this.userModel
-        .findOne({ userId: actor.actorId, status: 'active' })
+        .findOne({ id: actor.actorId, status: 'active' })
         .lean()
         .exec();
       if (!user) {

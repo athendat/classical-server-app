@@ -24,11 +24,13 @@ import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiNoContentResponse,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
 import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
 import { UsersService } from 'src/modules/users/application/users.service';
+import { AsyncContextService } from 'src/common/context/async-context.service';
 import {
   CreateUserDto,
   UpdateUserRolesDto,
@@ -48,10 +50,17 @@ import { MODULES, ACTIONS } from 'src/modules/authz/authz.constants';
  */
 @ApiTags('Users')
 @ApiBearerAuth()
+@ApiHeader({
+  name: 'x-api-key',
+  required: true,
+})
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly asyncContextService: AsyncContextService,
+  ) {}
 
   /**
    * Crear nuevo usuario

@@ -10,6 +10,7 @@ import { VaultModule } from '../vault/vault.module';
 import { AuthService } from './application/auth.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { ConfirmationCodeService } from './infrastructure/services/confirmation-code.service';
+import { SessionService } from './infrastructure/services/session.service';
 
 import { AuthController } from './infrastructure/controllers/auth.controller';
 
@@ -46,6 +47,7 @@ import { ReplayProtectionAdapter } from './infrastructure/adapters/replay-protec
   providers: [
     AsyncContextService,
     AuthService,
+    SessionService,
     JwtStrategy,
     ConfirmationCodeService,
     {
@@ -64,6 +66,7 @@ import { ReplayProtectionAdapter } from './infrastructure/adapters/replay-protec
   exports: [
     PassportModule,
     AuthService,
+    SessionService,
     ConfirmationCodeService,
     'IJwksPort',
     'IReplayProtectionPort',

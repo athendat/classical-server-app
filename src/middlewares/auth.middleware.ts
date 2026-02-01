@@ -13,9 +13,11 @@ export class AuthMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     console.log(`[AUTH-MIDDLEWARE] ${req.method} ${req.path}`);
-    console.log(`[AUTH-MIDDLEWARE] Headers: x-api-key=${req.headers['x-api-key']}, auth=${req.headers['authorization'] ? 'PRESENT' : 'MISSING'}`);
+    console.log(
+      `[AUTH-MIDDLEWARE] Headers: x-api-key=${req.headers['x-api-key']}, auth=${req.headers['authorization'] ? 'PRESENT' : 'MISSING'}`,
+    );
     const apiKey = (req.headers['x-api-key'] ?? '') as string;
-    const validApiKey = this.configService.get<string>('API_KEY');
+    const validApiKey = this.configService.get<string>('API_KEY_CLASSICAL');
 
     console.log(`[AUTH-MIDDLEWARE] apiKey=${apiKey ? 'PRESENT' : 'MISSING'}`);
 

@@ -24,6 +24,7 @@ import {
   UpdatePasswordDto,
   UpdateUserRolesDto,
   UpdateUserDto,
+  UpdateMyPasswordDto,
 } from '../dto';
 
 /**
@@ -882,6 +883,224 @@ export class UsersService implements IUsersService {
         error,
       );
       throw error;
+    }
+  }
+
+  /**
+   * Actualizar datos del perfil del usuario autenticado (sin validación de permisos).
+   *
+   * Uso interno para endpoints de perfil.
+   * El usuario solo puede actualizar sus propios datos.
+   * Solo requiere autenticación JWT, no valida permisos.
+   */
+  async updateMyProfile(
+    userId: string,
+    dto: UpdateUserDto,
+  ): Promise<ApiResponse<UserDTO>> {
+    const requestId = this.asyncContextService.getRequestId();
+
+    try {
+      this.logger.log(`[${requestId}] User updating their profile: ${userId}`);
+
+      // Verificar que el usuario existe
+      const beforeUser = await this.usersRepository.findById(userId);
+      if (!beforeUser) {
+        this.logger.warn(`[${requestId}] User not found: ${userId}`);
+        return ApiResponse.fail<UserDTO>(
+          HttpStatus.NOT_FOUND,
+          'Usuario no encontrado',
+          'El usuario no existe',
+          { requestId },
+        );
+      }
+
+      // Actualizar solo los campos permitidos
+      const user = await this.usersRepository.updateUser(userId, dto);
+
+      // Auditoría: sin especificar permisos requeridos
+      this.auditService.logAllow('USER_PROFILE_UPDATED_SELF', 'user', userId, {
+        module: 'users',
+        severity: 'MEDIUM',
+        tags: ['user', 'profile_update', 'self-service'],
+        changes: {
+          before: {
+            email: beforeUser.email,
+            fullname: beforeUser.fullname,
+            phone: beforeUser.phone,
+          },
+          after: {
+            email: user?.email,
+            fullname: user?.fullname,
+            phone: user?.phone,
+          },
+        },
+      });
+
+      this.logger.log(
+        `[${requestId}] User profile updated successfully: ${userId}`,
+      );
+      return ApiResponse.ok<UserDTO>(
+        HttpStatus.OK,
+        this.mapToDTO(user!),
+        'Datos de perfil actualizados exitosamente',
+        { requestId },
+      );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[${requestId}] Failed to update user profile: ${errorMsg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      this.auditService.logError(
+        'USER_PROFILE_UPDATE_FAILED_SELF',
+        'user',
+        userId,
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          module: 'users',
+          severity: 'MEDIUM',
+          tags: ['user', 'profile_update', 'error', 'self-service'],
+        },
+      );
+
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        errorMsg,
+        'Error al actualizar perfil',
+        { requestId },
+      );
+    }
+  }
+
+  /**
+   * Cambiar contraseña del usuario autenticado (sin validación de permisos).
+   *
+   * Uso interno para endpoints de perfil.
+   * El usuario solo puede cambiar su propia contraseña.
+   * Solo requiere autenticación JWT, no valida permisos.
+   */
+  async updateMyPassword(
+    userId: string,
+    dto: UpdateMyPasswordDto,
+  ): Promise<ApiResponse<UserDTO>> {
+    const requestId = this.asyncContextService.getRequestId();
+    try {
+      this.logger.log(`[${requestId}] User changing their password: ${userId}`);
+
+      // Verificar que el usuario existe
+      const user = await this.usersRepository.findById(userId);
+      if (!user) {
+        this.logger.warn(`[${requestId}] User not found: ${userId}`);
+        return ApiResponse.fail<UserDTO>(
+          HttpStatus.NOT_FOUND,
+          'Usuario no encontrado',
+          'El usuario no existe',
+          { requestId },
+        );
+      }
+
+      // Verificar que la contraseña actual es correcta
+      const isCurrentPasswordValid = await this.verifyPassword(
+        dto.currentPassword,
+        user.passwordHash!,
+      );
+
+      if (!isCurrentPasswordValid) {
+        this.logger.warn(
+          `[${requestId}] Invalid current password for user: ${userId}`,
+        );
+
+        // Auditoría: intento de cambio de contraseña con contraseña actual inválida
+        this.auditService.logError(
+          'USER_PASSWORD_CHANGE_FAILED_INVALID_CURRENT',
+          'user',
+          userId,
+          new Error('Invalid current password'),
+          {
+            module: 'users',
+            severity: 'MEDIUM',
+            tags: ['user', 'password_change', 'security', 'invalid_current'],
+          },
+        );
+
+        return ApiResponse.fail<UserDTO>(
+          HttpStatus.UNAUTHORIZED,
+          'Contraseña actual incorrecta',
+          'La contraseña actual proporcionada es inválida',
+          { requestId },
+        );
+      }
+
+      // Hash de la nueva contraseña
+      const passwordHash = await this.hashPassword(dto.newPassword);
+
+      const updatedUser = await this.usersRepository.updatePassword(userId, {
+        passwordHash,
+      });
+
+      if (!updatedUser) {
+        return ApiResponse.fail<UserDTO>(
+          HttpStatus.NOT_FOUND,
+          'Usuario no encontrado',
+          'No se pudo actualizar la contraseña',
+          { requestId },
+        );
+      }
+
+      // Auditoría: cambio de contraseña (sin exponer la contraseña)
+      this.auditService.logAllow('USER_PASSWORD_CHANGED_SELF', 'user', userId, {
+        module: 'users',
+        severity: 'CRITICAL',
+        tags: ['user', 'password_change', 'security', 'self-service'],
+        changes: {
+          after: {
+            passwordChanged: new Date(),
+            userId,
+          },
+        },
+      });
+
+      // Emitir evento de dominio
+      this.eventEmitter.emit(
+        'user.password_changed',
+        new UserPasswordChangedEvent(updatedUser.id),
+      );
+
+      this.logger.log(
+        `[${requestId}] User password updated successfully: ${userId}`,
+      );
+      return ApiResponse.ok<UserDTO>(
+        HttpStatus.OK,
+        this.mapToDTO(updatedUser),
+        'Contraseña actualizada exitosamente',
+        { requestId },
+      );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[${requestId}] Failed to update user password: ${errorMsg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      this.auditService.logError(
+        'USER_PASSWORD_UPDATE_FAILED_SELF',
+        'user',
+        userId,
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          module: 'users',
+          severity: 'CRITICAL',
+          tags: ['user', 'password_change', 'error', 'self-service'],
+        },
+      );
+
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        errorMsg,
+        'Error al cambiar contraseña',
+        { requestId },
+      );
     }
   }
 }

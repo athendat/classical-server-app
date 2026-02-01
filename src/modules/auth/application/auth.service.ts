@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { UsersService } from '../../users/application/users.service';
+import { SessionService } from '../infrastructure/services/session.service';
 
 import type { IJwtTokenPort } from '../domain/ports/jwt-token.port';
 import type { UserDTO } from '../../users/domain/ports/users.port';
@@ -55,6 +56,7 @@ export class AuthService {
     private readonly auditService: AuditService,
     private readonly asyncContext: AsyncContextService,
     private readonly confirmationCodeService: ConfirmationCodeService,
+    private readonly sessionService: SessionService,
   ) {
     this.jwtAudience =
       configService.get<string>('JWT_AUDIENCE') || 'classical-service';
@@ -116,8 +118,8 @@ export class AuthService {
         );
         return ApiResponse.fail<LoginResponseDto>(
           HttpStatus.BAD_REQUEST,
-          'Invalid credentials',
           'Failed login attempt',
+          'Invalid credentials',
           { requestId },
         );
       }
@@ -187,6 +189,22 @@ export class AuthService {
         `User ${userId} logged in successfully, requestId: ${requestId}`,
       );
 
+      // Guardar sesión en caché con TTL = tiempo de vida del refresh token (7 días = 604800 segundos)
+      const refreshTokenTtl = 604800; // 7 días
+      await this.sessionService.saveSession(
+        userId,
+        {
+          userId,
+          user: validation.user!,
+          loginTimestamp: new Date().toISOString(),
+          accessToken: accessResult.getValue(),
+          refreshToken: refreshToken || '',
+          tokenType: 'Bearer',
+          accessTokenExpiresIn: 3600,
+        },
+        refreshTokenTtl,
+      );
+
       return ApiResponse.ok<LoginResponseDto>(
         HttpStatus.OK,
         {
@@ -244,11 +262,14 @@ export class AuthService {
 
       if (!verifyResult.isSuccess) {
         // Registrar intento fallido de refresh (no-bloqueante)
+        const error = verifyResult.getError() as Error & { message?: string };
+        const errorMessage = error?.message || 'Unknown error';
+
         this.auditService.logDeny(
           'AUTH_REFRESH_TOKEN',
           'token',
           'refresh_token',
-          'Invalid or expired refresh token',
+          `Invalid or expired refresh token: ${errorMessage}`,
           {
             severity: 'MEDIUM',
             tags: ['authentication', 'token-refresh-failed', 'invalid-token'],
@@ -256,25 +277,43 @@ export class AuthService {
         );
 
         this.logger.warn(
-          `Failed token refresh attempt with invalid/expired token, requestId: ${requestId}`,
+          `Failed token refresh attempt: ${errorMessage}, requestId: ${requestId}`,
         );
+
+        // Proporcionar mensaje más descriptivo dependiendo del tipo de error
+        const isIssuerError = errorMessage.toLowerCase().includes('issuer');
+        const userMessage = isIssuerError
+          ? 'El token de refresco no es válido. Por favor, inicie sesión nuevamente.'
+          : 'Token de refresco inválido o expirado';
+
         return ApiResponse.fail<LoginResponseDto>(
           HttpStatus.BAD_REQUEST,
-          'Invalid or expired refresh token',
-          'Token refresh failed',
+          userMessage,
+          errorMessage,
           { requestId },
         );
       }
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const payload = verifyResult.getValue();
+      
+      // Validar que sea un refresh token
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (payload.type !== 'refresh') {
+      const tokenType = payload.type;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const scope = payload.scope;
+      
+      // Aceptar si tiene type: 'refresh' O scope: 'refresh'
+      const isRefreshToken = (typeof tokenType === 'string' && tokenType === 'refresh') ||
+                             (typeof scope === 'string' && scope === 'refresh');
+      
+      if (!isRefreshToken) {
+        const tokenTypeValue = tokenType || scope || 'unknown';
         this.auditService.logDeny(
           'AUTH_REFRESH_TOKEN',
           'token',
           'refresh_token',
-          'Invalid token type - expected refresh token',
+          `Invalid token type - expected refresh token, got: ${tokenTypeValue}`,
           {
             severity: 'HIGH',
             tags: [
@@ -286,12 +325,12 @@ export class AuthService {
         );
 
         this.logger.warn(
-          `Token refresh attempted with invalid token type, requestId: ${requestId}`,
+          `Token refresh attempted with invalid token type (${tokenTypeValue}), requestId: ${requestId}`,
         );
         return ApiResponse.fail<LoginResponseDto>(
           HttpStatus.BAD_REQUEST,
-          'Invalid token type',
-          'Token refresh failed',
+          'El token enviado no es un token de refresco válido. Por favor, inicie sesión nuevamente.',
+          'Invalid token type - expected refresh token',
           { requestId },
         );
       }
@@ -299,6 +338,10 @@ export class AuthService {
       // Generar nuevo access token
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       const sub = payload.sub;
+      // Extraer userId del formato "user:userId"
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const userId = typeof sub === 'string' ? sub.split(':')[1] : sub;
+
       const newPayload = {
         sub,
         iss: this.jwtIssuer,
@@ -354,6 +397,16 @@ export class AuthService {
 
       this.logger.log(
         `Token refreshed successfully for subject ${sub}, requestId: ${requestId}`,
+      );
+
+      // Actualizar sesión en caché con nuevo access token y TTL = tiempo de vida del refresh token (7 días)
+      const refreshTokenTtl = 604800; // 7 días
+      await this.sessionService.updateSession(
+        userId,
+        {
+          accessToken: newTokenResult.getValue(),
+        },
+        refreshTokenTtl,
       );
 
       return ApiResponse.ok<LoginResponseDto>(
