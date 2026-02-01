@@ -66,6 +66,10 @@ export const SYSTEM_ROLES = [
       `${MODULES.ROLES}.*`,
       `${MODULES.PERMISSIONS}.*`,
 
+      // Tenants - View sensitive data
+      `${MODULES.TENANTS}.read`,
+      `${MODULES.TENANTS}.view-sensitive`,
+
       // Auditoría
       `${MODULES.AUDIT}.export`,
 
@@ -122,6 +126,12 @@ export const SYSTEM_ROLES = [
       `${MODULES.TRANSACTIONS}.read`,
       `${MODULES.TRANSACTIONS}.export`,
 
+      // Tenants
+      `${MODULES.TENANTS}.read`,
+      `${MODULES.TENANTS}.create`,
+      `${MODULES.TENANTS}.write`,
+      `${MODULES.TENANTS}.approve`,
+
       // External Service
       `${MODULES.EXTERNAL_SERVICE}.invoke`,
       `${MODULES.EXTERNAL_SERVICE}.read_status`,
@@ -174,6 +184,9 @@ export const SYSTEM_ROLES = [
       `${MODULES.MODULES}.export`,
       `${MODULES.VAULT}.read`,
       `${MODULES.VAULT}.export`,
+      // Tenants
+      `${MODULES.TENANTS}.read`,
+      `${MODULES.TENANTS}.view-sensitive`,
       `${MODULES.EXTERNAL_SERVICE}.read_status`,
       `${MODULES.EXTERNAL_SERVICE}.export`,
     ],

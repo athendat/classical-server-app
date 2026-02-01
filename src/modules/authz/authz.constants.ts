@@ -13,6 +13,7 @@ export const ACTIONS = {
   ASSIGN: 'assign',
   ROTATE: 'rotate',
   REVOKE: 'revoke',
+  APPROVE: 'approve',
 } as const;
 
 /**
@@ -34,6 +35,7 @@ export const MODULES = {
   MERCHANTS: 'merchants',
   CARDS: 'cards',
   TRANSACTIONS: 'transactions',
+  TENANTS: 'tenants',
 
   // Módulos administrativos
   USERS: 'users',

@@ -17,6 +17,7 @@ import { BootstrapModule } from './common/bootstrap';
 import { ModulesModule } from './modules/modules';
 import { RolesModule } from './modules/roles';
 import { SharedContextModule } from './shared/shared-context.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
 import { VaultModule } from './modules/vault/vault.module';
 
@@ -60,6 +61,7 @@ import { CommonModule } from './common/common.module';
     // KeysModule,
     ModulesModule,
     RolesModule,
+    TenantsModule,
     // TerminalsModule,
     UsersModule,
     VaultModule,
