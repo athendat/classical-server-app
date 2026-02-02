@@ -3,7 +3,7 @@ import { Role } from './role.entity';
 /**
  * IRolesRepository - Puerto (interfaz)
  * Define operaciones de persistencia para roles
- * Implementada en MongoDBRolesRepository
+ * Implementada en RolesRepository
  */
 export interface IRolesRepository {
   create(role: Role): Promise<Role>;

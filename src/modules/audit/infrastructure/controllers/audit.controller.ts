@@ -25,8 +25,8 @@ import {
 } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
-import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
+// import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
+// import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
 import type { QueryParams, SortOrder } from 'src/common/types/common.types';
 import {
   AuditLogService,
@@ -49,7 +49,7 @@ import {
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('audit')
 export class AuditController {
   constructor(private readonly auditLogService: AuditLogService) {}
@@ -60,7 +60,7 @@ export class AuditController {
    */
   @Get('logs')
   @HttpCode(HttpStatus.OK)
-  @Permissions('audit.read')
+  // @Permissions('audit.read')
   @ApiOperation({
     summary: 'Get audit logs',
     description:
@@ -237,7 +237,7 @@ export class AuditController {
    */
   @Get('logs/:id')
   @HttpCode(HttpStatus.OK)
-  @Permissions('audit.read')
+  // @Permissions('audit.read')
   @ApiOperation({
     summary: 'Get audit log by ID',
     description: 'Retrieve a specific audit log entry by its ID.',
@@ -294,7 +294,7 @@ export class AuditController {
    */
   @Get('summary')
   @HttpCode(HttpStatus.OK)
-  @Permissions('audit.read')
+  // @Permissions('audit.read')
   @ApiOperation({
     summary: 'Get audit summary statistics',
     description:

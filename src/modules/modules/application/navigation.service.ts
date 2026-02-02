@@ -1,11 +1,11 @@
 import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { Module } from '../domain/module.entity';
-import { ModulesService } from './modules.service';
-import { AuthzService } from 'src/modules/authz/authz.service';
+
 import { AsyncContextService } from 'src/common/context/async-context.service';
-import { NavigationItem, NavigationResponse } from 'src/common/types';
+import { ModulesService } from './modules.service';
+
 import { ApiResponse } from 'src/common/types/api-response.type';
-import { Actor } from 'src/common/interfaces';
+import { ModuleEntity } from '../domain/module.entity';
+import { NavigationItem, NavigationResponse } from 'src/common/types';
 
 /**
  * NavigationService
@@ -20,9 +20,9 @@ export class NavigationService {
   private readonly logger = new Logger(NavigationService.name);
 
   constructor(
-    private readonly modulesService: ModulesService,
-    private readonly authzService: AuthzService,
     private readonly asyncContextService: AsyncContextService,
+    private readonly modulesService: ModulesService,
+    // private readonly permissionsService: PermissionsService,
   ) {}
 
   /**
@@ -54,26 +54,25 @@ export class NavigationService {
     try {
       // 2. Obtener permisos del usuario autenticado
       this.logger.debug(`[${requestId}] Step 1: Resolving user permissions...`);
-      const permissionsResolved = await this.authzService.resolvePermissions(
-        actor as Actor,
-      );
+      // const permissionsResolved =
+      //   await this.permissionsService.resolvePermissions(actor);
 
       // Convertir estructura categorizada de permisos a array simple
       const userPermissions: string[] = [];
-      if (permissionsResolved.hasGlobalWildcard) {
-        userPermissions.push('*');
-      }
-      userPermissions.push(...Array.from(permissionsResolved.moduleWildcards));
-      userPermissions.push(...Array.from(permissionsResolved.exactPermissions));
+      // if (permissionsResolved.hasGlobalWildcard) {
+      //   userPermissions.push('*');
+      // }
+      // userPermissions.push(...Array.from(permissionsResolved.moduleWildcards));
+      // userPermissions.push(...Array.from(permissionsResolved.exactPermissions));
 
-      this.logger.debug(
-        `[${requestId}] User has ${userPermissions.length} permissions`,
-        {
-          hasGlobal: permissionsResolved.hasGlobalWildcard,
-          moduleWildcards: Array.from(permissionsResolved.moduleWildcards),
-          exactPermissions: Array.from(permissionsResolved.exactPermissions),
-        },
-      );
+      // this.logger.debug(
+      //   `[${requestId}] User has ${userPermissions.length} permissions`,
+      //   {
+      //     hasGlobal: permissionsResolved.hasGlobalWildcard,
+      //     moduleWildcards: Array.from(permissionsResolved.moduleWildcards),
+      //     exactPermissions: Array.from(permissionsResolved.exactPermissions),
+      //   },
+      // );
 
       // 3. Obtener módulos del sistema
       this.logger.debug(
@@ -143,7 +142,7 @@ export class NavigationService {
    * @returns Array de NavigationItem ordenados
    */
   private buildNavigationItems(
-    modules: Module[],
+    modules: ModuleEntity[],
     userPermissions: string[],
   ): NavigationItem[] {
     this.logger.debug(
@@ -160,7 +159,7 @@ export class NavigationService {
     const navigationItems: NavigationItem[] = [];
 
     // 3. Procesar módulos con parent: crear grupos
-    const parentsMap = new Map<string, Module[]>();
+    const parentsMap = new Map<string, ModuleEntity[]>();
     for (const module of modulesWithParent) {
       if (!parentsMap.has(module.parent!)) {
         parentsMap.set(module.parent!, []);
@@ -222,7 +221,7 @@ export class NavigationService {
    */
   private userHasModulePermission(
     userPermissions: string[],
-    module: Module,
+    module: ModuleEntity,
   ): boolean {
     // Si no hay permisos en el módulo, denegar acceso
     if (!module.permissions || module.permissions.length === 0) {
@@ -284,7 +283,7 @@ export class NavigationService {
    * @param module Módulo a mapear
    * @returns NavigationItem tipo 'basic'
    */
-  private mapModuleToNavigationItem(module: Module): NavigationItem {
+  private mapModuleToNavigationItem(module: ModuleEntity): NavigationItem {
     const link = module.parent
       ? `/${module.parent}/${module.indicator}`
       : `/${module.indicator}`;

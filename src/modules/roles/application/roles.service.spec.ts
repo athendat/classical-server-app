@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HttpStatus } from '@nestjs/common';
 import { RolesService } from './roles.service';
-import { MongoDBRolesRepository } from '../infrastructure/adapters';
+import { RolesRepository } from '../infrastructure/adapters';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { RoleStatus } from '../domain/role.enums';
@@ -10,7 +10,7 @@ import { CreateRoleDto, UpdateRoleDto } from '../dto';
 
 describe('RolesService', () => {
   let service: RolesService;
-  let rolesRepository: MongoDBRolesRepository;
+  let rolesRepository: RolesRepository;
   let eventEmitter: EventEmitter2;
   let asyncContextService: AsyncContextService;
   let auditService: AuditService;
@@ -48,7 +48,7 @@ describe('RolesService', () => {
       providers: [
         RolesService,
         {
-          provide: MongoDBRolesRepository,
+          provide: RolesRepository,
           useValue: {
             create: jest.fn(),
             findAll: jest.fn(),
@@ -83,7 +83,7 @@ describe('RolesService', () => {
     }).compile();
 
     service = module.get<RolesService>(RolesService);
-    rolesRepository = module.get<MongoDBRolesRepository>(MongoDBRolesRepository);
+    rolesRepository = module.get<RolesRepository>(RolesRepository);
     eventEmitter = module.get<EventEmitter2>(EventEmitter2);
     asyncContextService = module.get<AsyncContextService>(AsyncContextService);
     auditService = module.get<AuditService>(AuditService);

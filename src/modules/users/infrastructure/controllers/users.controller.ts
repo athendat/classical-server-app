@@ -28,8 +28,8 @@ import {
   ApiSecurity,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
-import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
+// import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
+// import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
 import { UsersService } from 'src/modules/users/application/users.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import {
@@ -38,7 +38,6 @@ import {
   UpdatePasswordDto,
   UpdateUserDto,
 } from 'src/modules/users/dto';
-import { MODULES, ACTIONS } from 'src/modules/authz/authz.constants';
 
 /**
  * UsersController: Endpoints HTTP para gestión de usuarios
@@ -56,7 +55,7 @@ import { MODULES, ACTIONS } from 'src/modules/authz/authz.constants';
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
   constructor(
@@ -74,7 +73,6 @@ export class UsersController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Permissions(`${MODULES.USERS}.${ACTIONS.CREATE}`)
   @ApiOperation({
     summary: 'Crear nuevo usuario',
     description:
@@ -119,7 +117,6 @@ export class UsersController {
    */
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @Permissions(`${MODULES.USERS}.${ACTIONS.READ}`)
   @ApiOperation({
     summary: 'Obtener usuario por ID',
     description: 'Devuelve los detalles de un usuario específico',
@@ -168,7 +165,6 @@ export class UsersController {
    */
   @Get()
   @HttpCode(HttpStatus.OK)
-  @Permissions(`${MODULES.USERS}.${ACTIONS.READ}`)
   @ApiOperation({
     summary: 'Listar todos los usuarios',
     description: 'Devuelve una lista de todos los usuarios activos del sistema',
@@ -206,7 +202,6 @@ export class UsersController {
    */
   @Post(':id/roles')
   @HttpCode(HttpStatus.OK)
-  @Permissions(`${MODULES.ROLES}.${ACTIONS.ASSIGN}`)
   @ApiOperation({
     summary: 'Actualizar rol de usuario',
     description: 'Asigna un nuevo rol (único) a un usuario específico',
@@ -263,7 +258,6 @@ export class UsersController {
    */
   @Post(':id/password')
   @HttpCode(HttpStatus.OK)
-  @Permissions(`${MODULES.USERS}.${ACTIONS.UPDATE}`)
   @ApiOperation({
     summary: 'Cambiar contraseña de usuario',
     description: 'Actualiza la contraseña de un usuario específico',
@@ -320,7 +314,6 @@ export class UsersController {
    */
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  @Permissions(`${MODULES.USERS}.${ACTIONS.UPDATE}`)
   @ApiOperation({
     summary: 'Actualizar datos del usuario',
     description:
@@ -386,7 +379,6 @@ export class UsersController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Permissions(`${MODULES.USERS}.${ACTIONS.DELETE}`)
   @ApiOperation({
     summary: 'Deshabilitar usuario',
     description: 'Deshabilita un usuario específico (soft delete)',

@@ -5,7 +5,7 @@ import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { CacheService } from 'src/common/cache/cache.service';
 
-import { MongoDBModulesRepository } from '../infrastructure/adapters';
+import { ModulesRepository } from '../infrastructure/adapters';
 
 import {
   ModuleCreatedEvent,
@@ -15,7 +15,7 @@ import {
   ModulesReorderedEvent,
 } from '../events';
 
-import { Module, Permission } from '../domain/module.entity';
+import { ModuleEntity, Permission } from '../domain/module.entity';
 
 import { CreateModuleDto, UpdateModuleDto, ReorderModulesDto } from '../dto';
 
@@ -39,16 +39,16 @@ export class ModulesService {
   /**
    * Caché de módulos con TTL de 60 segundos
    */
-  private modulesCache: Module[] | null = null;
+  private modulesCache: ModuleEntity[] | null = null;
   private modulesCacheTimestamp: number = 0;
   private readonly CACHE_TTL_MS = 60 * 1000; // 60 segundos
 
   constructor(
-    private readonly modulesRepository: MongoDBModulesRepository,
-    private readonly eventEmitter: EventEmitter2,
-    private readonly auditService: AuditService,
     private readonly asyncContextService: AsyncContextService,
+    private readonly auditService: AuditService,
     private readonly cacheService: CacheService,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly modulesRepository: ModulesRepository,
   ) {}
 
   /**
@@ -58,7 +58,9 @@ export class ModulesService {
    * - Emite ModuleCreatedEvent
    * - Invalida caché
    */
-  async create(createModuleDto: CreateModuleDto): Promise<ApiResponse<Module>> {
+  async create(
+    createModuleDto: CreateModuleDto,
+  ): Promise<ApiResponse<ModuleEntity>> {
     const requestId = this.asyncContextService.getRequestId();
     try {
       this.logger.log(
@@ -87,7 +89,7 @@ export class ModulesService {
           },
         );
 
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           HttpStatus.BAD_REQUEST,
           'MODULE_ALREADY_EXISTS',
           message,
@@ -102,7 +104,7 @@ export class ModulesService {
         createModuleDto.name,
       );
 
-      const module = new Module({
+      const module = new ModuleEntity({
         indicator: createModuleDto.indicator.toLowerCase().trim(),
         name: createModuleDto.name,
         parent: createModuleDto.parent ?? '',
@@ -146,7 +148,7 @@ export class ModulesService {
         new ModuleCreatedEvent(created, requestId),
       );
 
-      return ApiResponse.ok<Module>(
+      return ApiResponse.ok<ModuleEntity>(
         HttpStatus.CREATED,
         created,
         'Módulo creado exitosamente',
@@ -169,7 +171,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module>(
+      return ApiResponse.fail<ModuleEntity>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         errorMsg,
         'Error al crear módulo',
@@ -181,7 +183,7 @@ export class ModulesService {
   /**
    * Obtener todos los módulos activos (con caché 60s)
    */
-  async findAll(): Promise<ApiResponse<Module[]>> {
+  async findAll(): Promise<ApiResponse<ModuleEntity[]>> {
     const requestId = 'findAll';
     try {
       const now = Date.now();
@@ -206,7 +208,7 @@ export class ModulesService {
           },
         });
 
-        return ApiResponse.ok<Module[]>(
+        return ApiResponse.ok<ModuleEntity[]>(
           HttpStatus.OK,
           this.modulesCache!,
           'Módulos obtenidos exitosamente',
@@ -234,7 +236,7 @@ export class ModulesService {
         },
       });
 
-      return ApiResponse.ok<Module[]>(
+      return ApiResponse.ok<ModuleEntity[]>(
         HttpStatus.OK,
         modules,
         'Módulos obtenidos exitosamente',
@@ -257,7 +259,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module[]>(
+      return ApiResponse.fail<ModuleEntity[]>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         errorMsg,
         'Error al obtener módulos',
@@ -269,7 +271,7 @@ export class ModulesService {
   /**
    * Obtener módulo por ID
    */
-  async findById(id: string): Promise<ApiResponse<Module>> {
+  async findById(id: string): Promise<ApiResponse<ModuleEntity>> {
     const requestId = `findById-${id}`;
     try {
       const module = await this.modulesRepository.findById(id);
@@ -290,7 +292,7 @@ export class ModulesService {
           },
         );
 
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           HttpStatus.NOT_FOUND,
           'MODULE_NOT_FOUND',
           message,
@@ -299,20 +301,20 @@ export class ModulesService {
       }
 
       // Fire-and-forget: Auditar lectura exitosa
-      this.auditService.logAllow('MODULE_READ_BY_ID', 'module', module._id!, {
+      this.auditService.logAllow('MODULE_READ_BY_ID', 'module', module.id, {
         module: 'modules',
         severity: 'LOW',
         tags: ['module', 'read'],
         changes: {
           after: {
-            id: module._id!,
+            id: module.id!,
             indicator: module.indicator,
             status: module.status,
           },
         },
       });
 
-      return ApiResponse.ok<Module>(
+      return ApiResponse.ok<ModuleEntity>(
         HttpStatus.OK,
         module,
         'Módulo obtenido exitosamente',
@@ -335,7 +337,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module>(
+      return ApiResponse.fail<ModuleEntity>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         errorMsg,
         'Error al obtener módulo',
@@ -349,14 +351,14 @@ export class ModulesService {
    */
   private async findByIndicatorInternal(
     indicator: string,
-  ): Promise<Module | null> {
+  ): Promise<ModuleEntity | null> {
     return this.modulesRepository.findByIndicator(indicator);
   }
 
   /**
    * Obtener módulo por indicador (público - retorna ApiResponse)
    */
-  async findByIndicator(indicator: string): Promise<ApiResponse<Module>> {
+  async findByIndicator(indicator: string): Promise<ApiResponse<ModuleEntity>> {
     const requestId = `findByIndicator-${indicator}`;
     try {
       const module = await this.modulesRepository.findByIndicator(indicator);
@@ -377,7 +379,7 @@ export class ModulesService {
           },
         );
 
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           HttpStatus.NOT_FOUND,
           'MODULE_NOT_FOUND',
           message,
@@ -389,14 +391,14 @@ export class ModulesService {
       this.auditService.logAllow(
         'MODULE_READ_BY_INDICATOR',
         'module',
-        module._id!,
+        module.id,
         {
           module: 'modules',
           severity: 'LOW',
           tags: ['module', 'read'],
           changes: {
             after: {
-              id: module._id!,
+              id: module.id!,
               indicator: module.indicator,
               status: module.status,
             },
@@ -404,7 +406,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.ok<Module>(
+      return ApiResponse.ok<ModuleEntity>(
         HttpStatus.OK,
         module,
         'Módulo obtenido exitosamente',
@@ -427,7 +429,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module>(
+      return ApiResponse.fail<ModuleEntity>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         errorMsg,
         'Error al obtener módulo',
@@ -445,14 +447,14 @@ export class ModulesService {
   async update(
     id: string,
     updateModuleDto: UpdateModuleDto,
-  ): Promise<ApiResponse<Module>> {
+  ): Promise<ApiResponse<ModuleEntity>> {
     const requestId = this.asyncContextService.getRequestId();
     try {
       this.logger.log(`Actualizando módulo: ${id}`, requestId);
 
       const existingResponse = await this.findById(id);
       if (!existingResponse.ok || !existingResponse.data) {
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           existingResponse.statusCode,
           existingResponse.errors || 'Unknown error',
           existingResponse.message,
@@ -484,7 +486,7 @@ export class ModulesService {
           },
         );
 
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           HttpStatus.BAD_REQUEST,
           'SYSTEM_MODULE_CANNOT_CHANGE_INDICATOR',
           message,
@@ -534,7 +536,7 @@ export class ModulesService {
           },
         );
 
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           HttpStatus.NOT_FOUND,
           'MODULE_NOT_FOUND',
           message,
@@ -548,7 +550,7 @@ export class ModulesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar actualización exitosa con cambios
-      this.auditService.logAllow('MODULE_UPDATED', 'module', updated._id!, {
+      this.auditService.logAllow('MODULE_UPDATED', 'module', updated.id, {
         module: 'modules',
         severity: 'HIGH',
         tags: ['module', 'update', 'security'],
@@ -576,7 +578,7 @@ export class ModulesService {
         new ModuleUpdatedEvent(updated, existing, requestId),
       );
 
-      return ApiResponse.ok<Module>(
+      return ApiResponse.ok<ModuleEntity>(
         HttpStatus.OK,
         updated,
         'Módulo actualizado exitosamente',
@@ -599,7 +601,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module>(
+      return ApiResponse.fail<ModuleEntity>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         errorMsg,
         'Error al actualizar módulo',
@@ -615,14 +617,14 @@ export class ModulesService {
   async disable(
     id: string,
     correlationId?: string,
-  ): Promise<ApiResponse<Module>> {
+  ): Promise<ApiResponse<ModuleEntity>> {
     const requestId = correlationId || `disable-${id}`;
     try {
       this.logger.log(`Deshabilitando módulo: ${id}`, requestId);
 
       const existingResponse = await this.findById(id);
       if (!existingResponse.ok || !existingResponse.data) {
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           existingResponse.statusCode,
           existingResponse.errors || 'Unknown error',
           existingResponse.message,
@@ -652,7 +654,7 @@ export class ModulesService {
           },
         );
 
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           HttpStatus.BAD_REQUEST,
           'CANNOT_DISABLE_SYSTEM_MODULE',
           message,
@@ -678,7 +680,7 @@ export class ModulesService {
           },
         );
 
-        return ApiResponse.fail<Module>(
+        return ApiResponse.fail<ModuleEntity>(
           HttpStatus.NOT_FOUND,
           'MODULE_NOT_FOUND',
           message,
@@ -692,7 +694,7 @@ export class ModulesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar deshabilitación exitosa
-      this.auditService.logAllow('MODULE_DISABLED', 'module', updated._id!, {
+      this.auditService.logAllow('MODULE_DISABLED', 'module', updated.id, {
         module: 'modules',
         severity: 'HIGH',
         tags: ['module', 'disable', 'soft-delete'],
@@ -714,7 +716,7 @@ export class ModulesService {
         new ModuleDisabledEvent(id, updated.name, correlationId),
       );
 
-      return ApiResponse.ok<Module>(
+      return ApiResponse.ok<ModuleEntity>(
         HttpStatus.OK,
         updated,
         'Módulo deshabilitado exitosamente',
@@ -737,7 +739,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module>(
+      return ApiResponse.fail<ModuleEntity>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         errorMsg,
         'Error al deshabilitar módulo',
@@ -923,7 +925,7 @@ export class ModulesService {
   /**
    * Obtener módulos del sistema
    */
-  async findSystemModules(): Promise<ApiResponse<Module[]>> {
+  async findSystemModules(): Promise<ApiResponse<ModuleEntity[]>> {
     const requestId = 'findSystemModules';
     try {
       const modules = await this.modulesRepository.findSystemModules();
@@ -941,7 +943,7 @@ export class ModulesService {
         },
       });
 
-      return ApiResponse.ok<Module[]>(
+      return ApiResponse.ok<ModuleEntity[]>(
         HttpStatus.OK,
         modules,
         'Módulos del sistema obtenidos exitosamente',
@@ -967,7 +969,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module[]>(
+      return ApiResponse.fail<ModuleEntity[]>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         errorMsg,
         'Error al obtener módulos del sistema',
@@ -1109,7 +1111,7 @@ export class ModulesService {
    * - Reordena los módulos para que el indicado quede en la posición deseada
    * - Valida que los órdenes sean consecutivos (0, 1, 2, ...)
    */
-  async reorderModules(dto: ReorderModulesDto): Promise<ApiResponse<Module[]>> {
+  async reorderModules(dto: ReorderModulesDto): Promise<ApiResponse<ModuleEntity[]>> {
     const requestId = this.asyncContextService.getRequestId();
     try {
       this.logger.log(
@@ -1122,7 +1124,7 @@ export class ModulesService {
       if (!moduleToReorder) {
         const message = `Módulo con ID '${dto.id}' no encontrado`;
         this.logger.warn(message);
-        return ApiResponse.fail<Module[]>(
+        return ApiResponse.fail<ModuleEntity[]>(
           HttpStatus.NOT_FOUND,
           'MODULE_NOT_FOUND',
           message,
@@ -1137,7 +1139,7 @@ export class ModulesService {
       if (normalizedParent !== moduleParent) {
         const message = `El módulo no pertenece al padre especificado`;
         this.logger.warn(message);
-        return ApiResponse.fail<Module[]>(
+        return ApiResponse.fail<ModuleEntity[]>(
           HttpStatus.BAD_REQUEST,
           'PARENT_MISMATCH',
           message,
@@ -1155,7 +1157,7 @@ export class ModulesService {
       if (siblingModules.length === 0) {
         const message = `No se encontraron módulos con el padre especificado`;
         this.logger.warn(message);
-        return ApiResponse.fail<Module[]>(
+        return ApiResponse.fail<ModuleEntity[]>(
           HttpStatus.NOT_FOUND,
           'SIBLINGS_NOT_FOUND',
           message,
@@ -1167,7 +1169,7 @@ export class ModulesService {
       if (dto.order < 0 || dto.order >= siblingModules.length) {
         const message = `El orden debe estar entre 0 y ${siblingModules.length - 1}`;
         this.logger.warn(message);
-        return ApiResponse.fail<Module[]>(
+        return ApiResponse.fail<ModuleEntity[]>(
           HttpStatus.BAD_REQUEST,
           'INVALID_ORDER',
           message,
@@ -1193,7 +1195,7 @@ export class ModulesService {
 
       const updatedModules = await Promise.all(updatePromises);
       const updatedModulesNonNull = updatedModules.filter(
-        (m): m is Module => m !== null,
+        (m): m is ModuleEntity => m !== null,
       );
 
       this.logger.log(
@@ -1233,7 +1235,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.ok<Module[]>(
+      return ApiResponse.ok<ModuleEntity[]>(
         HttpStatus.OK,
         updatedModulesNonNull,
         'Módulos reordenados exitosamente',
@@ -1259,7 +1261,7 @@ export class ModulesService {
         },
       );
 
-      return ApiResponse.fail<Module[]>(
+      return ApiResponse.fail<ModuleEntity[]>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'REORDER_ERROR',
         'Error al reordenar módulos',

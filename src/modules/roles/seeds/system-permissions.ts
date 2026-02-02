@@ -1,4 +1,7 @@
-import { MODULES, ACTIONS } from '../../authz/authz.constants';
+import {
+  MODULES,
+  ACTIONS,
+} from 'src/modules/modules/domain/constants/module.constants';
 
 /**
  * Catálogo inicial de permisos del sistema (isSystem=true).

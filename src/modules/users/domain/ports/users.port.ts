@@ -1,9 +1,7 @@
-import type { UserDocument } from '../../infrastructure/schemas/user.schema';
-
 import type { ApiResponse } from 'src/common/types/api-response.type';
 
 import type { UserStatus } from '../enums';
-import { Role } from 'src/modules/roles';
+import { Role } from 'src/modules/roles/domain';
 
 export interface CreateUserPayload {
   userId?: string;
@@ -105,7 +103,7 @@ export interface IUsersService {
   /**
    * Obtener documento raw para acceso de bajo nivel.
    */
-  findByIdRaw(userId: string): Promise<UserDocument | null>;
+  findByIdRaw(userId: string): Promise<UserDTO | null>;
 
   /**
    * Hash de contraseña con Argon2.

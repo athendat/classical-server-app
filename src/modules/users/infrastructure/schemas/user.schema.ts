@@ -4,10 +4,10 @@ import { HydratedDocument } from 'mongoose';
 
 import { ActivityEvent, ActivityEventSchema } from './activity-event.schema';
 import { SecurityInfo, SecurityInfoSchema } from './security-info.schema';
+import { AbstractSchema } from 'src/common/schemas/abstract.schema';
 
 import { UserStatus } from '../../domain/enums';
-import { Role } from 'src/modules/authz/schemas/role.schema';
-import { AbstractSchema } from 'src/common/schemas/abstract.schema';
+import { Role } from 'src/modules/roles/domain';
 
 export type UserDocument = HydratedDocument<User>;
 

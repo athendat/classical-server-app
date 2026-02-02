@@ -1,9 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+
 import { Model } from 'mongoose';
+
 import { ModulesService } from '../application/modules.service';
-import { Module } from '../domain/module.entity';
+
 import { SYSTEM_MODULES } from './system-modules';
+import { Module as ModuleSchema } from '../infrastructure/schemas/module.schema';
 
 /**
  * ModulesSeedService - Servicio heredado de seeding de módulos
@@ -19,7 +22,8 @@ export class ModulesSeedService {
   private readonly logger = new Logger(ModulesSeedService.name);
 
   constructor(
-    @InjectModel(Module.name) private moduleModel: Model<any>,
+    @InjectModel('Module')
+    private readonly moduleModel: Model<ModuleSchema>,
     private readonly modulesService: ModulesService,
   ) {}
   /**

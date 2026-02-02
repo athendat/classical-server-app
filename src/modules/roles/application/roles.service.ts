@@ -1,10 +1,15 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Role } from '../domain/role.entity';
 import { RoleStatus } from '../domain/role.enums';
 import { CreateRoleDto, UpdateRoleDto, UpdateRolePermissionsDto } from '../dto';
-import { RoleCreatedEvent, RoleDisabledEvent, RoleUpdatedEvent, RolePermissionsUpdatedEvent } from '../events';
-import { MongoDBRolesRepository } from '../infrastructure/adapters';
+import {
+  RoleCreatedEvent,
+  RoleDisabledEvent,
+  RoleUpdatedEvent,
+  RolePermissionsUpdatedEvent,
+} from '../events';
+import { RolesRepository } from '../infrastructure/adapters';
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
@@ -30,12 +35,11 @@ export class RolesService {
   private readonly CACHE_TTL_MS = 60 * 1000; // 60 segundos
 
   constructor(
-    private readonly rolesRepository: MongoDBRolesRepository,
+    private readonly rolesRepository: RolesRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly asyncContextService: AsyncContextService,
     private readonly auditService: AuditService,
   ) {}
-  
 
   /**
    * Crear un nuevo rol
@@ -95,30 +99,28 @@ export class RolesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar creación exitosa
-      this.auditService.logAllow(
-        'ROLE_CREATED',
-        'role',
-        created.id!,
-        {
-          module: 'roles',
-          severity: 'HIGH',
-          tags: ['role', 'creation', 'security'],
-          actorId: userId,
-          changes: {
-            after: {
-              id: created.id,
-              key: created.key,
-              name: created.name,
-              permissionKeys: created.permissionKeys,
-              isSystem: created.isSystem,
-              status: created.status,
-            },
+      this.auditService.logAllow('ROLE_CREATED', 'role', created.id, {
+        module: 'roles',
+        severity: 'HIGH',
+        tags: ['role', 'creation', 'security'],
+        actorId: userId,
+        changes: {
+          after: {
+            id: created.id,
+            key: created.key,
+            name: created.name,
+            permissionKeys: created.permissionKeys,
+            isSystem: created.isSystem,
+            status: created.status,
           },
         },
-      );
+      });
 
       // Emitir evento
-      this.eventEmitter.emit('roles.role_created', new RoleCreatedEvent(created, requestId));
+      this.eventEmitter.emit(
+        'roles.role_created',
+        new RoleCreatedEvent(created, requestId),
+      );
 
       return ApiResponse.ok<Role>(
         HttpStatus.CREATED,
@@ -161,33 +163,31 @@ export class RolesService {
     const userId = this.asyncContextService.getActorId();
     try {
       const now = Date.now();
-      const isCached = this.rolesCache && now - this.rolesCacheTimestamp < this.CACHE_TTL_MS;
+      const isCached =
+        this.rolesCache && now - this.rolesCacheTimestamp < this.CACHE_TTL_MS;
 
       // Retornar desde caché si está válido
       if (isCached) {
         this.logger.debug('Retornando roles desde caché');
 
         // Filtrar super_admin
-        const filteredRoles = this.rolesCache!.filter(r => r.key !== 'super_admin');
+        const filteredRoles = this.rolesCache!.filter(
+          (r) => r.key !== 'super_admin',
+        );
 
         // Fire-and-forget: Auditar lectura desde caché
-        this.auditService.logAllow(
-          'ROLE_READ_ALL',
-          'roles',
-          'all',
-          {
-            module: 'roles',
-            severity: 'LOW',
-            tags: ['roles', 'read', 'cache'],
-            actorId: userId,
-            changes: {
-              after: {
-                cached: true,
-                count: filteredRoles.length,
-              },
+        this.auditService.logAllow('ROLE_READ_ALL', 'roles', 'all', {
+          module: 'roles',
+          severity: 'LOW',
+          tags: ['roles', 'read', 'cache'],
+          actorId: userId,
+          changes: {
+            after: {
+              cached: true,
+              count: filteredRoles.length,
             },
           },
-        );
+        });
 
         return ApiResponse.ok<Role[]>(
           HttpStatus.OK,
@@ -201,30 +201,25 @@ export class RolesService {
       const roles = await this.rolesRepository.findAll();
 
       // Filtrar super_admin
-      const filteredRoles = roles.filter(r => r.key !== 'super_admin');
+      const filteredRoles = roles.filter((r) => r.key !== 'super_admin');
 
       // Actualizar caché con todos los roles (sin filtrar)
       this.rolesCache = roles;
       this.rolesCacheTimestamp = now;
 
       // Fire-and-forget: Auditar lectura desde DB
-      this.auditService.logAllow(
-        'ROLE_READ_ALL',
-        'roles',
-        'all',
-        {
-          module: 'roles',
-          severity: 'LOW',
-          tags: ['roles', 'read', 'database'],
-          actorId: userId,
-          changes: {
-            after: {
-              cached: false,
-              count: filteredRoles.length,
-            },
+      this.auditService.logAllow('ROLE_READ_ALL', 'roles', 'all', {
+        module: 'roles',
+        severity: 'LOW',
+        tags: ['roles', 'read', 'database'],
+        actorId: userId,
+        changes: {
+          after: {
+            cached: false,
+            count: filteredRoles.length,
           },
         },
-      );
+      });
 
       return ApiResponse.ok<Role[]>(
         HttpStatus.OK,
@@ -294,24 +289,19 @@ export class RolesService {
       }
 
       // Fire-and-forget: Auditar lectura exitosa
-      this.auditService.logAllow(
-        'ROLE_READ_BY_ID',
-        'role',
-        role.id!,
-        {
-          module: 'roles',
-          severity: 'LOW',
-          tags: ['role', 'read'],
-          actorId: userId,
-          changes: {
-            after: {
-              id: role.id,
-              key: role.key,
-              status: role.status,
-            },
+      this.auditService.logAllow('ROLE_READ_BY_ID', 'role', role.id, {
+        module: 'roles',
+        severity: 'LOW',
+        tags: ['role', 'read'],
+        actorId: userId,
+        changes: {
+          after: {
+            id: role.id,
+            key: role.key,
+            status: role.status,
           },
         },
-      );
+      });
 
       return ApiResponse.ok<Role>(
         HttpStatus.OK,
@@ -381,24 +371,19 @@ export class RolesService {
       }
 
       // Fire-and-forget: Auditar lectura exitosa
-      this.auditService.logAllow(
-        'ROLE_READ_BY_KEY',
-        'role',
-        role.id!,
-        {
-          module: 'roles',
-          severity: 'LOW',
-          tags: ['role', 'read'],
-          actorId: userId,
-          changes: {
-            after: {
-              id: role.id,
-              key: role.key,
-              status: role.status,
-            },
+      this.auditService.logAllow('ROLE_READ_BY_KEY', 'role', role.id, {
+        module: 'roles',
+        severity: 'LOW',
+        tags: ['role', 'read'],
+        actorId: userId,
+        changes: {
+          after: {
+            id: role.id,
+            key: role.key,
+            status: role.status,
           },
         },
-      );
+      });
 
       return ApiResponse.ok<Role>(
         HttpStatus.OK,
@@ -438,7 +423,10 @@ export class RolesService {
    * - Emite RoleUpdatedEvent
    * - Invalida caché
    */
-  async update(id: string, updateRoleDto: UpdateRoleDto): Promise<ApiResponse<Role>> {
+  async update(
+    id: string,
+    updateRoleDto: UpdateRoleDto,
+  ): Promise<ApiResponse<Role>> {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId();
     try {
@@ -498,34 +486,32 @@ export class RolesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar actualización exitosa con cambios
-      this.auditService.logAllow(
-        'ROLE_UPDATED',
-        'role',
-        updated.id!,
-        {
-          module: 'roles',
-          severity: 'HIGH',
-          tags: ['role', 'update', 'security'],
-          actorId: userId,
-          changes: {
-            before: {
-              key: existing.key,
-              name: existing.name,
-              permissionKeys: existing.permissionKeys,
-              status: existing.status,
-            },
-            after: {
-              key: updated.key,
-              name: updated.name,
-              permissionKeys: updated.permissionKeys,
-              status: updated.status,
-            },
+      this.auditService.logAllow('ROLE_UPDATED', 'role', updated.id, {
+        module: 'roles',
+        severity: 'HIGH',
+        tags: ['role', 'update', 'security'],
+        actorId: userId,
+        changes: {
+          before: {
+            key: existing.key,
+            name: existing.name,
+            permissionKeys: existing.permissionKeys,
+            status: existing.status,
+          },
+          after: {
+            key: updated.key,
+            name: updated.name,
+            permissionKeys: updated.permissionKeys,
+            status: updated.status,
           },
         },
-      );
+      });
 
       // Emitir evento
-      this.eventEmitter.emit('roles.role_updated', new RoleUpdatedEvent(updated, existing, requestId));
+      this.eventEmitter.emit(
+        'roles.role_updated',
+        new RoleUpdatedEvent(updated, existing, requestId),
+      );
 
       return ApiResponse.ok<Role>(
         HttpStatus.OK,
@@ -538,18 +524,12 @@ export class RolesService {
       this.logger.error(`Error al actualizar rol: ${errorMsg}`, error);
 
       // Fire-and-forget: Auditar error
-      this.auditService.logError(
-        'ROLE_UPDATED',
-        'role',
-        id,
-        error as Error,
-        {
-          module: 'roles',
-          severity: 'HIGH',
-          tags: ['role', 'update', 'error'],
-          actorId: userId,
-        },
-      );
+      this.auditService.logError('ROLE_UPDATED', 'role', id, error as Error, {
+        module: 'roles',
+        severity: 'HIGH',
+        tags: ['role', 'update', 'error'],
+        actorId: userId,
+      });
 
       return ApiResponse.fail<Role>(
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -585,7 +565,9 @@ export class RolesService {
       // No permitir deshabilitar roles del sistema
       if (existing.isSystem) {
         const message = `No se puede deshabilitar un rol del sistema`;
-        this.logger.warn(`Intento de deshabilitar rol del sistema: ${existing.key}`);
+        this.logger.warn(
+          `Intento de deshabilitar rol del sistema: ${existing.key}`,
+        );
 
         // Fire-and-forget: Auditar intento fallido
         this.auditService.logError(
@@ -642,30 +624,28 @@ export class RolesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar deshabilitación exitosa
-      this.auditService.logAllow(
-        'ROLE_DISABLED',
-        'role',
-        updated.id!,
-        {
-          module: 'roles',
-          severity: 'HIGH',
-          tags: ['role', 'disable', 'soft-delete'],
-          actorId: userId,
-          changes: {
-            before: {
-              key: existing.key,
-              status: existing.status,
-            },
-            after: {
-              key: updated.key,
-              status: updated.status,
-            },
+      this.auditService.logAllow('ROLE_DISABLED', 'role', updated.id, {
+        module: 'roles',
+        severity: 'HIGH',
+        tags: ['role', 'disable', 'soft-delete'],
+        actorId: userId,
+        changes: {
+          before: {
+            key: existing.key,
+            status: existing.status,
+          },
+          after: {
+            key: updated.key,
+            status: updated.status,
           },
         },
-      );
+      });
 
       // Emitir evento
-      this.eventEmitter.emit('roles.role_disabled', new RoleDisabledEvent(id, updated.name, requestId));
+      this.eventEmitter.emit(
+        'roles.role_disabled',
+        new RoleDisabledEvent(id, updated.name, requestId),
+      );
 
       return ApiResponse.ok<Role>(
         HttpStatus.OK,
@@ -678,18 +658,12 @@ export class RolesService {
       this.logger.error(`Error al deshabilitar rol: ${errorMsg}`, error);
 
       // Fire-and-forget: Auditar error
-      this.auditService.logError(
-        'ROLE_DISABLED',
-        'role',
-        id,
-        error as Error,
-        {
-          module: 'roles',
-          severity: 'HIGH',
-          tags: ['role', 'disable', 'error'],
-          actorId: userId,
-        },
-      );
+      this.auditService.logError('ROLE_DISABLED', 'role', id, error as Error, {
+        module: 'roles',
+        severity: 'HIGH',
+        tags: ['role', 'disable', 'error'],
+        actorId: userId,
+      });
 
       return ApiResponse.fail<Role>(
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -763,7 +737,13 @@ export class RolesService {
           {
             module: 'roles',
             severity: 'CRITICAL',
-            tags: ['role', 'delete', 'not-disabled', 'validation-error', 'destructive'],
+            tags: [
+              'role',
+              'delete',
+              'not-disabled',
+              'validation-error',
+              'destructive',
+            ],
             actorId: userId,
           },
         );
@@ -809,31 +789,26 @@ export class RolesService {
       this.invalidateCache();
 
       // Fire-and-forget: Auditar eliminación exitosa (hard-delete)
-      this.auditService.logAllow(
-        'ROLE_DELETED',
-        'role',
-        id,
-        {
-          module: 'roles',
-          severity: 'CRITICAL',
-          tags: ['role', 'delete', 'hard-delete', 'destructive'],
-          actorId: userId,
-          changes: {
-            before: {
-              id: existing.id,
-              key: existing.key,
-              name: existing.name,
-              status: existing.status,
-            },
-            after: {
-              id: 'deleted',
-              key: 'deleted',
-              name: 'deleted',
-              status: 'deleted',
-            },
+      this.auditService.logAllow('ROLE_DELETED', 'role', id, {
+        module: 'roles',
+        severity: 'CRITICAL',
+        tags: ['role', 'delete', 'hard-delete', 'destructive'],
+        actorId: userId,
+        changes: {
+          before: {
+            id: existing.id,
+            key: existing.key,
+            name: existing.name,
+            status: existing.status,
+          },
+          after: {
+            id: 'deleted',
+            key: 'deleted',
+            name: 'deleted',
+            status: 'deleted',
           },
         },
-      );
+      });
 
       return ApiResponse.ok<string>(
         HttpStatus.NO_CONTENT,
@@ -846,18 +821,12 @@ export class RolesService {
       this.logger.error(`Error al eliminar rol: ${errorMsg}`, error);
 
       // Fire-and-forget: Auditar error
-      this.auditService.logError(
-        'ROLE_DELETED',
-        'role',
-        id,
-        error as Error,
-        {
-          module: 'roles',
-          severity: 'CRITICAL',
-          tags: ['role', 'delete', 'error', 'destructive'],
-          actorId: userId,
-        },
-      );
+      this.auditService.logError('ROLE_DELETED', 'role', id, error as Error, {
+        module: 'roles',
+        severity: 'CRITICAL',
+        tags: ['role', 'delete', 'error', 'destructive'],
+        actorId: userId,
+      });
 
       return ApiResponse.fail<string>(
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -878,23 +847,18 @@ export class RolesService {
       const roles = await this.rolesRepository.findSystemRoles();
 
       // Fire-and-forget: Auditar lectura de roles del sistema
-      this.auditService.logAllow(
-        'ROLE_READ_SYSTEM',
-        'roles',
-        'system',
-        {
-          module: 'roles',
-          severity: 'LOW',
-          tags: ['roles', 'read', 'system'],
-          actorId: userId,
-          changes: {
-            after: {
-              count: roles.length,
-              keys: roles.map((r) => r.key),
-            },
+      this.auditService.logAllow('ROLE_READ_SYSTEM', 'roles', 'system', {
+        module: 'roles',
+        severity: 'LOW',
+        tags: ['roles', 'read', 'system'],
+        actorId: userId,
+        changes: {
+          after: {
+            count: roles.length,
+            keys: roles.map((r) => r.key),
           },
         },
-      );
+      });
 
       return ApiResponse.ok<Role[]>(
         HttpStatus.OK,
@@ -904,7 +868,10 @@ export class RolesService {
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error al obtener roles del sistema: ${errorMsg}`, error);
+      this.logger.error(
+        `Error al obtener roles del sistema: ${errorMsg}`,
+        error,
+      );
 
       // Fire-and-forget: Auditar error
       this.auditService.logError(
@@ -959,7 +926,9 @@ export class RolesService {
       // Validar que no sea rol del sistema
       if (existing.key === 'super_admin') {
         const message = `No se pueden cambiar los permisos de un rol del sistema`;
-        this.logger.warn(`Intento de cambiar permisos de rol del sistema: ${existing.key}`);
+        this.logger.warn(
+          `Intento de cambiar permisos de rol del sistema: ${existing.key}`,
+        );
 
         // Fire-and-forget: Auditar intento fallido
         this.auditService.logError(
@@ -1022,7 +991,7 @@ export class RolesService {
       this.auditService.logAllow(
         'ROLE_PERMISSIONS_UPDATED',
         'role',
-        updated.id!,
+        updated.id,
         {
           module: 'roles',
           severity: 'HIGH',
@@ -1058,7 +1027,10 @@ export class RolesService {
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error al actualizar permisos del rol: ${errorMsg}`, error);
+      this.logger.error(
+        `Error al actualizar permisos del rol: ${errorMsg}`,
+        error,
+      );
 
       // Fire-and-forget: Auditar error
       this.auditService.logError(
@@ -1080,6 +1052,30 @@ export class RolesService {
         'Error al actualizar permisos del rol',
         { requestId },
       );
+    }
+  }
+
+  /**
+   * Obtener roles activos por keys (para resolución de permisos)
+   * - Devuelve roles activos con las keys especificadas
+   * - Usado internamente por PermissionsService
+   */
+  async findActiveByKeys(roleKeys: string[]): Promise<Role[]> {
+    if (roleKeys.length === 0) {
+      return [];
+    }
+
+    try {
+      return await this.rolesRepository.findByKeysAndStatus(
+        roleKeys,
+        RoleStatus.ACTIVE,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error al obtener roles activos por keys: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      return [];
     }
   }
 

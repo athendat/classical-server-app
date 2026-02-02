@@ -12,10 +12,8 @@ import dotenv from 'dotenv';
 // Shared Modules
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { AuthzModule } from './modules/authz/authz.module';
-import { BootstrapModule } from './common/bootstrap';
+import { CardModule } from './modules/cards/card.module';
 import { ModulesModule } from './modules/modules';
-import { RolesModule } from './modules/roles';
 import { SharedContextModule } from './shared/shared-context.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
@@ -44,11 +42,11 @@ import { configValidationSchema } from './config/config.schema';
 // Constants
 import { INJECTION_TOKENS } from './common/constants/injection-tokens';
 import { CommonModule } from './common/common.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
+import { RolesModule } from './modules/roles/roles.module';
 
 @Module({
   imports: [
-    // ⭐ BootstrapModule: Importar PRIMERO para inicializar el sistema
-    BootstrapModule,
 
     // ⭐ SharedContextModule: Importar PRIMERO para que ClsService esté disponible globalmente
     SharedContextModule,
@@ -56,10 +54,11 @@ import { CommonModule } from './common/common.module';
     // Modules
     AuditModule,
     AuthModule,
-    AuthzModule,
+    CardModule,
     CommonModule,
     // KeysModule,
     ModulesModule,
+    PermissionsModule,
     RolesModule,
     TenantsModule,
     // TerminalsModule,

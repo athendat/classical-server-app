@@ -31,4 +31,9 @@ export const INJECTION_TOKENS = {
 
   // Providers
   JWKS_PROVIDER: Symbol('JWKS_PROVIDER'),
+
+  // Cards
+  CARD_VAULT_ADAPTER: Symbol('CARD_VAULT_ADAPTER'),
+  PINBLOCK_SERVICE: Symbol('PINBLOCK_SERVICE'),
+  CARD_SERVICE: Symbol('CARD_SERVICE'),
 };

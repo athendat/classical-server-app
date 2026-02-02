@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
-import { AuthzModule } from '../authz/authz.module';
+import { PermissionsModule } from '../permissions/permissions.module';
 import { AuditModule } from '../audit/audit.module';
 import { TenantsService } from './application/tenant.service';
 import { TenantController } from './infrastructure/controllers/tenant.controller';
@@ -28,7 +28,7 @@ import { AsyncContextService } from 'src/common/context';
  */
 @Module({
   imports: [
-    AuthzModule,
+    PermissionsModule,
     AuditModule,
     EventEmitterModule.forRoot(),
     MongooseModule.forFeature([

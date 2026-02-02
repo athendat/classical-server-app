@@ -1,5 +1,5 @@
 import { BaseDomainEvent } from '../../../common/events/base-domain.event';
-import { Module } from '../domain/module.entity';
+import { ModuleEntity } from '../domain/module.entity';
 
 /**
  * Evento de dominio: Módulo creado
@@ -9,7 +9,7 @@ export class ModuleCreatedEvent extends BaseDomainEvent {
   readonly eventType = 'modules.module_created';
 
   constructor(
-    public readonly module: Module,
+    public readonly module: ModuleEntity,
     public readonly correlationId?: string,
   ) {
     super();
@@ -24,8 +24,8 @@ export class ModuleUpdatedEvent extends BaseDomainEvent {
   readonly eventType = 'modules.module_updated';
 
   constructor(
-    public readonly module: Module,
-    public readonly previousModule?: Module,
+    public readonly module: ModuleEntity,
+    public readonly previousModule?: ModuleEntity,
     public readonly correlationId?: string,
   ) {
     super();
@@ -57,7 +57,7 @@ export class ModulesReorderedEvent extends BaseDomainEvent {
   readonly eventType = 'modules.modules_reordered';
 
   constructor(
-    public readonly modules: Module[],
+    public readonly modules: ModuleEntity[],
     public readonly parent?: string,
     public readonly correlationId?: string,
   ) {

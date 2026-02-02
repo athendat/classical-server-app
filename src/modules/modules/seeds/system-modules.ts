@@ -1,5 +1,5 @@
 import { ModuleType } from '../domain';
-import { Module, Permission } from '../domain/module.entity';
+import { ModuleEntity, Permission } from '../domain/module.entity';
 
 /**
  * Catálogo semilla de módulos del sistema
@@ -65,7 +65,7 @@ function createPermissionsFromActions(
 // MÓDULO INICIAL (Dashboard)
 // ============================================================================
 
-const DASHBOARD_MODULE = new Module({
+const DASHBOARD_MODULE = new ModuleEntity({
   indicator: 'dashboard',
   name: 'Dashboard',
   description: 'Panel de inicio con métricas y vista general del sistema.',
@@ -90,7 +90,7 @@ const DASHBOARD_MODULE = new Module({
 // MÓDULOS DE NEGOCIO
 // ============================================================================
 
-const MANAGEMENT_MODULE = new Module({
+const MANAGEMENT_MODULE = new ModuleEntity({
   order: 1,
   indicator: 'management',
   name: 'Management',
@@ -101,7 +101,7 @@ const MANAGEMENT_MODULE = new Module({
   type: ModuleType.group,
 });
 
-const TERMINALS_MODULE = new Module({
+const TERMINALS_MODULE = new ModuleEntity({
   order: 0,
   parent: 'management',
   indicator: 'terminals',
@@ -152,7 +152,7 @@ const TERMINALS_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const MERCHANTS_MODULE = new Module({
+const MERCHANTS_MODULE = new ModuleEntity({
   order: 1,
   parent: 'management',
   indicator: 'merchants',
@@ -197,7 +197,7 @@ const MERCHANTS_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const KEYS_MODULE = new Module({
+const KEYS_MODULE = new ModuleEntity({
   order: 3,
   parent: 'management',
   indicator: 'keys',
@@ -252,7 +252,7 @@ const KEYS_MODULE = new Module({
 // ============================================================================
 // MÓDULOS DEL SISTEMA KMS
 // ============================================================================
-const SYSTEM_MODULE = new Module({
+const SYSTEM_MODULE = new ModuleEntity({
   order: 2,
   indicator: 'system',
   name: 'System',
@@ -263,7 +263,7 @@ const SYSTEM_MODULE = new Module({
   type: ModuleType.group,
 });
 
-const ANALYTICS_MODULE = new Module({
+const ANALYTICS_MODULE = new ModuleEntity({
   order: 0,
   parent: 'system',
   indicator: 'analytics',
@@ -287,7 +287,7 @@ const ANALYTICS_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const AUDIT_MODULE = new Module({
+const AUDIT_MODULE = new ModuleEntity({
   order: 1,
   parent: 'system',
   indicator: 'audit',
@@ -317,7 +317,7 @@ const AUDIT_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const MODULES_MODULE = new Module({
+const MODULES_MODULE = new ModuleEntity({
   order: 2,
   parent: 'system',
   indicator: 'modules',
@@ -363,7 +363,7 @@ const MODULES_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const ROLES_MODULE = new Module({
+const ROLES_MODULE = new ModuleEntity({
   order: 3,
   parent: 'system',
   indicator: 'roles',
@@ -408,7 +408,7 @@ const ROLES_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const USERS_MODULE = new Module({
+const USERS_MODULE = new ModuleEntity({
   order: 4,
   parent: 'system',
   indicator: 'users',
@@ -459,7 +459,7 @@ const USERS_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const CHANGELOG_MODULE = new Module({
+const CHANGELOG_MODULE = new ModuleEntity({
   order: 5,
   parent: 'system',
   indicator: 'changelog',
@@ -481,7 +481,7 @@ const CHANGELOG_MODULE = new Module({
   type: ModuleType.basic,
 });
 
-const CONTACT_MODULE = new Module({
+const CONTACT_MODULE = new ModuleEntity({
   order: 6,
   parent: 'system',
   indicator: 'contact',
@@ -512,7 +512,7 @@ const CONTACT_MODULE = new Module({
  * Catálogo completo de módulos del sistema
  * SOURCE OF TRUTH para la estructura de módulos y permisos
  */
-export const SYSTEM_MODULES: Module[] = [
+export const SYSTEM_MODULES: ModuleEntity[] = [
   // Módulo inicial (Dashboard)
   DASHBOARD_MODULE,
 
@@ -543,7 +543,7 @@ export const SYSTEM_MODULES: Module[] = [
  */
 export function getSystemModuleByIndicator(
   indicator: string,
-): Module | undefined {
+): ModuleEntity | undefined {
   return SYSTEM_MODULES.find((m) => m.indicator === indicator.toLowerCase());
 }
 

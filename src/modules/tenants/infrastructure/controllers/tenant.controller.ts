@@ -29,7 +29,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
+import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
 import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
 import { CurrentActor } from 'src/modules/auth/decorators/current-actor.decorator';
 import type { Actor } from 'src/common/interfaces';

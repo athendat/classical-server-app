@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
-import { v4 as uuidv4 } from 'uuid';
 
 import { AbstractSchema } from 'src/common/schemas/abstract.schema';
 
@@ -24,7 +23,6 @@ interface HttpHeaders {
 
 @Schema({ timestamps: true, collection: 'audit_events' })
 export class AuditEvent extends AbstractSchema {
-  
   // ===== TRAZABILIDAD =====
   @Prop({ required: true, index: true })
   requestId: string;

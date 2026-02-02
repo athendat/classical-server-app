@@ -1,4 +1,4 @@
-import { Module } from '../module.entity';
+import { ModuleEntity } from '../module.entity';
 
 /**
  * Puerto IModulesRepository - Contrato para persistencia de módulos
@@ -8,37 +8,37 @@ export interface IModulesRepository {
   /**
    * Crear un nuevo módulo
    */
-  create(module: Module): Promise<Module>;
+  create(module: ModuleEntity): Promise<ModuleEntity>;
 
   /**
    * Obtener todos los módulos activos
    */
-  findAll(): Promise<Module[]>;
+  findAll(): Promise<ModuleEntity[]>;
 
   /**
    * Obtener todos los módulos (incluyendo disabled)
    */
-  findAllIncludingDisabled(): Promise<Module[]>;
+  findAllIncludingDisabled(): Promise<ModuleEntity[]>;
 
   /**
    * Obtener módulo por ID
    */
-  findById(id: string): Promise<Module | null>;
+  findById(id: string): Promise<ModuleEntity | null>;
 
   /**
    * Obtener módulo por indicator
    */
-  findByIndicator(indicator: string): Promise<Module | null>;
+  findByIndicator(indicator: string): Promise<ModuleEntity | null>;
 
   /**
    * Actualizar un módulo
    */
-  update(id: string, module: Partial<Module>): Promise<Module | null>;
+  update(id: string, module: Partial<ModuleEntity>): Promise<ModuleEntity | null>;
 
   /**
    * Soft-delete: actualizar status a 'disabled'
    */
-  disable(id: string): Promise<Module | null>;
+  disable(id: string): Promise<ModuleEntity | null>;
 
   /**
    * Hard-delete: eliminar completamente el documento
@@ -48,7 +48,7 @@ export interface IModulesRepository {
   /**
    * Obtener módulos del sistema
    */
-  findSystemModules(): Promise<Module[]>;
+  findSystemModules(): Promise<ModuleEntity[]>;
 
   /**
    * Contar módulos activos

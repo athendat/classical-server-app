@@ -32,7 +32,7 @@ import { Role } from './role.entity';
 /**
  * IRolesRepository - Puerto (interfaz)
  * Define operaciones de persistencia para roles
- * Implementada en MongoDBRolesRepository
+ * Implementada en RolesRepository
  */
 export interface IRolesRepository {
   create(role: Role): Promise<Role>;
@@ -119,7 +119,7 @@ import { IRolesRepository } from '../../domain/roles.repository';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * MongoDBRolesRepository - Adaptador de persistencia para roles en MongoDB
+ * RolesRepository - Adaptador de persistencia para roles en MongoDB
  * Implementa IRolesRepository
  * 
  * ✅ Inyecta modelo Mongoose
@@ -127,8 +127,8 @@ import { v4 as uuidv4 } from 'uuid';
  * ✅ Maneja errores con try-catch
  */
 @Injectable()
-export class MongoDBRolesRepository implements IRolesRepository {
-  private readonly logger = new Logger(MongoDBRolesRepository.name);
+export class RolesRepository implements IRolesRepository {
+  private readonly logger = new Logger(RolesRepository.name);
 
   // ⭐ @InjectModel - Inyecta el modelo Mongoose de NestJS
   constructor(@InjectModel(RoleSchema.name) private roleModel: Model<RoleSchema>) {}

@@ -1,1 +1,1 @@
-export * from './mongodb-modules.repository';
+export * from './modules.repository';

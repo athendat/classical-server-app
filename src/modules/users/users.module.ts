@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
-import { AuthzModule } from '../authz/authz.module';
 import { AuditModule } from '../audit/audit.module';
+// import { PermissionsModule } from '../permissions/permissions.module';
 
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { UsersService } from './application/users.service';
@@ -48,9 +48,9 @@ import { User, UserSchema } from './infrastructure/schemas/user.schema';
  */
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-    AuthzModule,
     AuditModule,
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    // PermissionsModule,
   ],
   controllers: [UsersController, ProfileController],
   providers: [AsyncContextService, UsersService, MongoDbUsersRepository],

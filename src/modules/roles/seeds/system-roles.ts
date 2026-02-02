@@ -1,4 +1,4 @@
-import { MODULES } from '../../authz/authz.constants';
+import { MODULES } from 'src/modules/modules/domain/constants/module.constants';
 
 /**
  * Roles del sistema (isSystem=true, inmutables).
@@ -7,7 +7,6 @@ import { MODULES } from '../../authz/authz.constants';
  * - admin: wildcard global "*" - acceso total al sistema
  * - Otros roles: wildcards por módulo "module.*" + permisos exactos
  */
-
 export const SYSTEM_ROLES = [
   /**
    * Super Administrator - Acceso irrestricto a todo

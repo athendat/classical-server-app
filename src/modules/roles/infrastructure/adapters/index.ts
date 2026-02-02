@@ -1,1 +1,1 @@
-export { MongoDBRolesRepository } from './mongodb-roles.repository';
+export { RolesRepository } from './roles.repository';

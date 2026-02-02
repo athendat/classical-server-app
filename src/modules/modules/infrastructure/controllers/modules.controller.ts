@@ -31,8 +31,8 @@ import { ModulesService } from '../../application/modules.service';
 import { NavigationService } from '../../application/navigation.service';
 import { CreateModuleDto, UpdateModuleDto, ReorderModulesDto } from '../../dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
+// import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
+// import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
 
 /**
  * ModulesController - Endpoints REST para gestión de módulos
@@ -40,7 +40,7 @@ import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
  *
  * Seguridad:
  * - Todos los endpoints requieren Bearer token JWT
- * - Validación de permisos con @Permissions()
+//  * - Validación de permisos con @Permissions()
  */
 @ApiTags('Modules')
 @ApiBearerAuth('access-token')
@@ -49,7 +49,7 @@ import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('modules')
 export class ModulesController {
   constructor(
@@ -74,7 +74,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.read')
+  // @Permissions('modules.read')
   async findAll(@Res() res: Response): Promise<Response> {
     const response = await this.modulesService.findAll();
     return res.status(response.statusCode).json(response);
@@ -98,7 +98,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.read')
+  // @Permissions('modules.read')
   async getNavigation(@Res() res: Response): Promise<Response> {
     const response = await this.navigationService.buildNavigation();
     return res.status(response.statusCode).json(response);
@@ -129,7 +129,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.update')
+  // @Permissions('modules.update')
   async reorderModules(
     @Res() res: Response,
     @Body() reorderDto: ReorderModulesDto,
@@ -155,7 +155,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.read')
+  // @Permissions('modules.read')
   async findSystemModules(@Res() res: Response): Promise<Response> {
     const response = await this.modulesService.findSystemModules();
     return res.status(response.statusCode).json(response);
@@ -185,7 +185,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.read')
+  // @Permissions('modules.read')
   async findById(
     @Res() res: Response,
     @Param('id') id: string,
@@ -216,7 +216,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.create')
+  // @Permissions('modules.create')
   async create(
     @Res() res: Response,
     @Body() createModuleDto: CreateModuleDto,
@@ -254,7 +254,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.update')
+  // @Permissions('modules.update')
   async update(
     @Res() res: Response,
     @Param('id') id: string,
@@ -293,7 +293,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.disable')
+  // @Permissions('modules.disable')
   async disable(
     @Res() res: Response,
     @Param('id') id: string,
@@ -330,7 +330,7 @@ export class ModulesController {
   @ApiUnauthorizedResponse({
     description: 'Unauthorized',
   })
-  @Permissions('modules.delete')
+  // @Permissions('modules.delete')
   async delete(
     @Res() res: Response,
     @Param('id') id: string,

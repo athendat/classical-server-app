@@ -52,7 +52,7 @@ export interface Permission {
  * Module Entity - Catálogo de módulos de la plataforma
  * Contiene la definición de módulos, acciones y permisos embebidos
  */
-export class Module {
+export class ModuleEntity {
   /**
    * ID MongoDB (ObjectId)
    */
@@ -145,9 +145,9 @@ export class Module {
   /**
    * Sub módulos hijos (si es un módulo grupo)
    */
-  children?: Module[];
+  children?: ModuleEntity[];
 
-  constructor(partial?: Partial<Module>) {
+  constructor(partial?: Partial<ModuleEntity>) {
     Object.assign(this, partial);
   }
 }
