@@ -126,7 +126,7 @@ async function bootstrap() {
         description: 'Enter JWT token',
         in: 'header',
       },
-      'access-token',
+      'Bearer Token',
     )
     .addApiKey(
       {
@@ -134,7 +134,7 @@ async function bootstrap() {
         name: 'x-api-key', // this is the name of the key you expect in header
         in: 'header',
       },
-      'access-key', // this is the name to show and used in swagger
+      'x-api-key', // this is the name to show and used in swagger
     )
     .build();
 

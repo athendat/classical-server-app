@@ -49,8 +49,8 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
  * - Auditoría end-to-end de todas las operaciones
  */
 @ApiTags('Roles')
-@ApiBearerAuth('access-token')
-@ApiSecurity('access-key')
+@ApiBearerAuth('Bearer Token')
+@ApiSecurity('x-api-key')
 @ApiHeader({
   name: 'x-api-key',
   required: true,

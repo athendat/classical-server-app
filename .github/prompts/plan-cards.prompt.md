@@ -244,7 +244,7 @@ async getCardDetail(
   imports: [AuthModule, UsersModule, CacheModule],
   controllers: [CardController],
   providers: [
-    CardService,
+    CardsService,
     Iso4PinblockService,
     {
       provide: INJECTION_TOKENS.CARD_VAULT_ADAPTER,
@@ -252,9 +252,9 @@ async getCardDetail(
     },
     // ... otros providers
   ],
-  exports: [CardService],
+  exports: [CardsService],
 })
-export class CardModule {}
+export class CardsModule {}
 ```
 
 **Configuración**:
@@ -262,7 +262,7 @@ export class CardModule {}
 - Importar AuthModule para JwtAuthGuard
 - Importar UsersModule para validar usuarios
 - Importar CacheModule si se usa caché
-- Exportar CardService para futura integración
+- Exportar CardsService para futura integración
 
 **Importar en `app.module.ts`**:
 ```typescript
@@ -270,7 +270,7 @@ imports: [
   BootstrapModule,
   SharedContextModule,
   // ... otros módulos
-  CardModule, // ← AGREGAR AQUÍ
+  CardsModule, // ← AGREGAR AQUÍ
 ]
 ```
 

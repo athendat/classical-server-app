@@ -43,8 +43,8 @@ import {
  * - Documentación Swagger completa
  */
 @ApiTags('Audit')
-@ApiBearerAuth('access-token')
-@ApiSecurity('access-key')
+@ApiBearerAuth('Bearer Token')
+@ApiSecurity('x-api-key')
 @ApiHeader({
   name: 'x-api-key',
   required: true,

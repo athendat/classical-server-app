@@ -17,20 +17,20 @@ import { CardResponseDto } from '../dto/card-response.dto';
 import { CardStatusEnum } from '../domain/enums/card-status.enum';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { ApiResponse } from 'src/common/types/api-response.type';
+import { CardVaultAdapter } from '../infrastructure/adapters';
 
 /**
  * Card Service - Application layer for card operations
  * Handles business logic for card registration, listing, and retrieval
  */
 @Injectable()
-export class CardService {
-  private readonly logger = new Logger(CardService.name);
+export class CardsService {
+  private readonly logger = new Logger(CardsService.name);
 
   constructor(
     private readonly cardRepository: CardRepository,
     private readonly iso4PinblockService: Iso4PinblockService,
-    @Inject(INJECTION_TOKENS.CARD_VAULT_ADAPTER)
-    private readonly cardVaultAdapter: ICardVaultPort,
+    private readonly cardVaultAdapter: CardVaultAdapter,
     private readonly auditService: AuditService,
     private readonly asyncContextService: AsyncContextService,
   ) {}
@@ -168,9 +168,9 @@ export class CardService {
   /**
    * List all cards for a user with pagination
    */
-  async listCardsForUser(): Promise<ApiResponse<CardResponseDto[]>> {
+  async listCardsForUser(id?: string): Promise<ApiResponse<CardResponseDto[]>> {
     const requestId = this.asyncContextService.getRequestId();
-    const userId = this.asyncContextService.getActorId()!;
+    const userId = id ? id :this.asyncContextService.getActorId()!;
     this.logger.debug(`[${requestId}] Fetching all cards for user=${userId}`);
     try {
       const cards = await this.cardRepository.findByUserId(userId);

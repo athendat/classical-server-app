@@ -34,6 +34,7 @@ import { ApiResponse } from 'src/common/types/api-response.type';
 import { ConfirmationCodeService } from '../infrastructure/services/confirmation-code.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserRegisteredEvent } from '../events/auth.events';
+import { CardsService } from 'src/modules/cards/application/cards.service';
 
 interface ValidationResponse {
   valid: boolean;
@@ -50,13 +51,14 @@ export class AuthService {
   constructor(
     @Inject('IJwtTokenPort')
     private readonly jwtTokenPort: IJwtTokenPort,
-    private readonly usersService: UsersService,
-    private readonly configService: ConfigService,
-    private readonly eventEmitter: EventEmitter2,
-    private readonly auditService: AuditService,
     private readonly asyncContext: AsyncContextService,
+    private readonly auditService: AuditService,
+    private readonly cardsService: CardsService,
+    private readonly configService: ConfigService,
     private readonly confirmationCodeService: ConfirmationCodeService,
+    private readonly eventEmitter: EventEmitter2,
     private readonly sessionService: SessionService,
+    private readonly usersService: UsersService,
   ) {
     this.jwtAudience =
       configService.get<string>('JWT_AUDIENCE') || 'classical-service';
@@ -205,6 +207,9 @@ export class AuthService {
         refreshTokenTtl,
       );
 
+      // Obterner tarjetas del usuario
+      const cardsData = await this.cardsService.listCardsForUser(validation.user!.id);
+
       return ApiResponse.ok<LoginResponseDto>(
         HttpStatus.OK,
         {
@@ -217,6 +222,7 @@ export class AuthService {
         {
           requestId,
           user: validation.user,
+          cards: cardsData.data
         },
       );
     } catch (error) {

@@ -36,8 +36,8 @@ import { UpdateMyPasswordDto, UpdateUserDto } from 'src/modules/users/dto';
  * - Auditoría end-to-end en servicio
  */
 @ApiTags('Profile')
-@ApiBearerAuth('access-token')
-@ApiSecurity('access-key')
+@ApiBearerAuth('Bearer Token')
+@ApiSecurity('x-api-key')
 @ApiHeader({
   name: 'x-api-key',
   required: true,

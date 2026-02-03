@@ -43,7 +43,7 @@ import { ApiKeyGuard } from '../../guards/api-key.guard';
   name: 'x-api-key',
   required: true,
 })
-@ApiSecurity('access-key')
+@ApiSecurity('x-api-key')
 @UseGuards(ApiKeyGuard)
 @Controller('auth')
 export class AuthController {

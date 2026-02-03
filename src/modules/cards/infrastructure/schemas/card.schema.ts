@@ -12,8 +12,6 @@ export type CardDocument = HydratedDocument<Card>;
   timestamps: true,
 })
 export class Card extends AbstractSchema {
-  @Prop({ required: true, type: String })
-  declare userId: string;
 
   @Prop({ required: true, enum: CardTypeEnum, type: String })
   cardType: CardTypeEnum;

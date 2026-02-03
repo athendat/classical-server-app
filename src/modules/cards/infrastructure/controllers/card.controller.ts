@@ -25,11 +25,8 @@ import {
 } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-// import { PermissionsGuard } from 'src/modules/authz/guards/permissions.guard';
 
-import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
-
-import { CardService } from '../../application/card.service';
+import { CardsService } from '../../application/cards.service';
 
 import { CreateCardDto } from '../../dto/create-card.dto';
 import { CardResponseDto } from '../../dto/card-response.dto';
@@ -41,15 +38,15 @@ import { ApiResponse } from 'src/common/types/api-response.type';
  * Base path: /cards
  */
 @Controller('cards')
-@ApiBearerAuth('access-token')
-@ApiSecurity('access-key')
+@ApiBearerAuth('Bearer Token')
+@ApiSecurity('x-api-key')
 @ApiHeader({
   name: 'x-api-key',
   required: true,
 })
 @UseGuards(JwtAuthGuard)
 export class CardController {
-  constructor(private readonly cardService: CardService) {}
+  constructor(private readonly CardsService: CardsService) {}
 
   /**
    * POST /cards - Register a new card
@@ -83,7 +80,7 @@ export class CardController {
     @Body() createCardDto: CreateCardDto,
     @Res() res: Response,
   ): Promise<Response> {
-    const response = await this.cardService.registerCard(createCardDto);
+    const response = await this.CardsService.registerCard(createCardDto);
     return res.status(response.statusCode).json(response);
   }
 
@@ -112,7 +109,7 @@ export class CardController {
     description: 'Error interno del servidor',
   })
   async listCards(@Res() res: Response): Promise<Response> {
-    const response = await this.cardService.listCardsForUser();
+    const response = await this.CardsService.listCardsForUser();
     return res.status(response.statusCode).json(response);
   }
 }

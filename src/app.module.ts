@@ -12,7 +12,7 @@ import dotenv from 'dotenv';
 // Shared Modules
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { CardModule } from './modules/cards/card.module';
+import { CardsModule } from './modules/cards/cards.module';
 import { ModulesModule } from './modules/modules';
 import { SharedContextModule } from './shared/shared-context.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
@@ -54,7 +54,7 @@ import { RolesModule } from './modules/roles/roles.module';
     // Modules
     AuditModule,
     AuthModule,
-    CardModule,
+    CardsModule,
     CommonModule,
     // KeysModule,
     ModulesModule,

@@ -27,6 +27,12 @@ import { AuditEvent, AuditEventSchema } from './schemas/audit-event.schema';
     AuditPersistenceAdapter,
     AuditResponseUpdateAdapter,
   ],
-  exports: [AuditService],
+  exports: [
+    AuditService,
+    AuditLogService,
+    AuditPersistenceAdapter,
+    AuditResponseUpdateAdapter,
+    MongooseModule
+  ],
 })
-export class AuditModule {}
+export class AuditModule { }

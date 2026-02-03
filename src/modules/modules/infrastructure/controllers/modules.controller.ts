@@ -43,8 +43,8 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 //  * - Validación de permisos con @Permissions()
  */
 @ApiTags('Modules')
-@ApiBearerAuth('access-token')
-@ApiSecurity('access-key')
+@ApiBearerAuth('Bearer Token')
+@ApiSecurity('x-api-key')
 @ApiHeader({
   name: 'x-api-key',
   required: true,

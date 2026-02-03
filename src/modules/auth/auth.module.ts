@@ -1,9 +1,10 @@
-import { Module, Global } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { AuditModule } from '../audit/audit.module';
 import { CachingModule } from 'src/common/cache/cache.module';
+import { CardsModule } from 'src/modules/cards/cards.module';
 import { UsersModule } from '../users/users.module';
 import { VaultModule } from '../vault/vault.module';
 
@@ -19,6 +20,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwksAdapter } from './infrastructure/adapters/jwks.adapter';
 import { JwtTokenAdapter } from './infrastructure/adapters/jwt-token.adapter';
 import { ReplayProtectionAdapter } from './infrastructure/adapters/replay-protection.adapter';
+import { CardsService } from '../cards/application/cards.service';
+import { CardRepository } from '../cards/infrastructure/adapters';
+import { Iso4PinblockService } from '../cards/infrastructure/services/iso4-pinblock.service';
 
 /**
  * Módulo de autenticación.
@@ -33,12 +37,12 @@ import { ReplayProtectionAdapter } from './infrastructure/adapters/replay-protec
  * - IJwksPort: para gestión de claves
  * - IReplayProtectionPort: para validación anti-replay
  */
-@Global()
 @Module({
   imports: [
     AuditModule,
     EventEmitter2,
     CachingModule,
+    CardsModule,
     PassportModule,
     UsersModule,
     VaultModule,
@@ -47,6 +51,9 @@ import { ReplayProtectionAdapter } from './infrastructure/adapters/replay-protec
   providers: [
     AsyncContextService,
     AuthService,
+    // CardsService,
+    // CardRepository,
+    // Iso4PinblockService,
     SessionService,
     JwtStrategy,
     ConfirmationCodeService,

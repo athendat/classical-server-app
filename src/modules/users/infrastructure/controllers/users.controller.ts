@@ -49,8 +49,8 @@ import {
  * - Auditoría end-to-end en servicio
  */
 @ApiTags('Users')
-@ApiBearerAuth('access-token')
-@ApiSecurity('access-key')
+@ApiBearerAuth('Bearer Token')
+@ApiSecurity('x-api-key')
 @ApiHeader({
   name: 'x-api-key',
   required: true,
