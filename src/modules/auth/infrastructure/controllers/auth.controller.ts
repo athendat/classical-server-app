@@ -36,6 +36,10 @@ import {
   ResetPasswordDto,
   ResetPasswordResponseDto,
 } from '../../dto';
+
+// ⭐ NUEVO: Import MerchantRegistrationDto
+import { MerchantRegistrationDto } from '../../dto/merchant-registration.dto';
+
 import { ApiKeyGuard } from '../../guards/api-key.guard';
 
 @ApiTags('Auth')
@@ -136,6 +140,35 @@ export class AuthController {
     @Res() res: Response,
   ): Promise<Response> {
     const response = await this.authService.register(registerDto);
+    return res.status(response.statusCode).json(response);
+  }
+
+  // ⭐ NUEVO: Endpoint de auto-registro de comerciante
+  @Post('register-merchant')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Registrar nuevo comerciante',
+    description:
+      'Crea un nuevo usuario con roles user+merchant, requiere phone y email obligatorios',
+  })
+  @ApiBody({ type: MerchantRegistrationDto })
+  @ApiCreatedResponse({
+    description: 'Comerciante registrado, código SMS enviado',
+    type: RegisterResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Datos inválidos o validación fallida',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error en el registro de comerciante',
+  })
+  async registerMerchant(
+    @Body() merchantRegistrationDto: MerchantRegistrationDto,
+    @Res() res: Response,
+  ): Promise<Response> {
+    const response = await this.authService.registerMerchant(
+      merchantRegistrationDto,
+    );
     return res.status(response.statusCode).json(response);
   }
 

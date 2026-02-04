@@ -5,6 +5,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditModule } from '../audit/audit.module';
 import { CachingModule } from 'src/common/cache/cache.module';
 import { CardsModule } from 'src/modules/cards/cards.module';
+import { PermissionsModule } from '../permissions/permissions.module';
 import { UsersModule } from '../users/users.module';
 import { VaultModule } from '../vault/vault.module';
 
@@ -46,6 +47,7 @@ import { Iso4PinblockService } from '../cards/infrastructure/services/iso4-pinbl
     PassportModule,
     UsersModule,
     VaultModule,
+    PermissionsModule,
   ],
   controllers: [AuthController],
   providers: [

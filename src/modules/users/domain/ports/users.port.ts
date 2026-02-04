@@ -8,6 +8,7 @@ export interface CreateUserPayload {
   email?: string;
   fullname?: string;
   roleKey: string;
+  additionalRoleKeys?: string[];
   phone: string;
   idNumber?: string;
   password: string;
@@ -23,6 +24,7 @@ export interface UpdateUserPayload {
 
 export interface UpdateUserRolesPayload {
   roleKey: string;
+  additionalRoleKeys?: string[];
 }
 
 export interface UpdateUserPasswordPayload {
@@ -39,6 +41,7 @@ export interface UserDTO {
   emailVerified?: boolean;
   fullname: string;
   roleKey: string;
+  additionalRoleKeys?: string[];
   role?: Role;
   status: UserStatus;
   isSystemAdmin?: boolean;

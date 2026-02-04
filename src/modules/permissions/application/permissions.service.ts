@@ -93,6 +93,7 @@ export class PermissionsService {
    * - Para usuarios: obtiene el rol del usuario usando UsersService (lazy-loaded)
    * - Para servicios: obtiene todos los roles asignados (no implementado)
    * - Expande roles → permisos
+   * - Combina roleKey + additionalRoleKeys
    */
   private async fetchPermissionsFromDB(actor: Actor): Promise<{
     hasGlobalWildcard: boolean;
@@ -113,7 +114,14 @@ export class PermissionsService {
         };
       }
 
-      roleKeys = user.roleKey ? [user.roleKey] : [];
+      // ⭐ NUEVO: Combinar roleKey + additionalRoleKeys
+      roleKeys = [];
+      if (user.roleKey) {
+        roleKeys.push(user.roleKey);
+      }
+      if (user.additionalRoleKeys && user.additionalRoleKeys.length > 0) {
+        roleKeys.push(...user.additionalRoleKeys);
+      }
     } else if (actor.actorType === 'service') {
       // TODO: Implementar resolución de permisos para servicios
       roleKeys = [];
@@ -201,5 +209,80 @@ export class PermissionsService {
   invalidateCache(actorType: 'user' | 'service', actorId: string): void {
     const cacheKey = `permissions:${actorType}:${actorId}`;
     this.logger.debug(`Cache invalidated for ${cacheKey}`);
+  }
+
+  /**
+   * ⭐ NUEVO: Valida si una combinación de roles es permitida
+   * Reglas:
+   * 1. super_admin no puede tener additionalRoleKeys ni incluirse en ellos
+   * 2. user puede convivir con merchant, admin, ops (todo excepto super_admin)
+   * 3. merchant solo puede convivir con user
+   * 4. admin, ops solo pueden convivir con user
+   *
+   * @returns { valid: boolean; error?: string }
+   */
+  validateRoleCombination(
+    roleKey: string,
+    additionalRoleKeys?: string[],
+  ): { valid: boolean; error?: string } {
+    const additionalRoles = additionalRoleKeys || [];
+
+    // Regla 1: super_admin no puede tener additionalRoleKeys
+    if (roleKey === 'super_admin' && additionalRoles.length > 0) {
+      return {
+        valid: false,
+        error: 'super_admin no puede tener roles adicionales',
+      };
+    }
+
+    // Regla 1b: No se puede incluir super_admin en additionalRoleKeys
+    if (additionalRoles.includes('super_admin')) {
+      return {
+        valid: false,
+        error: 'super_admin no puede ser un rol adicional',
+      };
+    }
+
+    // Regla 2: user puede convivir con merchant, admin, ops
+    if (roleKey === 'user') {
+      for (const addRole of additionalRoles) {
+        if (!['merchant', 'admin', 'ops'].includes(addRole)) {
+          return {
+            valid: false,
+            error: `user no puede combinarse con ${addRole}`,
+          };
+        }
+      }
+      return { valid: true };
+    }
+
+    // Regla 3: merchant solo puede convivir con user
+    if (roleKey === 'merchant') {
+      for (const addRole of additionalRoles) {
+        if (addRole !== 'user') {
+          return {
+            valid: false,
+            error: `merchant solo puede combinarse con user, no con ${addRole}`,
+          };
+        }
+      }
+      return { valid: true };
+    }
+
+    // Regla 4: admin, ops solo pueden convivir con user
+    if (['admin', 'ops'].includes(roleKey)) {
+      for (const addRole of additionalRoles) {
+        if (addRole !== 'user') {
+          return {
+            valid: false,
+            error: `${roleKey} solo puede combinarse con user, no con ${addRole}`,
+          };
+        }
+      }
+      return { valid: true };
+    }
+
+    // Si no es ninguno de los roles conocidos, permitir sin validar
+    return { valid: true };
   }
 }

@@ -5,9 +5,27 @@ import {
   IsStrongPassword,
   Length,
   MaxLength,
+  IsOptional,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+/**
+ * RegisterDto: DTO para auto-registro de usuarios comunes (rol: 'user')
+ *
+ * Campos requeridos:
+ * - fullname: Nombre completo del usuario
+ * - phone: Teléfono (obligatorio, validado con formato cubano)
+ * - idNumber: Número de identificación (11 caracteres)
+ * - password: Contraseña fuerte
+ *
+ * Campos opcionales:
+ * - email: Email (opcional en este punto)
+ *
+ * Al registrarse, el usuario se crea con:
+ * - roleKey: 'user'
+ * - additionalRoleKeys: [] (vacío)
+ * - O si existe con phone sin confirmar, se actualiza la contraseña
+ */
 export class RegisterDto {
   @ApiProperty({
     description: 'Nombre completo del usuario',

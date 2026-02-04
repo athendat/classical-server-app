@@ -62,6 +62,7 @@ export class UsersService implements IUsersService {
    * - Persistencia en BD
    * - Registro de auditoría (ALLOW)
    * - Emisión de evento de dominio
+   * - ⭐ NUEVO: Valida combinación de roles (roleKey + additionalRoleKeys)
    */
   async create(dto: CreateUserDto): Promise<ApiResponse<UserDTO>> {
     const requestId = this.asyncContextService.getRequestId();
@@ -94,6 +95,7 @@ export class UsersService implements IUsersService {
             email: user.email,
             fullname: user.fullname,
             roleKey: user.roleKey,
+            additionalRoleKeys: user.additionalRoleKeys || [],
             status: user.status,
             userId: userId,
           },
@@ -382,7 +384,7 @@ export class UsersService implements IUsersService {
 
       const user = await this.usersRepository.updateRoles(id, dto);
 
-      // Auditoría: cambios realizados
+      // Auditoría: cambios realizados (⭐ NUEVO: incluir additionalRoleKeys)
       this.auditService.logAllow('USER_ROLE_UPDATED', 'user', userId, {
         module: 'users',
         severity: 'HIGH',
@@ -390,9 +392,11 @@ export class UsersService implements IUsersService {
         changes: {
           before: {
             roleKey: beforeUser.roleKey,
+            additionalRoleKeys: beforeUser.additionalRoleKeys || [],
           },
           after: {
             roleKey: user?.roleKey,
+            additionalRoleKeys: user?.additionalRoleKeys || [],
           },
         },
       });
@@ -752,6 +756,7 @@ export class UsersService implements IUsersService {
       fullname: user.fullname,
       idNumber: user.idNumber,
       roleKey: user.roleKey,
+      additionalRoleKeys: user.additionalRoleKeys || [], // ⭐ NUEVO
       role: user.role,
       phone: user.phone,
       phoneConfirmed: user.phoneConfirmed,

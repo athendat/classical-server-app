@@ -74,6 +74,14 @@ export class CreateUserDto {
   })
   roleKey: string;
 
+  @ApiPropertyOptional({
+    description: 'Array de roles adicionales opcionales',
+    example: ['merchant'],
+    type: [String],
+  })
+  @IsOptional()
+  additionalRoleKeys?: string[];
+
   @ApiProperty({
     description: 'Contraseña del usuario (texto plano, mínimo 8 caracteres)',
     example: 'SecurePassword!123',

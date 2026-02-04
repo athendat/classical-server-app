@@ -43,6 +43,9 @@ export class User extends AbstractSchema {
   @Prop({ type: String, required: true, ref: 'Role' })
   roleKey: string;
 
+  @Prop({ type: [String], default: [], ref: 'Role' })
+  additionalRoleKeys?: string[];
+
   @Prop({ type: Boolean, default: false })
   isSystemAdmin?: boolean;
 
@@ -78,6 +81,7 @@ UserSchema.index({ phone: 1 }, { unique: true });
 UserSchema.index({ email: 1 }, { sparse: true });
 UserSchema.index({ createdAt: -1 });
 UserSchema.index({ lastActive: -1 });
+UserSchema.index({ roleKey: 1, additionalRoleKeys: 1 });
 
 UserSchema.virtual('role', {
   ref: 'Role',

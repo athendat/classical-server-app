@@ -86,6 +86,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
       email: payload.email,
       fullname: payload.fullname,
       roleKey: payload.roleKey,
+      additionalRoleKeys: payload.additionalRoleKeys || [], // ⭐ NUEVO
       phone: payload.phone,
       idNumber: payload.idNumber,
       passwordHash: payload.passwordHash,
@@ -146,7 +147,12 @@ export class MongoDbUsersRepository implements IUsersRepository {
     return this.userModel
       .findOneAndUpdate(
         { id, status: UserStatus.ACTIVE },
-        { $set: { roleKey: payload.roleKey } },
+        {
+          $set: {
+            roleKey: payload.roleKey,
+            additionalRoleKeys: payload.additionalRoleKeys || [], // ⭐ NUEVO
+          },
+        },
         { new: true },
       )
       .populate(this.populateOptions())

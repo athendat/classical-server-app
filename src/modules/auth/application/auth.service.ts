@@ -30,11 +30,15 @@ import {
   ResetPasswordResponseDto,
 } from '../dto';
 
+// ⭐ NUEVO: Import MerchantRegistrationDto
+import { MerchantRegistrationDto } from '../dto/merchant-registration.dto';
+
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { ConfirmationCodeService } from '../infrastructure/services/confirmation-code.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserRegisteredEvent } from '../events/auth.events';
 import { CardsService } from 'src/modules/cards/application/cards.service';
+import { PermissionsService } from '../../permissions/application/permissions.service';
 
 interface ValidationResponse {
   valid: boolean;
@@ -57,6 +61,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly confirmationCodeService: ConfirmationCodeService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly permissionsService: PermissionsService,
     private readonly sessionService: SessionService,
     private readonly usersService: UsersService,
   ) {
@@ -134,6 +139,10 @@ export class AuthService {
         aud: this.jwtAudience,
         scope: 'read write',
         expiresIn: 3600, // 1 hora
+        // ⭐ NUEVO: Incluir información de roles en JWT
+        roleKey: validation.user?.roleKey,
+        additionalRoleKeys: validation.user?.additionalRoleKeys || [],
+        // tenantId se incluirá aquí en el futuro cuando esté implementado
       };
 
       const accessResult = await this.jwtTokenPort.sign(jwtPayload);
@@ -454,7 +463,7 @@ export class AuthService {
   }
 
   /**
-   * Registrar nuevo usuario
+   * Registrar nuevo usuario como cliente (rol: 'user')
    * @param registerDto
    */
   async register(
@@ -494,7 +503,7 @@ export class AuthService {
           `Updated password for unconfirmed user: ${phone}, requestId: ${requestId}`,
         );
       } else {
-        // Crear nuevo usuario
+        // Crear nuevo usuario con roleKey: 'user' + additionalRoleKeys: []
         const { data } = await this.usersService.create({
           phone,
           password,
@@ -566,6 +575,241 @@ export class AuthService {
       return ApiResponse.fail<RegisterResponseDto>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Error en el registro',
+        'Internal server error',
+        { requestId },
+      );
+    }
+  }
+
+  /**
+   * ⭐ NUEVO: Registrar nuevo usuario como comerciante
+   * Crea usuario con roleKey: 'user' + additionalRoleKeys: ['merchant']
+   * O si existe como user, agrega 'merchant' a additionalRoleKeys
+   *
+   * Validaciones:
+   * - Email debe ser único
+   * - Si usuario existe, su rol no puede ser super_admin, admin, u ops (409)
+   * - Phone debe ser validado
+   *
+   * @param merchantRegistrationDto
+   */
+  async registerMerchant(
+    merchantRegistrationDto: MerchantRegistrationDto,
+  ): Promise<ApiResponse<RegisterResponseDto>> {
+    const { phone, email, password, fullname, idNumber } =
+      merchantRegistrationDto;
+    const requestId = this.asyncContext.getRequestId();
+
+    try {
+      // 1. Validar que email sea único en plataforma
+      const emailCheckResponse = await this.usersService.findByEmail(email);
+      const emailExists = emailCheckResponse.data;
+      if (emailExists && emailExists.id) {
+        // Email ya existe en otro usuario
+        this.auditService.logDeny(
+          'MERCHANT_REGISTRATION',
+          'user',
+          phone,
+          'Email already registered',
+          {
+            severity: 'MEDIUM',
+            tags: ['authentication', 'merchant-registration-failed', 'email-exists'],
+          },
+        );
+
+        return ApiResponse.fail<RegisterResponseDto>(
+          HttpStatus.CONFLICT,
+          'El email ya está registrado',
+          'Email already in use',
+          { requestId },
+        );
+      }
+
+      // 2. Buscar usuario por phone
+      const phoneResponse = await this.usersService.findByPhone(phone);
+      const existingUser = phoneResponse.data;
+
+      if (existingUser) {
+        // 2a. Si existe y ya tiene rol administrativo → rechazar 409
+        if (['super_admin', 'admin', 'ops'].includes(existingUser.roleKey)) {
+          this.auditService.logDeny(
+            'MERCHANT_REGISTRATION',
+            'user',
+            phone,
+            'Administrative user cannot be a merchant',
+            {
+              severity: 'MEDIUM',
+              tags: [
+                'authentication',
+                'merchant-registration-failed',
+                'admin-user',
+              ],
+            },
+          );
+
+          return ApiResponse.fail<RegisterResponseDto>(
+            HttpStatus.CONFLICT,
+            'Los usuarios administrativos no pueden ser comerciantes',
+            'Administrative user cannot be a merchant',
+            { requestId },
+          );
+        }
+
+        // 2b. Si existe como 'user' → agregar 'merchant' a additionalRoleKeys
+        if (existingUser.roleKey === 'user') {
+          // Validar que no tenga ya el rol merchant
+          const additionalRoles = existingUser.additionalRoleKeys || [];
+          if (!additionalRoles.includes('merchant')) {
+            // Agregar merchant a additionalRoleKeys
+            const updatedAdditionalRoles = [...additionalRoles, 'merchant'];
+
+            // Validar combinación de roles
+            const validation = this.permissionsService.validateRoleCombination(
+              existingUser.roleKey,
+              updatedAdditionalRoles,
+            );
+            if (!validation.valid) {
+              this.auditService.logDeny(
+                'MERCHANT_REGISTRATION',
+                'user',
+                phone,
+                `Invalid role combination: ${validation.error}`,
+                {
+                  severity: 'MEDIUM',
+                  tags: [
+                    'authentication',
+                    'merchant-registration-failed',
+                    'invalid-role-combo',
+                  ],
+                },
+              );
+
+              return ApiResponse.fail<RegisterResponseDto>(
+                HttpStatus.BAD_REQUEST,
+                validation.error || 'Combinación de roles inválida',
+                'Invalid role combination',
+                { requestId },
+              );
+            }
+
+            // Actualizar usuario con merchant en additionalRoleKeys
+            const updateResponse = await this.usersService.updateRoles(
+              existingUser.id,
+              {
+                roleKey: existingUser.roleKey,
+                additionalRoleKeys: updatedAdditionalRoles,
+              },
+            );
+
+            if (!updateResponse.ok) {
+              return updateResponse as unknown as ApiResponse<RegisterResponseDto>;
+            }
+
+            // Registrar en auditoría el cambio
+            this.auditService.logAllow(
+              'MERCHANT_REGISTRATION',
+              'user',
+              phone,
+              {
+                severity: 'HIGH',
+                tags: ['authentication', 'merchant-added', 'existing-user'],
+                changes: {
+                  before: {
+                    additionalRoleKeys: additionalRoles,
+                  },
+                  after: {
+                    additionalRoleKeys: updatedAdditionalRoles,
+                  },
+                },
+              },
+            );
+
+            this.logger.log(
+              `Merchant role added to existing user: ${phone}, requestId: ${requestId}`,
+            );
+          }
+        }
+      } else {
+        // 3. Crear nuevo usuario como user + merchant
+        const { data } = await this.usersService.create({
+          phone,
+          email,
+          password,
+          fullname,
+          idNumber,
+          roleKey: 'user',
+          additionalRoleKeys: ['merchant'], // ⭐ NUEVO: Usuario como comerciante
+        });
+
+        this.logger.debug(
+          `Created new merchant user: ${phone}, requestId: ${requestId}`,
+        );
+
+        // Generar código de confirmación SMS
+        const code = await this.confirmationCodeService.generateAndStore(
+          phone,
+          'confirmation',
+        );
+
+        // Emitir evento para enviar código SMS
+        await this.eventEmitter.emitAsync(
+          'user.registered',
+          new UserRegisteredEvent(
+            data!.fullname.split(' ')[0],
+            data!.phone,
+            code,
+          ),
+        );
+      }
+
+      // Registrar merchant registration exitoso
+      this.auditService.logAllow('MERCHANT_REGISTRATION', 'user', phone, {
+        severity: 'HIGH',
+        tags: ['authentication', 'merchant-registration', 'code-generated'],
+        changes: {
+          after: {
+            phone,
+            email,
+            roleKey: 'user',
+            additionalRoleKeys: ['merchant'],
+            phoneConfirmed: false,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+
+      this.logger.log(
+        `Merchant registered successfully: ${phone}, requestId: ${requestId}`,
+      );
+
+      return ApiResponse.ok<RegisterResponseDto>(
+        HttpStatus.CREATED,
+        {
+          message: 'Registro de comerciante exitoso. Código de confirmación enviado al SMS',
+          requestId,
+        },
+        'Registro de comerciante exitoso',
+        { requestId },
+      );
+    } catch (error) {
+      this.auditService.logError(
+        'MERCHANT_REGISTRATION',
+        'user',
+        phone,
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          severity: 'CRITICAL',
+          tags: ['authentication', 'merchant-registration-error'],
+        },
+      );
+
+      this.logger.error(
+        `Merchant registration failed for phone ${phone}:`,
+        error,
+      );
+      return ApiResponse.fail<RegisterResponseDto>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Error en el registro de comerciante',
         'Internal server error',
         { requestId },
       );
