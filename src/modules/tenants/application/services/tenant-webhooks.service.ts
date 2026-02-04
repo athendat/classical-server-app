@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 
 import { Model } from 'mongoose';
@@ -8,6 +8,10 @@ import { Tenant } from '../../infrastructure/schemas/tenant.schema';
 import { CreateTenantWebhookDto, mapWebhookToResponse } from '../../dto/webhook.dto';
 import { AsyncContextService } from 'src/common/context';
 import { AuditService } from 'src/modules/audit/application/audit.service';
+import { Webhook } from '../../domain';
+import { TenantRepository } from '../../infrastructure/adapters/tenant.repository';
+import { ApiResponse } from 'src/common/types';
+
 
 
 /**
@@ -18,97 +22,202 @@ export class TenantWebhooksService {
   private readonly logger = new Logger(TenantWebhooksService.name);
 
   constructor(
-    @InjectModel(Tenant.name)
-    private readonly tenantModel: Model<Tenant>,
     private readonly asyncContextService: AsyncContextService,
     private readonly auditService: AuditService,
-    private readonly cryptoService: CryptoService,
+    private readonly tenantRepository: TenantRepository,
   ) { }
 
   /**
-   * Crea un nuevo webhook para el tenant del usuario autenticado
-   * Obtiene el tenantId del contexto del usuario y agrega el webhook al tenant existente
+   * Genera un webhook por defecto con secret aleatorio para un nuevo tenant
+   * @returns Objeto webhook con id, url=null, events=[], active=true, secret generado
    */
-  async createWebhook(dto: CreateTenantWebhookDto): Promise<any> {
+  generateWebhook(): Webhook {
+    return {
+      id: uuidv4(),
+      url: null,
+      events: [],
+      secret: uuidv4().replace(/-/g, ''),
+    };
+  }
+
+  /**
+   * Regenera solo el secret del webhook existente de un tenant
+   * @param tenantId ID del tenant
+   * @returns Objeto con id del webhook e secret regenerado
+   */
+  async regenerateSecret(tenantId: string): Promise<ApiResponse<{ secret: string }>> {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId();
-    const actor = this.asyncContextService.getActor();
 
-    // Obtener tenantId del contexto del actor
-    const tenantId = actor?.tenantId;
-
-    if (!tenantId) {
-      this.logger.error(`[${requestId}] No tenantId found in actor context`);
-      throw new NotFoundException('No se encontró tenant asociado al usuario');
-    }
-
-    this.logger.log(`[${requestId}] Creando webhook para tenant ${tenantId}`);
+    this.logger.log(
+      `[${requestId}] Regenerating webhook secret for tenant ${tenantId}`,
+    );
 
     try {
-      const tenant = await this.tenantModel.findOne({ id: tenantId }).exec();
+
+      const tenant = await this.tenantRepository.findById(tenantId);
+
       if (!tenant) {
-        throw new NotFoundException('Tenant no encontrado');
+        const errorMsg = `Tenant not found: ${tenantId}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        // Registrar acceso denegado
+        this.auditService.logDeny('TENANT_FETCHED', 'tenant', tenantId, errorMsg, {
+          severity: 'LOW',
+          tags: ['tenant', 'read', 'not-found'],
+        });
+        return ApiResponse.fail<{ secret: string }>(
+          HttpStatus.NOT_FOUND,
+          errorMsg,
+          'Tenant no encontrado',
+          { requestId, tenantId, userId },
+        );
       }
 
-      // Generar secret si no se proporciona
-      const secret = dto.secret ?? this.cryptoService.generateSecret();
+      // Generar nuevo secret
+      const newSecret = uuidv4().replace(/-/g, '');
 
-      // Crear objeto webhook
-      const webhook = {
-        id: uuidv4(),
-        url: dto.url,
-        events: dto.events,
-        active: true,
-        secret,
-        createdBy: userId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      // Actualizar tenant con nuevo secret del webhook
+      await this.tenantRepository.updateWebhookSecret(
+        tenantId,
+        newSecret,
+      );
 
-      // Agregar a la BD
-      tenant.webhooks = tenant.webhooks || [];
-      (tenant.webhooks as any[]).push(webhook);
+      this.logger.log(
+        `[${requestId}] Webhook secret regenerated for tenant ${tenantId}`,
+      );
 
-      await tenant.save();
+      return ApiResponse.ok<{ secret: string }>(
+        HttpStatus.ACCEPTED,
+        { secret: newSecret },
+        'Webhook secret regenerado exitosamente',
+        { requestId, tenantId, userId },
+      );
 
-      this.logger.log(`[${requestId}] Webhook creado exitosamente: ${webhook.id}`);
+    } catch (error) {
+      this.logger.error(
+        `[${requestId}] Error regenerating webhook secret for tenant ${tenantId}: ${error?.message ?? error}`,
+        error,
+      );
+
+      // Registrar el error en auditoría
+      this.auditService.logDeny('TENANT_WEBHOOK_ERROR', 'tenant', tenantId, String(error), {
+        severity: 'HIGH',
+        tags: ['tenant', 'webhook', 'error'],
+      });
+
+      return ApiResponse.fail<{ secret: string }>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        String(error),
+        'Error al regenerar secret del webhook',
+        { requestId, tenantId, userId },
+      );
+    }
+  }
+
+  /**
+   * Actualiza la URL del webhook de un tenant
+   * @param tenantId ID del tenant
+   * @param url Nueva URL del webhook
+   * @returns Objeto con el webhook actualizado
+   */
+  async updateUrl(
+    tenantId: string,
+    url: string,
+  ): Promise<ApiResponse<{ id: string; url: string }>> {
+    const requestId = this.asyncContextService.getRequestId();
+    const userId = this.asyncContextService.getActorId();
+
+    this.logger.log(
+      `[${requestId}] Updating webhook URL for tenant ${tenantId}`,
+    );
+
+    try {
+      const tenant = await this.tenantRepository.findById(tenantId);
+
+      if (!tenant) {
+        const errorMsg = `Tenant not found: ${tenantId}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        
+        this.auditService.logDeny('WEBHOOK_URL_UPDATE', 'tenant', tenantId, errorMsg, {
+          severity: 'LOW',
+          tags: ['webhook', 'update-url', 'not-found'],
+        });
+
+        return ApiResponse.fail<{ id: string; url: string }>(
+          HttpStatus.NOT_FOUND,
+          errorMsg,
+          'Tenant no encontrado',
+          { requestId, tenantId, userId },
+        );
+      }
+
+      if (!tenant.webhook) {
+        const errorMsg = `Webhook not found for tenant: ${tenantId}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        
+        this.auditService.logDeny('WEBHOOK_URL_UPDATE', 'tenant', tenantId, errorMsg, {
+          severity: 'LOW',
+          tags: ['webhook', 'update-url', 'webhook-not-found'],
+        });
+
+        return ApiResponse.fail<{ id: string; url: string }>(
+          HttpStatus.NOT_FOUND,
+          errorMsg,
+          'Webhook no encontrado',
+          { requestId, tenantId, userId },
+        );
+      }
+
+      // Actualizar URL del webhook
+      await this.tenantRepository.updateWebhookUrl(tenantId, url);
+
+      this.logger.log(
+        `[${requestId}] Webhook URL updated for tenant ${tenantId}`,
+      );
 
       // Registrar en auditoría
-      this.auditService.logAllow('WEBHOOK_CREATED', 'tenant-webhook', webhook.id, {
-        module: 'tenants',
+      this.auditService.logAllow('WEBHOOK_URL_UPDATED', 'webhook', tenant.webhook.id, {
         severity: 'MEDIUM',
-        tags: ['webhook', 'create', 'successful', `tenantId:${tenantId}`],
+        tags: ['webhook', 'update-url', 'successful', `tenantId:${tenantId}`],
         actorId: userId,
         changes: {
           after: {
-            webhookId: webhook.id,
-            events: dto.events,
-            url: dto.url,
+            webhookId: tenant.webhook.id,
+            url,
           },
         },
       });
 
-      // Retornar con secret masked
-      const maskedSecret = this.cryptoService.maskSecret(webhook.secret);
-      return mapWebhookToResponse(webhook, maskedSecret);
+      return ApiResponse.ok<{ id: string; url: string }>(
+        HttpStatus.OK,
+        { id: tenant.webhook.id, url },
+        'URL del webhook actualizada exitosamente',
+        { requestId, tenantId, userId },
+      );
     } catch (error) {
-      this.logger.error(`[${requestId}] Error creando webhook: ${error.message}`);
-      
-      // Registrar error en auditoría
+      this.logger.error(
+        `[${requestId}] Error updating webhook URL for tenant ${tenantId}: ${error?.message ?? error}`,
+        error,
+      );
+
+      // Registrar el error en auditoría
       this.auditService.logError(
-        'WEBHOOK_CREATED',
-        'tenant-webhook',
+        'WEBHOOK_URL_UPDATE',
+        'webhook',
         'unknown',
         error instanceof Error ? error : new Error(String(error)),
         {
-          module: 'tenants',
           severity: 'HIGH',
-          tags: ['webhook', 'create', 'error', `tenantId:${tenantId}`],
-          actorId: userId,
+          tags: ['webhook', 'update-url', 'error', `tenantId:${tenantId}`],
         },
       );
-      
-      throw error;
+
+      return ApiResponse.fail<{ id: string; url: string }>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        String(error),
+        'Error al actualizar URL del webhook',
+        { requestId, tenantId, userId },
+      );
     }
   }
 }

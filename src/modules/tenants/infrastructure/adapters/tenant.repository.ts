@@ -155,6 +155,97 @@ export class TenantRepository implements ITenantPort {
   }
 
   /**
+   * Actualizar las credenciales OAuth2 de un tenant
+   * @param tenantId ID del tenant
+   * @param clientId Nuevo clientId
+   * @param clientSecret Nuevo clientSecret
+   */
+  async updateOAuth2Credentials(
+    tenantId: string,
+    clientId: string,
+    clientSecret: string,
+  ): Promise<Tenant> {
+    try {
+      const updated = await this.tenantModel
+        .findOneAndUpdate(
+          { id: tenantId },
+          { oauth2ClientCredentials: { clientId, clientSecret }, updatedAt: new Date() },
+          { new: true },
+        )
+        .lean();
+      if (!updated) {
+        throw new Error(`Tenant not found: ${tenantId}`);
+      }
+      return updated as Tenant;
+    } catch (error) {
+      this.logger.error(
+        `Error updating OAuth2 credentials for tenant: ${tenantId}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar el secret del webhook de un tenant
+   * @param tenantId 
+   * @param secret 
+   * @returns 
+   */
+  async updateWebhookSecret(
+    tenantId: string,
+    secret: string,
+  ): Promise<Tenant> {
+    try {
+      const updated = await this.tenantModel
+        .findOneAndUpdate(
+          { id: tenantId },
+          { webhook: { secret }, updatedAt: new Date() },
+          { new: true },
+        )
+        .lean();
+      if (!updated) {
+        throw new Error(`Tenant not found: ${tenantId}`);
+      }
+      return updated as Tenant;
+    } catch (error) {
+      this.logger.error(
+        `Error updating webhook secret for tenant: ${tenantId}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar la URL del webhook de un tenant
+   * @param tenantId ID del tenant
+   * @param url Nueva URL del webhook
+   * @returns Tenant actualizado
+   */
+  async updateWebhookUrl(tenantId: string, url: string): Promise<Tenant> {
+    try {
+      const updated = await this.tenantModel
+        .findOneAndUpdate(
+          { id: tenantId },
+          { 'webhook.url': url, updatedAt: new Date() },
+          { new: true },
+        )
+        .lean();
+      if (!updated) {
+        throw new Error(`Tenant not found: ${tenantId}`);
+      }
+      return updated as Tenant;
+    } catch (error) {
+      this.logger.error(
+        `Error updating webhook URL for tenant: ${tenantId}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Eliminar un tenant (soft delete si aplica)
    */
   async delete(tenantId: string): Promise<void> {

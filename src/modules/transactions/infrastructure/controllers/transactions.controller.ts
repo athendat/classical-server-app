@@ -76,7 +76,7 @@ export class TransactionsController {
     description: 'Datos inválidos en la solicitud',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para crear transacciones',
@@ -112,7 +112,7 @@ export class TransactionsController {
     description: 'Datos inválidos en la solicitud',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para confirmar esta transacción',
@@ -144,7 +144,7 @@ export class TransactionsController {
     description: 'Conflicto al cancelar la transacción (ej., ya confirmada o cancelada)',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para cancelar esta transacción',
@@ -210,7 +210,7 @@ export class TransactionsController {
     type: TransactionPaginatedResponseDto,
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para leer Transactions',
@@ -254,7 +254,7 @@ export class TransactionsController {
     description: 'Transacción no encontrada',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para ver esta transacción',

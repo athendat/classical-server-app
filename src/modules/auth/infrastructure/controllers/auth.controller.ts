@@ -19,6 +19,8 @@ import {
   ApiTooManyRequestsResponse,
   ApiHeader,
   ApiSecurity,
+  ApiForbiddenResponse,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { AuthService } from '../../application/auth.service';
@@ -39,6 +41,7 @@ import {
 
 // ⭐ NUEVO: Import MerchantRegistrationDto
 import { MerchantRegistrationDto } from '../../dto/merchant-registration.dto';
+import { ServiceLoginDto } from '../../dto/service-login.dto';
 
 import { ApiKeyGuard } from '../../guards/api-key.guard';
 
@@ -51,7 +54,7 @@ import { ApiKeyGuard } from '../../guards/api-key.guard';
 @UseGuards(ApiKeyGuard)
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -66,6 +69,9 @@ export class AuthController {
   })
   @ApiBadRequestResponse({
     description: 'Credenciales inválidas',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiInternalServerErrorResponse({
     description: 'Error en la generación de tokens',
@@ -103,6 +109,9 @@ export class AuthController {
   @ApiBadRequestResponse({
     description: 'Token de refresco inválido o expirado',
   })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
   @ApiInternalServerErrorResponse({
     description: 'Error en la generación del nuevo token',
   })
@@ -132,6 +141,9 @@ export class AuthController {
   @ApiBadRequestResponse({
     description: 'Datos inválidos o teléfono ya registrado',
   })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
   @ApiInternalServerErrorResponse({
     description: 'Error en el registro',
   })
@@ -158,6 +170,9 @@ export class AuthController {
   })
   @ApiBadRequestResponse({
     description: 'Datos inválidos o validación fallida',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiInternalServerErrorResponse({
     description: 'Error en el registro de comerciante',
@@ -186,6 +201,9 @@ export class AuthController {
   })
   @ApiBadRequestResponse({
     description: 'Código inválido, expirado o intentos agotados',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiInternalServerErrorResponse({
     description: 'Error en la confirmación',
@@ -216,6 +234,9 @@ export class AuthController {
   @ApiTooManyRequestsResponse({
     description: 'Límite de reenvíos alcanzado (3 en 24 horas)',
   })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
   @ApiInternalServerErrorResponse({
     description: 'Error al reenviar código',
   })
@@ -237,6 +258,9 @@ export class AuthController {
   @ApiOkResponse({
     description: 'Código de recuperación enviado',
     type: ForgotPasswordResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiInternalServerErrorResponse({
     description: 'Error en la solicitud',
@@ -263,6 +287,9 @@ export class AuthController {
   @ApiBadRequestResponse({
     description: 'Código inválido, expirado o intentos agotados',
   })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
   @ApiInternalServerErrorResponse({
     description: 'Error en el reset',
   })
@@ -271,6 +298,37 @@ export class AuthController {
     @Res() res: Response,
   ): Promise<Response> {
     const response = await this.authService.resetPassword(resetPasswordDto);
+    return res.status(response.statusCode).json(response);
+  }
+
+  // ⭐ NUEVO: Endpoint para login de servicio
+  @Post('service-login')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({
+    summary: 'Login de servicio con OAuth2 credentials',
+    description:
+      'Autentica un servicio usando clientId y clientSecret, retorna un token JWT con actorType=service',
+  })
+  @ApiOkResponse({
+    description: 'Login exitoso, token generado',
+    type: LoginResponseDto,
+  })
+  @ApiBody({ type: ServiceLoginDto })
+  @ApiForbiddenResponse({
+    description: 'clientId o clientSecret inválidos',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error en la generación del token',
+  })
+  async serviceLogin(
+    @Body() serviceLoginDto: ServiceLoginDto,
+    @Res() res: Response,
+  ): Promise<Response> {
+    const response = await this.authService.serviceLogin(serviceLoginDto);
     return res.status(response.statusCode).json(response);
   }
 }

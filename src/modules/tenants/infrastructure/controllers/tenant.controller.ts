@@ -5,8 +5,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
   HttpCode,
   HttpStatus,
   Param,
@@ -14,16 +12,16 @@ import {
   Query,
   Res,
   UseGuards,
-  Inject,
-  Logger,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiHeader,
+  ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -33,7 +31,6 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
 import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
 import { CurrentActor } from 'src/modules/auth/decorators/current-actor.decorator';
 import type { Actor } from 'src/common/interfaces';
@@ -49,11 +46,13 @@ import {
 import { TenantWebhooksService } from 'src/modules/tenants/application/services/tenant-webhooks.service';
 import {
   CreateTenantWebhookDto,
-  UpdateTenantWebhookDto,
+  RegenerateWebhookSecretDto,
+  UpdateWebhookUrlDto,
 } from 'src/modules/tenants/dto/webhook.dto';
-import { ApiResponse } from 'src/common/types/api-response.type';
-import { REQUEST } from '@nestjs/core';
-import { Request } from 'express';
+import { TenantOAuth2CredentialsService } from 'src/modules/tenants/application/services/tenant-oauth2-credentials.service';
+import { RegenerateOAuth2SecretDto } from 'src/modules/tenants/dto/oauth2-credentials.dto';
+import { TenantStatus } from 'src/modules/tenants/domain/enums';
+
 import type { QueryParams, SortOrder } from 'src/common/types';
 
 /**
@@ -67,15 +66,15 @@ import type { QueryParams, SortOrder } from 'src/common/types';
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('tenants')
 export class TenantController {
-  private readonly logger = new Logger(TenantController.name);
 
   constructor(
     private readonly tenantService: TenantsService,
     private readonly tenantWebhooksService: TenantWebhooksService,
-  ) {}
+    private readonly tenantOAuth2CredentialsService: TenantOAuth2CredentialsService,
+  ) { }
 
   /**
    * Crear un nuevo tenant
@@ -84,7 +83,7 @@ export class TenantController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Permissions('tenants.create')
+  // @Permissions('tenants.create')
   @ApiOperation({
     summary: 'Crear nuevo tenant',
     description:
@@ -101,10 +100,13 @@ export class TenantController {
     description: 'El email ya está registrado como tenant',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para crear tenants',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
   })
   async create(
     @Body() dto: CreateTenantDto,
@@ -167,10 +169,13 @@ export class TenantController {
     type: TenantPaginatedResponseDto,
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para leer tenants',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
   })
   async list(
     @Res() res: Response,
@@ -213,10 +218,13 @@ export class TenantController {
     description: 'Tenant no encontrado',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para leer tenants',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
   })
   async getById(
     @Param('id') id: string,
@@ -252,10 +260,13 @@ export class TenantController {
     description: 'El email ya está registrado',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para actualizar tenants',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
   })
   async update(
     @Param('id') id: string,
@@ -291,10 +302,13 @@ export class TenantController {
     description: 'Tenant no encontrado',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para cambiar estados',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
   })
   async transition(
     @Param('id') id: string,
@@ -342,10 +356,13 @@ export class TenantController {
     description: 'Tenant no encontrado',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para leer tenants',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
   })
   async getLifecycle(
     @Res() res: Response,
@@ -365,25 +382,232 @@ export class TenantController {
     return res.status(response.statusCode).json(response);
   }
 
-  /**
-   * Crea un nuevo webhook para un tenant
-   * POST /tenants/webhooks
-   */
-  @Post('/webhooks')
-  @HttpCode(HttpStatus.CREATED)
-  @Permissions('tenants.webhooks.create')
+  // ⭐ NUEVO: Regenerar secret de OAuth2 credentials
+  @Post('/oauth2-credentials/regenerate-secret')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('tenants.oauth2.regenerate-secret')
   @ApiOperation({
-    summary: 'Crear webhook para tenant',
-    description: 'Crea un nuevo webhook que notificará eventos de transacciones',
+    summary: 'Regenerar secret de OAuth2 credentials',
+    description:
+      'Regenera el clientSecret de las credenciales OAuth2 del tenant actual',
   })
-  @ApiCreatedResponse({
-    description: 'Webhook creado exitosamente',
+  @ApiOkResponse({
+    description: 'Secret regenerado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Client ID' },
+        secret: { type: 'string', description: 'Nuevo secret' },
+      },
+    },
   })
-  async createWebhook(
+  @ApiBadRequestResponse({
+    description: 'Tenant inactivo o credenciales no encontradas',
+  })
+  @ApiNotFoundResponse({
+    description: 'Tenant no encontrado',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
+  })
+  async regenerateOAuth2Secret(
+    @CurrentActor() actor: Actor,
     @Res() res: Response,
-    @Body() dto: CreateTenantWebhookDto,
   ): Promise<Response> {
-    const response = await this.tenantWebhooksService.createWebhook(dto);
-    return res.status(response.statusCode).json(response);
+    try {
+      const tenantId = actor.tenantId;
+      if (!tenantId) {
+        return res
+          .status(HttpStatus.UNAUTHORIZED)
+          .json({ error: 'No tenant associated with user' });
+      }
+
+      // Obtener tenant y verificar que esté activo
+      const tenantResponse = await this.tenantService.getTenantById(tenantId);
+      if (!tenantResponse.ok || !tenantResponse.data) {
+        return res.status(HttpStatus.NOT_FOUND).json({ error: 'Tenant not found' });
+      }
+
+      const tenant = tenantResponse.data;
+      if (tenant.status !== TenantStatus.ACTIVE) {
+        return res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'Tenant is not active' });
+      }
+
+      const result = await this.tenantOAuth2CredentialsService.regenerateSecret(
+        tenantId,
+      );
+      return res.status(HttpStatus.OK).json(result);
+    } catch (error) {
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ error: 'Error regenerating secret' });
+    }
+  }
+
+  // ⭐ NUEVO: Regenerar secret del webhook
+  @Post('/webhooks/regenerate-secret')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('tenants.webhooks.regenerate-secret')
+  @ApiOperation({
+    summary: 'Regenerar secret del webhook',
+    description: 'Regenera el secret del webhook del tenant actual',
+  })
+  @ApiOkResponse({
+    description: 'Secret regenerado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Webhook ID' },
+        secret: { type: 'string', description: 'Nuevo secret' },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Tenant inactivo o webhook no encontrado',
+  })
+  @ApiNotFoundResponse({
+    description: 'Tenant no encontrado',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
+  })
+  async regenerateWebhookSecret(
+    @CurrentActor() actor: Actor,
+    @Res() res: Response,
+  ): Promise<Response> {
+    try {
+      const tenantId = actor.tenantId;
+      if (!tenantId) {
+        return res
+          .status(HttpStatus.UNAUTHORIZED)
+          .json({ error: 'No tenant associated with user' });
+      }
+
+      // Obtener tenant y verificar que esté activo
+      const tenantResponse = await this.tenantService.getTenantById(tenantId);
+      if (!tenantResponse.ok || !tenantResponse.data) {
+        return res.status(HttpStatus.NOT_FOUND).json({ error: 'Tenant not found' });
+      }
+
+      const tenant = tenantResponse.data;
+      if (tenant.status !== TenantStatus.ACTIVE) {
+        return res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'Tenant is not active' });
+      }
+
+      if (!tenant.webhook) {
+        return res
+          .status(HttpStatus.NOT_FOUND)
+          .json({ error: 'Webhook not found' });
+      }
+
+      const result = await this.tenantWebhooksService.regenerateSecret(tenantId);
+      return res.status(HttpStatus.OK).json(result);
+    } catch (error) {
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ error: 'Error regenerating secret' });
+    }
+  }
+
+  @Post('webhooks/update-url')
+  @UseGuards(JwtAuthGuard)
+  @Permissions('tenants.webhooks.write')
+  @ApiOperation({
+    summary: 'Actualizar URL del webhook de un tenant',
+    description: 'Actualiza la URL del webhook donde se enviarán las notificaciones',
+  })
+  @ApiTags('Webhook Management')
+  @ApiBearerAuth('JWT')
+  @ApiBody({
+    description: 'URL del webhook',
+    type: UpdateWebhookUrlDto,
+  })
+  @ApiOkResponse({
+    description: 'URL del webhook actualizada exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean', example: true },
+        status: { type: 'number', example: 200 },
+        data: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'uuid-string' },
+            url: { type: 'string', example: 'https://example.com/webhook' },
+          },
+        },
+        message: { type: 'string' },
+        meta: {
+          type: 'object',
+          properties: {
+            requestId: { type: 'string' },
+            tenantId: { type: 'string' },
+            userId: { type: 'string' },
+          },
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Datos inválidos',
+  })
+  @ApiNotFoundResponse({
+    description: 'Tenant o webhook no encontrado',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'No autorizado',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
+  })
+  async updateWebhookUrl(
+    @CurrentActor() actor: Actor,
+    @Body() updateWebhookUrlDto: UpdateWebhookUrlDto,
+    @Res() res: Response,
+  ): Promise<Response> {
+    try {
+      const tenantId = actor.tenantId;
+      if (!tenantId) {
+        return res
+          .status(HttpStatus.UNAUTHORIZED)
+          .json({ error: 'No tenant associated with user' });
+      }
+
+      // Obtener tenant y verificar que esté activo
+      const tenantResponse = await this.tenantService.getTenantById(tenantId);
+      if (!tenantResponse.ok || !tenantResponse.data) {
+        return res.status(HttpStatus.NOT_FOUND).json({ error: 'Tenant not found' });
+      }
+
+      const tenant = tenantResponse.data;
+      if (tenant.status !== TenantStatus.ACTIVE) {
+        return res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'Tenant is not active' });
+      }
+
+      if (!tenant.webhook) {
+        return res
+          .status(HttpStatus.NOT_FOUND)
+          .json({ error: 'Webhook not found' });
+      }
+
+      const result = await this.tenantWebhooksService.updateUrl(tenantId, updateWebhookUrlDto.url);
+      return res.status(HttpStatus.OK).json(result);
+    } catch (error) {
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ error: 'Error updating webhook URL' });
+    }
   }
 }

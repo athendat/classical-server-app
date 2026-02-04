@@ -78,6 +78,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       const actor: Actor = {
         actorType,
         actorId,
+        // ⭐ NUEVO: Si es servicio (svc:), el actorId ES el tenantId
+        tenantId: actorType === 'service' ? actorId : undefined,
         sub,
         iss: typeof p.iss === 'string' ? p.iss : undefined,
         aud:

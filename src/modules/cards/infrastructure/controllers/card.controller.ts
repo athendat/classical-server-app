@@ -71,7 +71,7 @@ export class CardController {
       'El usuario ha registrado un tarjeta de este tipo. Solo se permite una tarjeta por Personal y una Empresarial por usuario.',
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para crear tarjetas',
@@ -100,7 +100,7 @@ export class CardController {
     type: ApiResponse<CardResponseDto[]>,
   })
   @ApiUnauthorizedResponse({
-    description: 'No autenticado',
+    description: 'Falta x-api-key o es inválida',
   })
   @ApiForbiddenResponse({
     description: 'Sin permisos para ver tarjetas',

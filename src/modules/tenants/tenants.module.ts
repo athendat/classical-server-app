@@ -18,6 +18,7 @@ import {
   TenantLifecycleSchema,
 } from './infrastructure/schemas/tenant-lifecycle.schema';
 import { AsyncContextService } from 'src/common/context';
+import { TenantOAuth2CredentialsService } from './application/services/tenant-oauth2-credentials.service';
 
 /**
  * TenantsModule - Módulo NestJS para gestión de tenants (negocios)
@@ -50,6 +51,7 @@ import { AsyncContextService } from 'src/common/context';
     AsyncContextService,
     TenantsService,
     TenantWebhooksService,
+    TenantOAuth2CredentialsService,
     TenantRepository,
     TenantLifecycleRepository,
     TenantVaultService,

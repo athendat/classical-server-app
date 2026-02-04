@@ -32,6 +32,7 @@ import {
 
 // ⭐ NUEVO: Import MerchantRegistrationDto
 import { MerchantRegistrationDto } from '../dto/merchant-registration.dto';
+import { ServiceLoginDto } from '../dto/service-login.dto';
 
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { ConfirmationCodeService } from '../infrastructure/services/confirmation-code.service';
@@ -39,6 +40,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserRegisteredEvent } from '../events/auth.events';
 import { CardsService } from 'src/modules/cards/application/cards.service';
 import { PermissionsService } from '../../permissions/application/permissions.service';
+import { TenantRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
 
 interface ValidationResponse {
   valid: boolean;
@@ -64,6 +66,7 @@ export class AuthService {
     private readonly permissionsService: PermissionsService,
     private readonly sessionService: SessionService,
     private readonly usersService: UsersService,
+    private readonly tenantRepository: TenantRepository,
   ) {
     this.jwtAudience =
       configService.get<string>('JWT_AUDIENCE') || 'classical-service';
@@ -1306,6 +1309,178 @@ export class AuthService {
       return ApiResponse.fail<ResetPasswordResponseDto>(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Error en el reset',
+        'Internal server error',
+        { requestId },
+      );
+    }
+  }
+
+  /**
+   * ⭐ NUEVO: Login de servicio con credenciales OAuth2
+   * Busca el tenant por clientId, valida clientSecret, y genera JWT con actorType='service'
+   * @param serviceLoginDto Contiene clientId y clientSecret
+   */
+  async serviceLogin(
+    serviceLoginDto: ServiceLoginDto,
+  ): Promise<ApiResponse<LoginResponseDto>> {
+    const { clientId, clientSecret } = serviceLoginDto;
+    const requestId = this.asyncContext.getRequestId();
+
+    try {
+      this.logger.log(
+        `[${requestId}] Attempting service login with clientId: ${clientId}`,
+      );
+
+      // Buscar tenant por clientId
+      const tenant = await this.tenantRepository.findAll(
+        { 'oauth2ClientCredentials.clientId': clientId },
+        { skip: 0, limit: 1 },
+      );
+
+      if (!tenant.data || tenant.data.length === 0) {
+        this.logger.warn(
+          `[${requestId}] Service login failed: clientId not found`,
+        );
+
+        // Registrar intento fallido
+        this.auditService.logDeny(
+          'SERVICE_LOGIN',
+          'service',
+          clientId,
+          'Invalid credentials - client not found',
+          {
+            severity: 'HIGH',
+            tags: ['authentication', 'service-login', 'failed', 'invalid-credentials'],
+          },
+        );
+
+        return ApiResponse.fail<LoginResponseDto>(
+          HttpStatus.UNAUTHORIZED,
+          'Credenciales inválidas',
+          'clientId o clientSecret incorrectos',
+          { requestId },
+        );
+      }
+
+      const foundTenant = tenant.data[0];
+
+      // Validar clientSecret
+      if (
+        !foundTenant.oauth2ClientCredentials ||
+        foundTenant.oauth2ClientCredentials.clientSecret !== clientSecret
+      ) {
+        this.logger.warn(
+          `[${requestId}] Service login failed: invalid clientSecret for tenant ${foundTenant.id}`,
+        );
+
+        // Registrar intento fallido
+        this.auditService.logDeny(
+          'SERVICE_LOGIN',
+          'service',
+          clientId,
+          'Invalid credentials - secret mismatch',
+          {
+            severity: 'HIGH',
+            tags: ['authentication', 'service-login', 'failed', 'invalid-credentials'],
+          },
+        );
+
+        return ApiResponse.fail<LoginResponseDto>(
+          HttpStatus.UNAUTHORIZED,
+          'Credenciales inválidas',
+          'clientId o clientSecret incorrectos',
+          { requestId },
+        );
+      }
+
+      // Generar JWT para servicio
+      const jwtPayload = {
+        sub: `svc:${foundTenant.id}`,
+        iss: this.jwtIssuer,
+        aud: this.jwtAudience,
+        actorType: 'service',
+        tenantId: foundTenant.id,
+        scope: 'read write',
+        expiresIn: 3600,
+      };
+
+      const accessResult = await this.jwtTokenPort.sign(jwtPayload);
+      if (!accessResult.isSuccess) {
+        this.logger.error(
+          `[${requestId}] Error signing JWT for service login: ${accessResult.getError().message}`,
+        );
+
+        // Registrar error
+        this.auditService.logError(
+          'SERVICE_LOGIN',
+          'service',
+          clientId,
+          new Error('JWT signing failed'),
+          {
+            severity: 'HIGH',
+            tags: ['authentication', 'service-login', 'error', `tenantId:${foundTenant.id}`],
+          },
+        );
+
+        return ApiResponse.fail<LoginResponseDto>(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'Error al generar token',
+          'Internal server error',
+          { requestId },
+        );
+      }
+
+      const accessToken = accessResult.getValue();
+
+      // Registrar login exitoso
+      this.auditService.logAllow('SERVICE_LOGIN', 'service', clientId, {
+        severity: 'HIGH',
+        tags: ['authentication', 'service-login', 'successful', `tenantId:${foundTenant.id}`],
+        changes: {
+          after: {
+            clientId,
+            tenantId: foundTenant.id,
+            timestamp: new Date().toISOString(),
+            tokenType: 'Bearer',
+          },
+        },
+      });
+
+      this.logger.log(
+        `[${requestId}] Service login successful for tenant ${foundTenant.id}`,
+      );
+
+      return ApiResponse.ok<LoginResponseDto>(
+        HttpStatus.OK,
+        {
+          access_token: accessToken,
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+        'Login exitoso',
+        { requestId },
+      );
+    } catch (error) {
+      this.logger.error(
+        `[${requestId}] Error during service login: ${error instanceof Error ? error.message : String(error)}`,
+        error,
+      );
+
+      // Registrar error
+      this.auditService.logError(
+        'SERVICE_LOGIN',
+        'service',
+        clientId,
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          severity: 'HIGH',
+          tags: ['authentication', 'service-login', 'error'],
+        },
+      );
+
+      return ApiResponse.fail<LoginResponseDto>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Error en el login',
         'Internal server error',
         { requestId },
       );

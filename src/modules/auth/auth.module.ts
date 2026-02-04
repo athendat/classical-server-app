@@ -24,6 +24,7 @@ import { ReplayProtectionAdapter } from './infrastructure/adapters/replay-protec
 import { CardsService } from '../cards/application/cards.service';
 import { CardRepository } from '../cards/infrastructure/adapters';
 import { Iso4PinblockService } from '../cards/infrastructure/services/iso4-pinblock.service';
+import { TenantsModule } from '../tenants';
 
 /**
  * Módulo de autenticación.
@@ -48,6 +49,7 @@ import { Iso4PinblockService } from '../cards/infrastructure/services/iso4-pinbl
     UsersModule,
     VaultModule,
     PermissionsModule,
+    TenantsModule,
   ],
   controllers: [AuthController],
   providers: [

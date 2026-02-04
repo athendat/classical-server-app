@@ -29,6 +29,8 @@ import { buildMongoQuery } from 'src/common/helpers';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { TenantLifecycleEvent } from '../domain/interfaces/lifecycle-event.interface';
 import { TenantStatus } from '../domain/enums';
+import { TenantOAuth2CredentialsService } from './services/tenant-oauth2-credentials.service';
+import { TenantWebhooksService } from './services/tenant-webhooks.service';
 
 /**
  * Servicio de aplicación para tenants
@@ -39,12 +41,14 @@ export class TenantsService {
   private readonly logger = new Logger(TenantsService.name);
 
   constructor(
-    private readonly auditService: AuditService,
     private readonly asyncContextService: AsyncContextService,
-    private readonly tenantRepository: TenantRepository,
-    private readonly lifecycleRepository: TenantLifecycleRepository,
-    private readonly vaultService: TenantVaultService,
+    private readonly auditService: AuditService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly lifecycleRepository: TenantLifecycleRepository,
+    private readonly oauth2CredentialsService: TenantOAuth2CredentialsService,
+    private readonly tenantRepository: TenantRepository,
+    private readonly vaultService: TenantVaultService,
+    private readonly webhooksService: TenantWebhooksService,
   ) {}
 
   /**
@@ -92,6 +96,10 @@ export class TenantsService {
 
       const panVaultKeyId = savePanResult.getValue();
 
+      // ⭐ NUEVO: Generar credenciales OAuth2 y webhook automáticamente
+      const oauth2Credentials = this.oauth2CredentialsService.generateCredentials();
+      const webhook = this.webhooksService.generateWebhook();
+
       // Crear tenant en MongoDB
       const tenantData = {
         id: tenantId,
@@ -104,6 +112,8 @@ export class TenantsService {
         status: TenantStatus.PENDING_REVIEW,
         userId,
         notes: dto.notes,
+        oauth2ClientCredentials: oauth2Credentials,
+        webhook: webhook,
       };
 
       const newTenant = await this.tenantRepository.create(tenantData);
@@ -610,7 +620,7 @@ export class TenantsService {
       email: tenant.email,
       phone: tenant.phone,
       status: tenant.status as TenantStatus,
-      createdBy: tenant.createdBy,
+      userId: tenant.userId,
       notes: tenant.notes,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,

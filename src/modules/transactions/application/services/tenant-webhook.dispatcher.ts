@@ -17,7 +17,7 @@ import {
 import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
 
 /**
- * Servicio que despacha webhooks cuando ocurren eventos de transacción
+ * Servicio que despacha webhook cuando ocurren eventos de transacción
  * Implementa listeners para cada tipo de evento
  * Firma los payloads con HMAC-SHA256 y los envía a las URLs configuradas
  */
@@ -37,7 +37,7 @@ export class TenantWebhookDispatcher {
    */
   @OnEvent('transaction.created')
   async handleTransactionCreated(event: TransactionCreatedEvent): Promise<void> {
-    await this.dispatchWebhooks(event.tenantId, 'transaction.created', {
+    await this.dispatchWebhook(event.tenantId, 'transaction.created', {
       transactionId: event.transactionId,
       customerId: event.customerId,
       ref: event.ref,
@@ -47,7 +47,7 @@ export class TenantWebhookDispatcher {
       timestamp: new Date().toISOString(),
     }).catch((error) => {
       this.logger.warn(
-        `Error despachando webhooks para transaction.created: ${error.message}`,
+        `Error despachando webhook para transaction.created: ${error.message}`,
       );
     });
   }
@@ -57,14 +57,14 @@ export class TenantWebhookDispatcher {
    */
   @OnEvent('transaction.confirmed')
   async handleTransactionConfirmed(event: TransactionConfirmedEvent): Promise<void> {
-    await this.dispatchWebhooks(event.tenantId, 'transaction.confirmed', {
+    await this.dispatchWebhook(event.tenantId, 'transaction.confirmed', {
       transactionId: event.transactionId,
       customerId: event.customerId,
       cardId: event.cardId,
       timestamp: new Date().toISOString(),
     }).catch((error) => {
       this.logger.warn(
-        `Error despachando webhooks para transaction.confirmed: ${error.message}`,
+        `Error despachando webhook para transaction.confirmed: ${error.message}`,
       );
     });
   }
@@ -74,14 +74,14 @@ export class TenantWebhookDispatcher {
    */
   @OnEvent('transaction.processed')
   async handleTransactionProcessed(event: TransactionProcessedEvent): Promise<void> {
-    await this.dispatchWebhooks(event.tenantId, 'transaction.processed', {
+    await this.dispatchWebhook(event.tenantId, 'transaction.processed', {
       transactionId: event.transactionId,
       status: event.status,
       error: event.error,
       timestamp: new Date().toISOString(),
     }).catch((error) => {
       this.logger.warn(
-        `Error despachando webhooks para transaction.processed: ${error.message}`,
+        `Error despachando webhook para transaction.processed: ${error.message}`,
       );
     });
   }
@@ -91,12 +91,12 @@ export class TenantWebhookDispatcher {
    */
   @OnEvent('transaction.expired')
   async handleTransactionExpired(event: TransactionExpiredEvent): Promise<void> {
-    await this.dispatchWebhooks(event.tenantId, 'transaction.expired', {
+    await this.dispatchWebhook(event.tenantId, 'transaction.expired', {
       transactionId: event.transactionId,
       timestamp: new Date().toISOString(),
     }).catch((error) => {
       this.logger.warn(
-        `Error despachando webhooks para transaction.expired: ${error.message}`,
+        `Error despachando webhook para transaction.expired: ${error.message}`,
       );
     });
   }
@@ -106,43 +106,43 @@ export class TenantWebhookDispatcher {
    */
   @OnEvent('transaction.cancelled')
   async handleTransactionCancelled(event: TransactionCancelledEvent): Promise<void> {
-    await this.dispatchWebhooks(event.tenantId, 'transaction.cancelled', {
+    await this.dispatchWebhook(event.tenantId, 'transaction.cancelled', {
       transactionId: event.transactionId,
       timestamp: new Date().toISOString(),
     }).catch((error) => {
       this.logger.warn(
-        `Error despachando webhooks para transaction.cancelled: ${error.message}`,
+        `Error despachando webhook para transaction.cancelled: ${error.message}`,
       );
     });
   }
 
   /**
-   * Despacha webhooks a todas las URLs configuradas para un evento específico
+   * Despacha webhook a todas las URLs configuradas para un evento específico
    * Fire-and-forget: no bloquea la operación original
    *
    * @param tenantId ID del tenant propietario de la transacción
    * @param eventType Tipo de evento (ej: 'transaction.created')
    * @param payload Datos a enviar en el webhook
    */
-  private async dispatchWebhooks(
+  private async dispatchWebhook(
     tenantId: string,
     eventType: string,
     payload: Record<string, any>,
   ): Promise<void> {
     try {
-      // Obtener configuración de webhooks del tenant
+      // Obtener configuración de webhook del tenant
       const tenant = await this.tenantModel.findOne({ id: tenantId }).exec();
-      if (!tenant || !tenant.webhooks || tenant.webhooks.length === 0) {
+      if (!tenant || !tenant.webhook) {
         this.logger.debug(`Ningún webhook configurado para tenant ${tenantId}`);
         return;
       }
 
-      // Filtrar webhooks activos que están suscritos a este evento
-      const activeWebhooks = (tenant.webhooks as any[]).filter(
+      // Filtrar webhook activos que están suscritos a este evento
+      const activeWebhook = (tenant.webhook as any).filter(
         (webhook) => webhook.active && webhook.events.includes(eventType),
       );
 
-      if (activeWebhooks.length === 0) {
+      if (activeWebhook.length === 0) {
         this.logger.debug(
           `Ningún webhook activo para evento ${eventType} en tenant ${tenantId}`,
         );
@@ -150,7 +150,7 @@ export class TenantWebhookDispatcher {
       }
 
       // Despachar a cada webhook
-      for (const webhook of activeWebhooks) {
+      for (const webhook of activeWebhook) {
         this.sendWebhook(webhook, eventType, payload).catch((error) => {
           this.logger.error(
             `Error enviando webhook a ${webhook.url}: ${error.message}`,
@@ -158,7 +158,7 @@ export class TenantWebhookDispatcher {
         });
       }
     } catch (error) {
-      this.logger.error(`Error despachando webhooks para tenant ${tenantId}: ${error.message}`);
+      this.logger.error(`Error despachando webhook para tenant ${tenantId}: ${error.message}`);
     }
   }
 

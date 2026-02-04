@@ -1,54 +1,16 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+
 import { HydratedDocument } from 'mongoose';
+
 import { AbstractSchema } from 'src/common/schemas/abstract.schema';
-import { TenantStatus } from '../../domain/enums';
+import { WebhookSchema } from './webhook.schema';
+import { AddressSchema } from './address.schema';
 
-/**
- * Subdocumento para dirección de negocio
- */
-class BusinessAddress {
-  @Prop({ type: String, required: true })
-  address: string;
+import { Address, Webhook, TenantStatus, OAuth2ClientCredentials } from '../../domain';
+import { OAuth2ClientCredentialsSchema } from './oauth2-client-credentials.schema';
 
-  @Prop({ type: String, required: true })
-  city: string;
 
-  @Prop({ type: String, required: true })
-  state: string;
 
-  @Prop({ type: String, required: true })
-  zipCode: string;
-
-  @Prop({ type: String, required: false })
-  country?: string;
-}
-
-/**
- * Subdocumento para configuración de webhooks
- * Almacena URLs y secrets para notificaciones de eventos
- */
-class WebhookConfig {
-  @Prop({ type: String, required: true })
-  id: string; // UUID único por webhook
-
-  @Prop({ type: String, required: true })
-  url: string; // URL donde se enviarán los webhooks
-
-  @Prop({ type: [String], required: true, default: [] })
-  events: string[]; // Eventos a los que suscribirse (ej: 'transaction.created', 'transaction.confirmed')
-
-  @Prop({ type: Boolean, default: true })
-  active: boolean; // Si el webhook está activo
-
-  @Prop({ type: String, required: true })
-  secret: string; // Secret para firmar webhooks (HMAC-SHA256)
-
-  @Prop({ type: Date, default: Date.now })
-  createdAt: Date;
-
-  @Prop({ type: Date, default: Date.now })
-  updatedAt: Date;
-}
 
 /**
  * Schema principal para Tenants (negocios registrados en la plataforma)
@@ -83,10 +45,10 @@ export class Tenant extends AbstractSchema {
    * Dirección del negocio
    */
   @Prop({
-    type: Object,
+    type: AddressSchema,
     required: true,
   })
-  businessAddress: BusinessAddress;
+  businessAddress: Address;
 
   /**
    * Referencia a la clave en Vault donde se almacena el PAN
@@ -130,15 +92,6 @@ export class Tenant extends AbstractSchema {
   status: TenantStatus;
 
   /**
-   * ID del usuario que creó el tenant
-   */
-  @Prop({
-    type: String,
-    required: true,
-  })
-  createdBy: string;
-
-  /**
    * Información adicional o notas
    */
   @Prop({
@@ -146,17 +99,27 @@ export class Tenant extends AbstractSchema {
     required: false,
   })
   notes?: string;
-  
+
   /**
    * Webhooks configurados para este tenant
    * Array de configuraciones de webhook con URLs, events, y secrets
    */
   @Prop({
     required: false,
-    type: [Object],
-    default: [],
+    type: WebhookSchema,
+    default: null,
   })
-  webhooks?: WebhookConfig[];
+  webhook?: Webhook;
+
+  /**
+   * OAuth2 Client ID asociado al tenant (si aplica)
+   */
+  @Prop({
+    required: false,
+    type: OAuth2ClientCredentialsSchema,
+    default: null,
+  })
+  oauth2ClientCredentials?: OAuth2ClientCredentials;
 
   maskedPan?: string;
   unmaskPan?: string;
@@ -172,5 +135,5 @@ TenantSchema.index({ email: 1 });
 TenantSchema.index({ status: 1 });
 TenantSchema.index({ createdAt: 1 });
 TenantSchema.index({ createdBy: 1 });
-TenantSchema.index({ 'webhooks.url': 1 }, { sparse: true }); // Para búsquedas de webhooks por URL
+TenantSchema.index({ 'webhook.url': 1 }, { sparse: true }); // Para búsquedas de webhooks por URL
 
