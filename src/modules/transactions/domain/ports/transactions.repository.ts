@@ -22,6 +22,11 @@ export interface ITransactionsRepository {
   findByRef(ref: string, tenantId: string): Promise<Transaction | null>;
 
   /**
+   * Busca transacción por intentId para validar idempotencia
+   */
+  findByIntentId(tenantId: string, intentId: string): Promise<Transaction | null>;
+
+  /**
    * Lista transacciones de un tenant
    */
   findByTenantId(

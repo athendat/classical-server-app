@@ -9,7 +9,7 @@ import { CreateTenantWebhookDto, mapWebhookToResponse } from '../../dto/webhook.
 import { AsyncContextService } from 'src/common/context';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { Webhook } from '../../domain';
-import { TenantRepository } from '../../infrastructure/adapters/tenant.repository';
+import { TenantsRepository } from '../../infrastructure/adapters/tenant.repository';
 import { ApiResponse } from 'src/common/types';
 
 
@@ -24,7 +24,7 @@ export class TenantWebhooksService {
   constructor(
     private readonly asyncContextService: AsyncContextService,
     private readonly auditService: AuditService,
-    private readonly tenantRepository: TenantRepository,
+    private readonly tenantsRepository: TenantsRepository,
   ) { }
 
   /**
@@ -55,7 +55,7 @@ export class TenantWebhooksService {
 
     try {
 
-      const tenant = await this.tenantRepository.findById(tenantId);
+      const tenant = await this.tenantsRepository.findById(tenantId);
 
       if (!tenant) {
         const errorMsg = `Tenant not found: ${tenantId}`;
@@ -77,7 +77,7 @@ export class TenantWebhooksService {
       const newSecret = uuidv4().replace(/-/g, '');
 
       // Actualizar tenant con nuevo secret del webhook
-      await this.tenantRepository.updateWebhookSecret(
+      await this.tenantsRepository.updateWebhookSecret(
         tenantId,
         newSecret,
       );
@@ -132,7 +132,7 @@ export class TenantWebhooksService {
     );
 
     try {
-      const tenant = await this.tenantRepository.findById(tenantId);
+      const tenant = await this.tenantsRepository.findById(tenantId);
 
       if (!tenant) {
         const errorMsg = `Tenant not found: ${tenantId}`;
@@ -169,7 +169,7 @@ export class TenantWebhooksService {
       }
 
       // Actualizar URL del webhook
-      await this.tenantRepository.updateWebhookUrl(tenantId, url);
+      await this.tenantsRepository.updateWebhookUrl(tenantId, url);
 
       this.logger.log(
         `[${requestId}] Webhook URL updated for tenant ${tenantId}`,

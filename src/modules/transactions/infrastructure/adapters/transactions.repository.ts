@@ -50,6 +50,16 @@ export class TransactionsRepository implements ITransactionsRepository {
     }
   }
 
+  async findByIntentId(tenantId: string, intentId: string): Promise<Transaction | null> {
+    try {
+      const document = await this.transactionModel.findOne({ tenantId, intentId });
+      return document ? this.mapToDomain(document) : null;
+    } catch (error) {
+      this.logger.error(`Error buscando transacción por intentId: ${error.message}`);
+      throw error;
+    }
+  }
+
   async findByTenantId(
     tenantId: string,
     filter: QueryFilter<Transaction>,
@@ -211,6 +221,7 @@ export class TransactionsRepository implements ITransactionsRepository {
     return new Transaction({
       id: document.id,
       ref: document.ref,
+      intentId: document.intentId,
       no: document.no,
       tenantId: document.tenantId,
       tenantName: document.tenantName,

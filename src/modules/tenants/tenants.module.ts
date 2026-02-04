@@ -8,7 +8,7 @@ import { CryptoModule } from '../../common/crypto/crypto.module';
 import { TenantsService } from './application/tenant.service';
 import { TenantWebhooksService } from './application/services/tenant-webhooks.service';
 import { TenantController } from './infrastructure/controllers/tenant.controller';
-import { TenantRepository } from './infrastructure/adapters/tenant.repository';
+import { TenantsRepository } from './infrastructure/adapters/tenant.repository';
 import { TenantLifecycleRepository } from './infrastructure/adapters/tenant-lifecycle.repository';
 import { TenantVaultService } from './infrastructure/services/tenant-vault.service';
 
@@ -52,11 +52,11 @@ import { TenantOAuth2CredentialsService } from './application/services/tenant-oa
     TenantsService,
     TenantWebhooksService,
     TenantOAuth2CredentialsService,
-    TenantRepository,
+    TenantsRepository,
     TenantLifecycleRepository,
     TenantVaultService,
   ],
   controllers: [TenantController],
-  exports: [TenantsService, TenantRepository, TenantWebhooksService],
+  exports: [TenantsService, TenantsRepository, TenantWebhooksService],
 })
 export class TenantsModule {}

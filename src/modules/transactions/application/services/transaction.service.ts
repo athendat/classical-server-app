@@ -17,6 +17,7 @@ import { CryptoService } from 'src/common/crypto/crypto.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { ApiResponse } from 'src/common/types';
 import { AsyncContextService } from 'src/common/context';
+import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
 
 /**
  * Servicio de aplicación para transacciones
@@ -32,6 +33,7 @@ export class TransactionService {
     private readonly cryptoService: CryptoService,
     private readonly eventEmitter: EventEmitter2,
     private readonly sequencePort: MongoDbSequenceAdapter,
+    private readonly tenantsRepository: TenantsRepository,
     private readonly transactionsRepository: TransactionsRepository,
   ) { }
 
@@ -42,15 +44,55 @@ export class TransactionService {
   async create(dto: CreateTransactionDto): Promise<ApiResponse<CreateTransactionResponseDto>> {
     // ⭐ OBTENER del contexto en lugar de generar
     const requestId = this.asyncContextService.getRequestId();
+    const tenantId = this.asyncContextService.getActorId();
 
-    this.logger.log(`[${requestId}] Creando transacción para tenant=${dto.tenantId}`);
+    this.logger.log(`[${requestId}] Creando transacción para tenant=${tenantId}`);
 
     try {
-      // Validar que ttlMinutes no exceda 24 horas
-      const ttlMinutes = dto.ttlMinutes ?? 15;
-      if (ttlMinutes < 1 || ttlMinutes > 1440) {
-        throw new BadRequestException(
-          'ttlMinutes debe estar entre 1 y 1440 (máximo 24 horas)',
+
+      // Validar idempotencia: buscar si ya existe una transacción con el mismo intentId
+      const existingTransaction = await this.transactionsRepository.findByIntentId(
+        tenantId!,
+        dto.intentId,
+      );
+      if (existingTransaction) {
+        this.logger.log(
+          `[${requestId}] Transacción con intentId=${dto.intentId} ya existe, retornando existente`,
+        );
+        // Retornar la transacción existente (idempotencia)
+        const qrPayload = existingTransaction.getQrPayload();
+        return ApiResponse.ok<CreateTransactionResponseDto>(
+          HttpStatus.CREATED,
+          {
+            id: existingTransaction.id,
+            intentId: existingTransaction.intentId,
+            ref: existingTransaction.ref,
+            no: existingTransaction.no,
+            amount: existingTransaction.amount,
+            expiresAt: existingTransaction.expiresAt,
+            payload: qrPayload,
+            signature: existingTransaction.signature,
+          },
+          'Transacción creada exitosamente (retorno de reintento)',
+          { requestId },
+        );
+      }
+
+      // Obtener datos del Tenant
+      const tenant = await this.tenantsRepository.findById(tenantId!);
+      if (!tenant) {
+        const errorMsg = `Tenant not found: ${tenantId}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        // Registrar acceso denegado
+        this.auditService.logDeny('TENANT_FETCHED', 'tenant', tenantId!, errorMsg, {
+          severity: 'LOW',
+          tags: ['tenant', 'read', 'not-found'],
+        });
+        return ApiResponse.fail<CreateTransactionResponseDto>(
+          HttpStatus.NOT_FOUND,
+          errorMsg,
+          'Tenant no encontrado',
+          { requestId, tenantId },
         );
       }
 
@@ -58,15 +100,16 @@ export class TransactionService {
       const no = await this.sequencePort.getNextTransactionNo();
 
       // Calcular fecha de expiración
+      const ttlMinutes = dto.ttlMinutes || 15; // Valor por defecto 15 minutos
       const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
 
       // Crear entidad
       const transaction = new Transaction({
         ref: dto.ref,
+        intentId: dto.intentId,
         no,
-        tenantId: dto.tenantId,
-        tenantName: 'TenantName', // TODO: Buscar nombre real del tenant desde base de datos
-        customerId: dto.customerId,
+        tenantId: tenant.id,
+        tenantName: tenant.businessName, // Usar nombre real del tenant desde base de datos
         amount: dto.amount,
         ttlMinutes,
         expiresAt,
@@ -89,7 +132,7 @@ export class TransactionService {
         module: 'transactions',
         severity: 'MEDIUM',
         tags: ['transactions'],
-        actorId: dto.customerId,
+        actorId: tenantId,
         changes: {
           after: { ...created },
         },
@@ -114,6 +157,7 @@ export class TransactionService {
         HttpStatus.CREATED,
         {
           id: created.id,
+          intentId: created.intentId,
           ref: created.ref,
           no: created.no,
           amount: created.amount,
@@ -140,7 +184,7 @@ export class TransactionService {
           module: 'transactions',
           severity: 'HIGH',
           tags: ['tenant', 'creation', 'error'],
-          actorId: dto.customerId,
+          actorId: tenantId,
         },
       );
 
@@ -175,8 +219,12 @@ export class TransactionService {
 
       // Validar que esté en estado 'new'
       if (transaction.status !== TransactionStatus.NEW) {
-        throw new BadRequestException(
-          `No se puede confirmar una transacción en estado ${transaction.status}`,
+        const errorMsg = `No se puede confirmar una transacción en estado ${transaction.status}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        return ApiResponse.fail<Transaction>(
+          HttpStatus.NOT_ACCEPTABLE,
+          'No se puede confirmar una transacción en este estado',
+          'Estado inválido',
         );
       }
 
@@ -194,11 +242,17 @@ export class TransactionService {
       const updated = await this.transactionsRepository.updateStatus(
         dto.transactionId,
         TransactionStatus.PROCESSING,
-        { cardId: dto.cardId },
+        { cardId: dto.cardId, customerId: userId },
       );
 
       if (!updated) {
-        throw new Error('No se pudo actualizar la transacción');
+        const errorMsg = `No se pudo confirmar una transacción`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        return ApiResponse.fail<Transaction>(
+          HttpStatus.NOT_MODIFIED,
+          'No se pudo confirmar una transacción',
+          'Error al confirmar',
+        );
       }
 
       // Auditar
@@ -228,7 +282,12 @@ export class TransactionService {
         HttpStatus.ACCEPTED,
         updated,
         'Transacción confirmada exitosamente',
-        { requestId }
+        {
+          requestId,
+          tenantId: transaction.tenantId,
+          customerId: transaction.customerId,
+          transactionId: transaction.id
+        }
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -273,12 +332,22 @@ export class TransactionService {
       // Buscar transacción
       const transaction = await this.transactionsRepository.findById(transactionId);
       if (!transaction) {
-        throw new NotFoundException('Transacción no encontrada');
+        const errorMsg = `Transacción no encontrada: ${transactionId}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        return ApiResponse.fail<Transaction>(
+          HttpStatus.NOT_FOUND,
+          errorMsg,
+          'Transacción no encontrada',
+        );
       }
 
       // Validar transición válida
       if (!isValidTransition(transaction.status as any, TransactionStatus.CANCELLED)) {
-        throw new BadRequestException(
+        const errorMsg = `No se puede cancelar una transacción en estado ${transaction.status}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        return ApiResponse.fail<Transaction>(
+          HttpStatus.NOT_ACCEPTABLE,
+          errorMsg,
           `No se puede cancelar una transacción en estado ${transaction.status}`,
         );
       }
@@ -287,10 +356,17 @@ export class TransactionService {
       const updated = await this.transactionsRepository.updateStatus(
         transactionId,
         TransactionStatus.CANCELLED,
+        { customerId: userId },
       );
 
       if (!updated) {
-        throw new Error('No se pudo actualizar la transacción');
+        const errorMsg = `No se pudo cancelar una transacción`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        return ApiResponse.fail<Transaction>(
+          HttpStatus.NOT_MODIFIED,
+          'No se pudo cancelar una transacción',
+          'Error al cancelar',
+        );
       }
 
       // Auditar
@@ -315,7 +391,12 @@ export class TransactionService {
         HttpStatus.ACCEPTED,
         updated,
         'Transacción cancelada exitosamente',
-        { requestId }
+        {
+          requestId,
+          tenantId: transaction.tenantId,
+          customerId: transaction.customerId,
+          transactionId: transaction.id
+        }
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);

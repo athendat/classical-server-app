@@ -10,8 +10,8 @@ import { Tenant, TenantDocument } from '../schemas/tenant.schema';
  * Encapsula todas las operaciones de MongoDB para tenants
  */
 @Injectable()
-export class TenantRepository implements ITenantPort {
-  private readonly logger = new Logger(TenantRepository.name);
+export class TenantsRepository implements ITenantPort {
+  private readonly logger = new Logger(TenantsRepository.name);
 
   constructor(
     @InjectModel(Tenant.name)

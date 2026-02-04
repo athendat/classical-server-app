@@ -4,7 +4,7 @@ import { TenantStatus } from '../enums';
 
 /**
  * Puerto (interfaz de puerto) que define las operaciones disponibles para tenants
- * Implementado por TenantRepository en la capa de infraestructura
+ * Implementado por TenantsRepository en la capa de infraestructura
  */
 export interface ITenantPort {
   /**

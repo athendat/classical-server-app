@@ -4,22 +4,19 @@ import { Transaction } from '../domain/entities/transaction.entity';
 
 /**
  * DTO para crear una transacción
- * Cliente envía: tenantId, customerId, ref (su número de orden), amount, ttlMinutes
+ * Cliente envía: ref (su número de orden), amount, ttlMinutes, intentId
  */
 export class CreateTransactionDto {
-  @ApiProperty({
-    description: 'ID del tenant (arrendatario) que realiza la transacción',
-    example: 'tenant_123',
-  })
-  @IsString({ message: 'tenantId debe ser una cadena de texto' })
-  tenantId: string;
 
+  /**
+   * ID de intención de transacción (UUID v4 para idempotencia)
+   */
   @ApiProperty({
-    description: 'ID del cliente propietario de la transacción',
-    example: 'customer_456',
+    description: 'ID de intención único (UUID v4) para evitar duplicados en reintentos',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   })
-  @IsString({ message: 'customerId debe ser una cadena de texto' })
-  customerId: string;
+  @IsUUID('4', { message: 'intentId debe ser un UUID versión 4 válido' })
+  intentId: string;
 
   /**
    * Referencia del cliente (número de orden)
@@ -105,6 +102,12 @@ export class CreateTransactionResponseDto {
     example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   })
   id: string;
+
+  @ApiProperty({
+    description: 'ID de intención (UUID v4) que fue enviado en la creación',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+  })
+  intentId: string;
 
   @ApiProperty({
     description: 'Referencia del cliente (número de orden) enviada originalmente',

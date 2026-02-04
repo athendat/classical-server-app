@@ -23,6 +23,7 @@ import { TenantWebhookDispatcher } from './application/services/tenant-webhook.d
 
 // Ports
 import { Tenant, TenantSchema } from '../tenants/infrastructure/schemas/tenant.schema';
+import { TenantsModule } from '../tenants';
 
 @Module({
     imports: [
@@ -47,6 +48,7 @@ import { Tenant, TenantSchema } from '../tenants/infrastructure/schemas/tenant.s
         ScheduleModule.forRoot(),
         CryptoModule,
         HttpModule,
+        TenantsModule,
     ],
     controllers: [TransactionsController],
     providers: [

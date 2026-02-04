@@ -40,7 +40,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserRegisteredEvent } from '../events/auth.events';
 import { CardsService } from 'src/modules/cards/application/cards.service';
 import { PermissionsService } from '../../permissions/application/permissions.service';
-import { TenantRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
+import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
 
 interface ValidationResponse {
   valid: boolean;
@@ -66,7 +66,7 @@ export class AuthService {
     private readonly permissionsService: PermissionsService,
     private readonly sessionService: SessionService,
     private readonly usersService: UsersService,
-    private readonly tenantRepository: TenantRepository,
+    private readonly tenantsRepository: TenantsRepository,
   ) {
     this.jwtAudience =
       configService.get<string>('JWT_AUDIENCE') || 'classical-service';
@@ -1332,7 +1332,7 @@ export class AuthService {
       );
 
       // Buscar tenant por clientId
-      const tenant = await this.tenantRepository.findAll(
+      const tenant = await this.tenantsRepository.findAll(
         { 'oauth2ClientCredentials.clientId': clientId },
         { skip: 0, limit: 1 },
       );

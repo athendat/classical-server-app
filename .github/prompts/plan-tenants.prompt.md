@@ -16,7 +16,7 @@
 
 6. **Crear schemas MongoDB** en `src/modules/tenants/infrastructure/schemas/`: TenantSchema (businessName, legalRepresentative, businessAddress, panVaultKeyId, email, phone, status, createdBy, timestamps, índices), TenantLifecycleSchema (tenantId, fromState, toState, triggeredBy, comment, timestamp, xstateSnapshot).
 
-7. **Crear repositorios** en `src/modules/tenants/infrastructure/adapters/`: TenantRepository, TenantLifecycleRepository implementando ITenantPort con métodos CRUD y findAll paginado.
+7. **Crear repositorios** en `src/modules/tenants/infrastructure/adapters/`: TenantsRepository, TenantLifecycleRepository implementando ITenantPort con métodos CRUD y findAll paginado.
 
 8. **Implementar TenantApplicationService** en `src/modules/tenants/application/tenant.service.ts`: createTenant() (valida Luhn en DTO, guarda PAN en Vault), updateTenant(), transitionTenantState() (valida máquina, registra lifecycle con snapshot), getTenantById(), listTenants(), getTenantLifecycle(); usar Result pattern, emitir eventos.
 

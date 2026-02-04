@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AsyncContextService } from 'src/common/context';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 
-import { TenantRepository } from '../../infrastructure/adapters/tenant.repository';
+import { TenantsRepository } from '../../infrastructure/adapters/tenant.repository';
 
 import { OAuth2ClientCredentials } from '../../domain';
 import { ApiResponse } from 'src/common/types';
@@ -20,7 +20,7 @@ export class TenantOAuth2CredentialsService {
     constructor(
         private readonly asyncContextService: AsyncContextService,
         private readonly auditService: AuditService,
-        private readonly tenantRepository: TenantRepository,
+        private readonly tenantsRepository: TenantsRepository,
     ) { }
 
     /**
@@ -48,7 +48,7 @@ export class TenantOAuth2CredentialsService {
 
         try {
 
-            const tenant = await this.tenantRepository.findById(tenantId);
+            const tenant = await this.tenantsRepository.findById(tenantId);
 
             if (!tenant) {
                 const errorMsg = `Tenant not found: ${tenantId}`;
@@ -71,7 +71,7 @@ export class TenantOAuth2CredentialsService {
             const newSecret = uuidv4().replace(/-/g, '');
 
             // Actualizar tenant con nuevo secret
-            await this.tenantRepository.updateOAuth2Credentials(
+            await this.tenantsRepository.updateOAuth2Credentials(
                 tenantId,
                 newClientId,
                 newSecret,

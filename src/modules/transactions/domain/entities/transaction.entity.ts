@@ -15,6 +15,7 @@ export enum TransactionStatus {
 export class Transaction {
   id: string; // UUID único
   ref: string; // Referencia del cliente (orden)
+  intentId: string; // UUID v4 para idempotencia (evitar duplicados)
   no: number; // Número secuencial universal
   tenantId: string; // Tenant propietario
   tenantName: string; // Nombre del tenant (para QR)
@@ -32,6 +33,7 @@ export class Transaction {
   constructor(partial: Partial<Transaction> = {}) {
     this.id = partial.id ?? uuidv4();
     this.ref = partial.ref ?? '';
+    this.intentId = partial.intentId ?? uuidv4();
     this.no = partial.no ?? 0;
     this.tenantId = partial.tenantId ?? '';
     this.tenantName = partial.tenantName ?? '';

@@ -18,15 +18,18 @@ export class TransactionSchema extends AbstractSchema {
   ref: string; // Referencia del cliente (orden)
 
   @Prop({ required: true, unique: true, sparse: true })
+  intentId: string; // UUID v4 para idempotencia (evitar duplicados)
+
+  @Prop({ required: true, unique: true, sparse: true })
   no: number; // Número secuencial universal
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, index: true, type: String, ref: 'Tenant' })
   tenantId: string; // Tenant propietario
 
   @Prop({ required: true })
   tenantName: string; // Nombre del tenant para QR
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: false, type: String, ref: 'User' })
   customerId: string; // Cliente
 
   @Prop({ required: true })
@@ -61,4 +64,5 @@ TransactionSchemaFactory.index({ tenantId: 1, createdAt: -1 });
 TransactionSchemaFactory.index({ customerId: 1, createdAt: -1 });
 TransactionSchemaFactory.index({ status: 1, expiresAt: 1 }); // Para buscar expiradas
 TransactionSchemaFactory.index({ tenantId: 1, ref: 1 }); // Unicidad compuesta por tenant
+TransactionSchemaFactory.index({ tenantId: 1, intentId: 1 }); // Para idempotencia por tenant
 TransactionSchemaFactory.index({ createdAt: -1 }); // Para paginación general

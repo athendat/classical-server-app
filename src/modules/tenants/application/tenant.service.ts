@@ -8,7 +8,7 @@ import { AsyncContextService } from '../../../common/context/async-context.servi
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { TenantVaultService } from '../infrastructure/services/tenant-vault.service';
 
-import { TenantRepository } from '../infrastructure/adapters/tenant.repository';
+import { TenantsRepository } from '../infrastructure/adapters/tenant.repository';
 import { TenantLifecycleRepository } from '../infrastructure/adapters/tenant-lifecycle.repository';
 
 import { Tenant } from '../infrastructure/schemas/tenant.schema';
@@ -46,7 +46,7 @@ export class TenantsService {
     private readonly eventEmitter: EventEmitter2,
     private readonly lifecycleRepository: TenantLifecycleRepository,
     private readonly oauth2CredentialsService: TenantOAuth2CredentialsService,
-    private readonly tenantRepository: TenantRepository,
+    private readonly tenantsRepository: TenantsRepository,
     private readonly vaultService: TenantVaultService,
     private readonly webhooksService: TenantWebhooksService,
   ) {}
@@ -66,7 +66,7 @@ export class TenantsService {
       );
 
       // Verificar si el email ya existe
-      const existingTenant = await this.tenantRepository.findByEmail(dto.email);
+      const existingTenant = await this.tenantsRepository.findByEmail(dto.email);
       if (existingTenant) {
         const errorMsg = `Tenant already exists with email: ${dto.email}`;
         this.logger.warn(`[${requestId}] ${errorMsg}`);
@@ -116,7 +116,7 @@ export class TenantsService {
         webhook: webhook,
       };
 
-      const newTenant = await this.tenantRepository.create(tenantData);
+      const newTenant = await this.tenantsRepository.create(tenantData);
 
       // Emitir evento de creación
       this.eventEmitter.emit('tenant.created', {
@@ -188,7 +188,7 @@ export class TenantsService {
     this.logger.debug(`[${requestId}] Fetching tenant by id: ${id}`);
 
     try {
-      const tenant = await this.tenantRepository.findById(id);
+      const tenant = await this.tenantsRepository.findById(id);
 
       if (!tenant) {
         const errorMsg = `Tenant not found: ${id}`;
@@ -294,7 +294,7 @@ export class TenantsService {
       );
 
       // Ejecutar consulta directamente en MongoDB
-      const { data: tenants, total } = await this.tenantRepository.findAll(
+      const { data: tenants, total } = await this.tenantsRepository.findAll(
         mongoFilter,
         options,
       );
@@ -381,7 +381,7 @@ export class TenantsService {
     try {
       this.logger.log(`[${requestId}] Updating tenant: ${id}`);
 
-      const tenant = await this.tenantRepository.findById(id);
+      const tenant = await this.tenantsRepository.findById(id);
 
       if (!tenant) {
         const errorMsg = `Tenant not found: ${id}`;
@@ -399,7 +399,7 @@ export class TenantsService {
 
       // Si email cambió, verificar que no esté en uso
       if (dto.email && dto.email.toLowerCase() !== tenant.email) {
-        const existingTenant = await this.tenantRepository.findByEmail(
+        const existingTenant = await this.tenantsRepository.findByEmail(
           dto.email,
         );
         if (existingTenant) {
@@ -418,7 +418,7 @@ export class TenantsService {
       );
 
       // Actualizar en BD
-      const updated = await this.tenantRepository.update(id, updateData);
+      const updated = await this.tenantsRepository.update(id, updateData);
 
       this.logger.log(`[${requestId}] Tenant updated: ${id}`);
 
@@ -486,7 +486,7 @@ export class TenantsService {
     actor: Actor,
   ): Promise<ApiResponse<Tenant>> {
     try {
-      const tenant = await this.tenantRepository.findById(tenantId);
+      const tenant = await this.tenantsRepository.findById(tenantId);
 
       if (!tenant) {
         return ApiResponse.fail<Tenant>(
@@ -509,7 +509,7 @@ export class TenantsService {
       }
 
       // Actualizar estado
-      const updated = await this.tenantRepository.updateStatus(
+      const updated = await this.tenantsRepository.updateStatus(
         tenantId,
         targetState,
       );

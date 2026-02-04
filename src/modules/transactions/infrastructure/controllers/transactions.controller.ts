@@ -92,11 +92,11 @@ export class TransactionsController {
 
   /**
    * Confirma una transacción con cardId y firma
-   * POST /transactions/:id/confirm
-   * Body: { cardId, signature }
+   * POST /transactions/confirm
+   * Body: { transactionId,cardId, signature }
    * Response: Transaction completa
    */
-  @Post(':id/confirm')
+  @Post('confirm')
   @ApiOperation({
     summary: 'Confirmar transacción',
     description: 'Confirma una transacción con cardId y firma',
