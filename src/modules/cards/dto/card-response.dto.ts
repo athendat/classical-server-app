@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { CardStatusEnum } from '../domain/enums/card-status.enum';
 import { CardTypeEnum } from '../domain/enums/card-type.enum';
+import { Transaction } from 'src/modules/transactions/domain/entities/transaction.entity';
 
 export class CardResponseDto {
   @ApiProperty({
@@ -82,4 +83,114 @@ export class CardResponseDto {
     required: true,
   })
   createdAt: Date;
+
+  @ApiProperty({
+    description:
+      'Lista de las últimas transacciones asociadas a la tarjeta.',
+  })
+  lastTransactions: LastTransactionsDtoResponse[];
+}
+
+/**
+ * DTO que representa una transacción breve asociada a una tarjeta.
+ *
+ * Proporciona los campos principales que se incluyen en la lista de últimas
+ * transacciones retornadas junto con la información de la tarjeta.
+ */
+export class LastTransactionsDtoResponse {
+  /**
+   * Identificador único de la transacción (UUID v4).
+   * @example '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+   */
+  @ApiProperty({
+    description: 'Identificador único de la transacción (UUID v4).',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    type: String,
+    format: 'uuid',
+    required: true,
+  })
+  id: string;
+
+  /**
+   * Referencia externa o interna de la transacción (por ejemplo: número de factura o referencia bancaria).
+   * @example 'INV-202401-0001'
+   */
+  @ApiProperty({
+    description:
+      'Referencia externa o interna de la transacción (por ejemplo: número de factura o referencia bancaria).',
+    example: 'INV-202401-0001',
+    type: String,
+    maxLength: 64,
+    required: true,
+  })
+  ref: string;
+
+  /**
+   * Número secuencial de la transacción relativo al registro (por ejemplo, índice o número de orden).
+   * @example 1
+   */
+  @ApiProperty({
+    description:
+      'Número secuencial de la transacción relativo al registro (por ejemplo, índice o número de orden).',
+    example: 1,
+    type: Number,
+    format: 'int32',
+    minimum: 0,
+    required: true,
+  })
+  no: number;
+
+  /**
+   * Nombre del tenant o cliente propietario de la tarjeta.
+   * @example 'Empresa S.A.'
+   */
+  @ApiProperty({
+    description: 'Nombre del tenant o cliente propietario de la tarjeta.',
+    example: 'Empresa S.A.',
+    type: String,
+    maxLength: 128,
+    required: true,
+  })
+  tenantName: string;
+
+  /**
+   * Identificador de la tarjeta asociada a la transacción (UUID v4).
+   * @example '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+   */
+  @ApiProperty({
+    description: 'Identificador de la tarjeta asociada a la transacción (UUID v4).',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    type: String,
+    format: 'uuid',
+    required: true,
+  })
+  cardId: string;
+
+  /**
+   * Fecha y hora en que se creó la transacción en formato ISO 8601.
+   * @example '2024-01-15T10:20:30Z'
+   */
+  @ApiProperty({
+    description: 'Fecha y hora en que se creó la transacción en formato ISO 8601.',
+    example: '2024-01-15T10:20:30Z',
+    type: String,
+    format: 'date-time',
+    required: true,
+  })
+  createdAt: Date;
+
+  /**
+   * Monto de la transacción. Representado en la unidad mayor de la moneda con dos decimales.
+   * @example 49.99
+   */
+  @ApiProperty({
+    description:
+      'Monto de la transacción. Representado en la unidad mayor de la moneda con dos decimales.',
+    example: 49.99,
+    type: Number,
+    format: 'double',
+    minimum: 0,
+    required: true,
+  })
+  amount: number;
 }

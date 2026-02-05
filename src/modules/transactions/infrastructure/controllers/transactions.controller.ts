@@ -28,7 +28,7 @@ import {
   TransactionPaginatedResponseDto,
 } from '../../dto/transactions.dto';
 
-import { Transaction } from '../../domain/entities/transaction.entity';
+import { Transaction, TransactionStatus } from '../../domain/entities/transaction.entity';
 import { ApiResponse } from 'src/common/types';
 import type { QueryParams, SortOrder } from 'src/common/types';
 
@@ -205,6 +205,13 @@ export class TransactionsController {
     description: 'Sort order: ascending or descending',
     example: 'asc',
   })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: String,
+    description: 'Filter by transaction status',
+    example: 'new',
+  })
   @ApiOkResponse({
     description: 'Transactions recuperados',
     type: TransactionPaginatedResponseDto,
@@ -222,6 +229,7 @@ export class TransactionsController {
     @Query('search') search?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: SortOrder,
+    @Query('status') status?: TransactionStatus,
   ): Promise<Response> {
     // Construimos parámetros de consulta
     const queryParams: QueryParams = {
@@ -230,6 +238,9 @@ export class TransactionsController {
       sortBy: sortBy,
       sortOrder: sortOrder,
       search: search?.trim(),
+      filters: {
+        ...(status ? { status } : {}),
+      },
     };
 
     const response = await this.transactionQueryService.list(queryParams);

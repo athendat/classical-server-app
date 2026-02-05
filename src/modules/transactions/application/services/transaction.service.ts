@@ -14,6 +14,7 @@ import { CreateTransactionDto, ConfirmTransactionDto, CreateTransactionResponseD
 import { TransactionsRepository } from '../../infrastructure/adapters/transactions.repository';
 import { MongoDbSequenceAdapter } from '../../infrastructure/adapters/sequence.adapter';
 import { CryptoService } from 'src/common/crypto/crypto.service';
+import { EmvcoService } from 'src/common/emvco/emvco.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { ApiResponse } from 'src/common/types';
 import { AsyncContextService } from 'src/common/context';
@@ -31,6 +32,7 @@ export class TransactionService {
     private readonly asyncContextService: AsyncContextService,
     private readonly auditService: AuditService,
     private readonly cryptoService: CryptoService,
+    private readonly emvcoService: EmvcoService,
     private readonly eventEmitter: EventEmitter2,
     private readonly sequencePort: MongoDbSequenceAdapter,
     private readonly tenantsRepository: TenantsRepository,
@@ -60,7 +62,15 @@ export class TransactionService {
           `[${requestId}] Transacción con intentId=${dto.intentId} ya existe, retornando existente`,
         );
         // Retornar la transacción existente (idempotencia)
-        const qrPayload = existingTransaction.getQrPayload();
+        const emvco = this.emvcoService.generatePaymentQR({
+          id: existingTransaction.id,
+          ref: existingTransaction.ref,
+          no: existingTransaction.no,
+          tenantName: existingTransaction.tenantName,
+          amount: existingTransaction.amount,
+          expiresAt: existingTransaction.expiresAt.toISOString(),
+        });
+
         return ApiResponse.ok<CreateTransactionResponseDto>(
           HttpStatus.CREATED,
           {
@@ -70,7 +80,7 @@ export class TransactionService {
             no: existingTransaction.no,
             amount: existingTransaction.amount,
             expiresAt: existingTransaction.expiresAt,
-            payload: qrPayload,
+            emvco,
             signature: existingTransaction.signature,
           },
           'Transacción creada exitosamente (retorno de reintento)',
@@ -116,13 +126,19 @@ export class TransactionService {
         status: TransactionStatus.NEW,
       });
 
-      // Generar payload del QR
-      const qrPayload = transaction.getQrPayload();
+      // Generar payload del QR en formato EMVCo
+      const emvco = this.emvcoService.generatePaymentQR({
+        id: transaction.id,
+        ref: transaction.ref,
+        no: transaction.no,
+        tenantName: transaction.tenantName,
+        amount: transaction.amount,
+        expiresAt: transaction.expiresAt.toISOString(),
+      });
 
       // Firmar payload con HMAC
       // Nota: Usar un secret universal por ahora, luego se podrá personalizar por tenant
-      const secret = this.cryptoService.generateSecret(); // TODO: Usar secret del tenant o configuración
-      transaction.signature = this.cryptoService.createSignature(qrPayload, secret);
+      transaction.signature = this.cryptoService.createSignature(transaction.id, transaction.ref);
 
       // Persistir
       const created = await this.transactionsRepository.create(transaction);
@@ -162,7 +178,7 @@ export class TransactionService {
           no: created.no,
           amount: created.amount,
           expiresAt: created.expiresAt,
-          payload: qrPayload,
+          emvco,
           signature: transaction.signature,
         },
         'Transacción creada exitosamente',

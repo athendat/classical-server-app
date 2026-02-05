@@ -77,6 +77,20 @@ export class TransactionsRepository implements ITransactionsRepository {
           .sort((options.sort || { createdAt: -1 }) as any)
           .skip(options.skip)
           .limit(options.limit)
+          .select(
+            {
+              _id: 0,
+              id: 1,
+              cardId: 1,
+              no: 1,
+              ref: 1,
+              status: 1,
+              amount: 1,
+              tenantName: 1,
+              expiresAt: 1,
+              createdAt: 1
+            },
+          )
           .lean()
           .exec(),
         this.transactionModel.countDocuments({ tenantId, ...filter } as any).exec(),
@@ -91,6 +105,7 @@ export class TransactionsRepository implements ITransactionsRepository {
       throw error;
     }
   }
+
 
   async findByCustomerId(
     customerId: string,
@@ -109,6 +124,20 @@ export class TransactionsRepository implements ITransactionsRepository {
           .sort((options.sort || { createdAt: -1 }) as any)
           .skip(options.skip)
           .limit(options.limit)
+          .select(
+            {
+              _id: 0,
+              id: 1,
+              cardId: 1,
+              no: 1,
+              ref: 1,
+              status: 1,
+              amount: 1,
+              tenantName: 1,
+              expiresAt: 1,
+              createdAt: 1
+            },
+          )
           .lean()
           .exec(),
         this.transactionModel.countDocuments({ customerId, ...filter } as any).exec(),
@@ -144,6 +173,20 @@ export class TransactionsRepository implements ITransactionsRepository {
           .sort((options.sort || { createdAt: -1 }) as any)
           .skip(options.skip)
           .limit(options.limit)
+          .select(
+            {
+              _id: 0,
+              id: 1,
+              cardId: 1,
+              no: 1,
+              ref: 1,
+              status: 1,
+              amount: 1,
+              tenantName: 1,
+              expiresAt: 1,
+              createdAt: 1
+            },
+          )
           .lean()
           .exec(),
         this.transactionModel.countDocuments(filter as any).exec(),

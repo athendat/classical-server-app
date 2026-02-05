@@ -246,6 +246,7 @@ export class CardsService {
       balance: card.balance,
       status: card.status,
       createdAt: card.createdAt,
+      lastTransactions: card.lastTransactions,
     };
   }
 }

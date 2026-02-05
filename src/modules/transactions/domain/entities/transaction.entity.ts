@@ -1,11 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 
 export enum TransactionStatus {
-  NEW = 'new',
-  PROCESSING = 'processing',
-  SUCCESS = 'success',
-  FAILED = 'failed',
-  CANCELLED = 'cancelled',
+  NEW = 'new', // icon: 'circle' color: '#FFC107' (amber)
+  PROCESSING = 'processing', // icon: 'autorenew' color: '#2196F3' (blue)
+  SUCCESS = 'success', // icon: 'check_circle' color: '#4CAF50' (green)
+  FAILED = 'failed', // icon: 'error' color: '#F44336' (red)
+  CANCELLED = 'cancelled', // icon: 'cancel' color: '#9E9E9E' (grey)
 }
 
 /**

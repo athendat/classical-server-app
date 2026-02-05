@@ -140,10 +140,10 @@ export class CreateTransactionResponseDto {
    */
   @ApiProperty({
     description: 'Payload JSON codificado en el QR que el cliente debe escanear',
-    type: Object,
-    example: { transactionId: '3fa85f64-5717-4562-b3fc-2c963f66afa6', amount: 1500 },
+    type: String,
+    example: '0002010102121515Mi Empresa S.A.5204531153031705404150062840113ORD-2025-0001053620e6422b-a238-4b1d-8da5-8cc876677afd0701809242026-02-05T17:03:05.538Z6304E8A2',
   })
-  payload: Record<string, any>;
+  emvco: string;
 
   /**
    * Firma HMAC-SHA256 del payload, cliente debe devolverla en confirmación

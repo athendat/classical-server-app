@@ -16,7 +16,7 @@ export class CardRepository implements ICardPort {
   constructor(
     @InjectModel(Card.name)
     private readonly cardModel: Model<CardDocument>,
-  ) {}
+  ) { }
 
   /**
    * Crear una nueva tarjeta
@@ -50,7 +50,23 @@ export class CardRepository implements ICardPort {
    */
   async findByUserId(userId: string): Promise<Card[] | null> {
     try {
-      const cards = await this.cardModel.find({ userId }).lean();
+      const cards = await this.cardModel.find({ userId })
+        .populate({
+          path: 'lastTransactions',
+          model: 'TransactionSchema',
+          select: { 
+            _id: 0, 
+            cardId: 0, 
+            id: 1, 
+            no: 1, 
+            ref: 1, 
+            status: 1, 
+            amount: 1, 
+            tenantName: 1, 
+            createdAt: 1 
+          },
+        })
+        .lean();
       return cards as Card[] | null;
     } catch (error) {
       this.logger.error(`Error finding cards by userId: ${userId}`, error);

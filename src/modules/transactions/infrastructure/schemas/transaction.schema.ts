@@ -38,7 +38,7 @@ export class TransactionSchema extends AbstractSchema {
   @Prop({ enum: Object.values(TransactionStatus), default: TransactionStatus.NEW, index: true })
   status: TransactionStatus; // Estado actual
 
-  @Prop({ sparse: true })
+  @Prop({ sparse: true, type: String, ref: 'Card' })
   cardId?: string; // Tarjeta usada (se llena en confirmación)
 
   @Prop({ required: true })

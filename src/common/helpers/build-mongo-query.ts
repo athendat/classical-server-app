@@ -52,9 +52,19 @@ export function buildMongoQuery<T>(
 
   // 3. Búsqueda Global (Regex)
   if (search && searchFields.length > 0) {
-    mongoFilter.$or = searchFields.map((field) => ({
-      [field]: { $regex: search, $options: 'i' },
-    }));
+    // Campos numéricos que no deben usar regex
+    const numericFields = ['no'];
+    
+    mongoFilter.$or = searchFields.map((field) => {
+      // Para campos numéricos, intentar match exacto si la búsqueda es un número
+      if (numericFields.includes(field) && !isNaN(Number(search))) {
+        return { [field]: Number(search) };
+      }
+      // Para campos de texto, usar regex
+      return {
+        [field]: { $regex: search, $options: 'i' },
+      };
+    });
   }
 
   return {

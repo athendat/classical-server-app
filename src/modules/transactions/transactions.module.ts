@@ -4,8 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 // Common
 import { AuditModule } from '../audit/audit.module';
-import { CryptoModule } from '../../common/crypto/crypto.module';
-import { HttpModule } from '../../common/http/http.module';
+import { CommonModule } from 'src/common/common.module';
 
 // Infrastructure
 import { TransactionSchemaFactory } from './infrastructure/schemas/transaction.schema';
@@ -46,8 +45,7 @@ import { TenantsModule } from '../tenants';
             },
         ]),
         ScheduleModule.forRoot(),
-        CryptoModule,
-        HttpModule,
+        CommonModule,
         TenantsModule,
     ],
     controllers: [TransactionsController],
