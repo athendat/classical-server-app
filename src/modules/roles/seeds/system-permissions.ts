@@ -8,6 +8,20 @@ import {
  * Fuente de verdad para seeds.
  */
 export const SYSTEM_PERMISSIONS = [
+  // ===== MY TENANT =====
+  {
+    key: `${MODULES.MY_TENANT}.${ACTIONS.READ}`,
+    description: 'Ver información del propio negocio',
+    resource: MODULES.MY_TENANT,
+    action: ACTIONS.READ,
+  },
+  {
+    key: `${MODULES.MY_TENANT}.${ACTIONS.UPDATE}`,
+    description: 'Actualizar información del propio negocio',
+    resource: MODULES.MY_TENANT,
+    action: ACTIONS.UPDATE,
+  },
+
   // ===== USERS =====
   {
     key: `${MODULES.USERS}.${ACTIONS.CREATE}`,
@@ -474,6 +488,44 @@ export const SYSTEM_PERMISSIONS = [
     description: 'Exportar metadata de tarjetas',
     resource: MODULES.CARDS,
     action: ACTIONS.EXPORT,
+  },
+
+  // ===== TENANTS =====
+  {
+    key: `${MODULES.TENANTS}.${ACTIONS.READ}`,
+    description: 'Leer metadatos de tenants',
+    resource: MODULES.TENANTS,
+    action: ACTIONS.READ,
+  },
+  {
+    key: `${MODULES.TENANTS}.${ACTIONS.CREATE}`,
+    description: 'Crear nuevos tenants',
+    resource: MODULES.TENANTS,
+    action: ACTIONS.CREATE,
+  },
+  {
+    key: `${MODULES.TENANTS}.${ACTIONS.UPDATE}`,
+    description: 'Actualizar configuración de tenants',
+    resource: MODULES.TENANTS,
+    action: ACTIONS.UPDATE,
+  },
+  {
+    key: `${MODULES.TENANTS}.${ACTIONS.DELETE}`,
+    description: 'Eliminar tenants del sistema',
+    resource: MODULES.TENANTS,
+    action: ACTIONS.DELETE,
+  },
+  {
+    key: `${MODULES.TENANTS}.${ACTIONS.ENABLE}`,
+    description: 'Habilitar tenants deshabilitados',
+    resource: MODULES.TENANTS,
+    action: ACTIONS.ENABLE,
+  },
+  {
+    key: `${MODULES.TENANTS}.${ACTIONS.DISABLE}`,
+    description: 'Deshabilitar acceso de un tenant',
+    resource: MODULES.TENANTS,
+    action: ACTIONS.DISABLE,
   },
 
   // ===== EXTERNAL_SERVICE =====

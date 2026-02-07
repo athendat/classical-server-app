@@ -87,11 +87,45 @@ const DASHBOARD_MODULE = new ModuleEntity({
 });
 
 // ============================================================================
+// MÓDULO DE NEGOCIO PERSONAL (My Tenant)
+// ============================================================================
+
+const MY_TENANT_MODULE = new ModuleEntity({
+  order: 1,
+  indicator: 'my-tenant',
+  name: 'My Tenant',
+  description:
+    'Gestión de datos del propio negocio/organización (tenant) del usuario autenticado.',
+  icon: 'store',
+  actions: ['read', 'update'],
+  permissions: createPermissionsFromActions('my-tenant', 'My Tenant', [
+    {
+      action: 'read',
+      id: 'mt_r',
+      name: 'Ver Mi Negocio',
+      description: 'Visualizar información del propio negocio y perfil.',
+      enabled: true,
+    },
+    {
+      action: 'update',
+      id: 'mt_u',
+      name: 'Actualizar Mi Negocio',
+      description:
+        'Modificar información básica del propio negocio (nombre, contacto, etc).',
+      enabled: true,
+    },
+  ]),
+  status: 'active',
+  isSystem: true,
+  type: ModuleType.basic,
+});
+
+// ============================================================================
 // MÓDULOS DE NEGOCIO
 // ============================================================================
 
 const MANAGEMENT_MODULE = new ModuleEntity({
-  order: 1,
+  order: 2,
   indicator: 'management',
   name: 'Management',
   description:
@@ -253,7 +287,7 @@ const KEYS_MODULE = new ModuleEntity({
 // MÓDULOS DEL SISTEMA KMS
 // ============================================================================
 const SYSTEM_MODULE = new ModuleEntity({
-  order: 2,
+  order: 3,
   indicator: 'system',
   name: 'System',
   description:
@@ -505,6 +539,171 @@ const CONTACT_MODULE = new ModuleEntity({
 });
 
 // ============================================================================
+// MÓDULOS DE NEGOCIO: Transacciones, Tarjetas, Tenants
+// ============================================================================
+
+const TRANSACTIONS_MODULE = new ModuleEntity({
+  order: 2,
+  parent: 'management',
+  indicator: 'transactions',
+  name: 'Transactions',
+  description: 'Gestión y seguimiento de transacciones de pago.',
+  icon: 'receipt_long',
+  actions: ['view', 'create', 'edit', 'delete', 'export'],
+  permissions: createPermissionsFromActions('transactions', 'Transactions', [
+    {
+      action: 'view',
+      id: 'tx_v',
+      name: 'Ver Transacciones',
+      description: 'Listar y visualizar detalles de transacciones.',
+      enabled: true,
+    },
+    {
+      action: 'create',
+      id: 'tx_c',
+      name: 'Crear Transacciones',
+      description: 'Iniciar nuevas transacciones de pago.',
+      enabled: true,
+    },
+    {
+      action: 'edit',
+      id: 'tx_e',
+      name: 'Editar Transacciones',
+      description: 'Modificar metadatos de transacciones existentes.',
+      enabled: false,
+    },
+    {
+      action: 'delete',
+      id: 'tx_d',
+      name: 'Eliminar Transacciones',
+      description: 'Remover transacciones del sistema.',
+      enabled: false,
+      requiresSuperAdmin: true,
+    },
+    {
+      action: 'export',
+      id: 'tx_e',
+      name: 'Exportar Transacciones',
+      description: 'Descargar reporte de transacciones.',
+      enabled: true,
+    },
+  ]),
+  status: 'active',
+  isSystem: true,
+  type: ModuleType.basic,
+});
+
+const CARDS_MODULE = new ModuleEntity({
+  order: 3,
+  parent: 'management',
+  indicator: 'cards',
+  name: 'Cards',
+  description: 'Gestión de tarjetas de pago y datos de pago.',
+  icon: 'credit_card',
+  actions: ['view', 'create', 'edit', 'delete', 'export'],
+  permissions: createPermissionsFromActions('cards', 'Cards', [
+    {
+      action: 'view',
+      id: 'cd_v',
+      name: 'Ver Tarjetas',
+      description: 'Listar y visualizar detalles de tarjetas (enmascaradas).',
+      enabled: true,
+    },
+    {
+      action: 'create',
+      id: 'cd_c',
+      name: 'Registrar Tarjetas',
+      description: 'Registrar nuevas tarjetas de pago.',
+      enabled: true,
+    },
+    {
+      action: 'edit',
+      id: 'cd_e',
+      name: 'Editar Tarjetas',
+      description: 'Actualizar información de tarjeta (alias, estado).',
+      enabled: true,
+    },
+    {
+      action: 'delete',
+      id: 'cd_d',
+      name: 'Eliminar Tarjetas',
+      description: 'Remover tarjetas del sistema.',
+      enabled: true,
+    },
+    {
+      action: 'export',
+      id: 'cd_e',
+      name: 'Exportar Tarjetas',
+      description: 'Descargar reporte de tarjetas registradas.',
+      enabled: false,
+    },
+  ]),
+  status: 'active',
+  isSystem: true,
+  type: ModuleType.basic,
+});
+
+const TENANTS_MODULE = new ModuleEntity({
+  order: 7,
+  parent: 'system',
+  indicator: 'tenants',
+  name: 'Tenants',
+  description:
+    'Gestión de múltiples tenientes (clientes/organizaciones) en plataforma multi-tenant.',
+  icon: 'apartment',
+  actions: ['view', 'create', 'edit', 'delete', 'enable', 'disable'],
+  permissions: createPermissionsFromActions('tenants', 'Tenants', [
+    {
+      action: 'view',
+      id: 'tn_v',
+      name: 'Ver Tenants',
+      description: 'Listar y visualizar información de tenientes.',
+      enabled: true,
+    },
+    {
+      action: 'create',
+      id: 'tn_c',
+      name: 'Crear Tenants',
+      description: 'Registrar nuevos tenientes en la plataforma.',
+      enabled: false,
+      requiresSuperAdmin: true,
+    },
+    {
+      action: 'edit',
+      id: 'tn_e',
+      name: 'Editar Tenants',
+      description: 'Modificar información de tenientes existentes.',
+      enabled: false,
+    },
+    {
+      action: 'delete',
+      id: 'tn_d',
+      name: 'Eliminar Tenants',
+      description: 'Remover tenientes del sistema.',
+      enabled: false,
+      requiresSuperAdmin: true,
+    },
+    {
+      action: 'enable',
+      id: 'tn_en',
+      name: 'Habilitar Tenants',
+      description: 'Reactivar tenientes deshabilitados.',
+      enabled: false,
+    },
+    {
+      action: 'disable',
+      id: 'tn_dis',
+      name: 'Deshabilitar Tenants',
+      description: 'Desactivar acceso de un teniente.',
+      enabled: false,
+    },
+  ]),
+  status: 'active',
+  isSystem: true,
+  type: ModuleType.basic,
+});
+
+// ============================================================================
 // EXPORTAR CATÁLOGO
 // ============================================================================
 
@@ -516,11 +715,16 @@ export const SYSTEM_MODULES: ModuleEntity[] = [
   // Módulo inicial (Dashboard)
   DASHBOARD_MODULE,
 
+  // Módulo personal de tenant
+  MY_TENANT_MODULE,
+
   // Módulos de negocio
   MANAGEMENT_MODULE,
   TERMINALS_MODULE,
   MERCHANTS_MODULE,
   KEYS_MODULE,
+  TRANSACTIONS_MODULE,
+  CARDS_MODULE,
 
   // Módulos de administración
   SYSTEM_MODULE,
@@ -531,10 +735,10 @@ export const SYSTEM_MODULES: ModuleEntity[] = [
   MODULES_MODULE,
   ROLES_MODULE,
   USERS_MODULE,
+  TENANTS_MODULE,
   // DOCUMENTATION_MODULE,
   // PERMISSIONS_MODULE,
   // SUPPORT_MODULE,
-  // TEAM_MODULE,
   // VAULT_MODULE,
 ];
 

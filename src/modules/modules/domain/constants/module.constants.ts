@@ -30,6 +30,9 @@ export const MODULES = {
   // Módulo inicial
   DASHBOARD: 'dashboard',
 
+  // Módulo personal
+  MY_TENANT: 'my-tenant',
+
   // Módulos de negocio
   TERMINALS: 'terminals',
   MERCHANTS: 'merchants',

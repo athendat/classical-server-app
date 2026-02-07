@@ -3,7 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AuditModule } from '../audit/audit.module';
 import { CachingModule } from 'src/common/cache/cache.module';
-// import { PermissionsModule } from '../permissions/permissions.module';
+import { PermissionsModule } from '../permissions/permissions.module';
 
 import { AsyncContextService } from '../../common/context/async-context.service';
 import { ModulesService } from './application/modules.service';
@@ -22,7 +22,7 @@ import { ModuleSchema } from './infrastructure/schemas/module.schema';
  */
 @Module({
   imports: [
-    // PermissionsModule,
+    PermissionsModule,
     AuditModule,
     CachingModule,
     MongooseModule.forFeature([

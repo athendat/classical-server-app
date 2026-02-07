@@ -6,6 +6,7 @@ import { ModulesService } from './modules.service';
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { ModuleEntity } from '../domain/module.entity';
 import { NavigationItem, NavigationResponse } from 'src/common/types';
+import { PermissionsService } from 'src/modules/permissions/application/permissions.service';
 
 /**
  * NavigationService
@@ -22,7 +23,7 @@ export class NavigationService {
   constructor(
     private readonly asyncContextService: AsyncContextService,
     private readonly modulesService: ModulesService,
-    // private readonly permissionsService: PermissionsService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   /**
@@ -54,25 +55,25 @@ export class NavigationService {
     try {
       // 2. Obtener permisos del usuario autenticado
       this.logger.debug(`[${requestId}] Step 1: Resolving user permissions...`);
-      // const permissionsResolved =
-      //   await this.permissionsService.resolvePermissions(actor);
+      const permissionsResolved =
+        await this.permissionsService.resolvePermissions(actor);
 
       // Convertir estructura categorizada de permisos a array simple
       const userPermissions: string[] = [];
-      // if (permissionsResolved.hasGlobalWildcard) {
-      //   userPermissions.push('*');
-      // }
-      // userPermissions.push(...Array.from(permissionsResolved.moduleWildcards));
-      // userPermissions.push(...Array.from(permissionsResolved.exactPermissions));
+      if (permissionsResolved.hasGlobalWildcard) {
+        userPermissions.push('*');
+      }
+      userPermissions.push(...Array.from(permissionsResolved.moduleWildcards));
+      userPermissions.push(...Array.from(permissionsResolved.exactPermissions));
 
-      // this.logger.debug(
-      //   `[${requestId}] User has ${userPermissions.length} permissions`,
-      //   {
-      //     hasGlobal: permissionsResolved.hasGlobalWildcard,
-      //     moduleWildcards: Array.from(permissionsResolved.moduleWildcards),
-      //     exactPermissions: Array.from(permissionsResolved.exactPermissions),
-      //   },
-      // );
+      this.logger.debug(
+        `[${requestId}] User has ${userPermissions.length} permissions`,
+        {
+          hasGlobal: permissionsResolved.hasGlobalWildcard,
+          moduleWildcards: Array.from(permissionsResolved.moduleWildcards),
+          exactPermissions: Array.from(permissionsResolved.exactPermissions),
+        },
+      );
 
       // 3. Obtener módulos del sistema
       this.logger.debug(
@@ -168,6 +169,7 @@ export class NavigationService {
     }
 
     // Crear items tipo 'group' para cada parent encontrado
+    const processedParentIndicators = new Set<string>();
     for (const [parentIndicator, childModules] of parentsMap.entries()) {
       // Buscar el módulo padre para obtener sus propiedades
       const parentModule = navigableModules.find(
@@ -191,12 +193,18 @@ export class NavigationService {
           children: groupChildren,
         };
         navigationItems.push(groupItem);
+        // Marcar este módulo padre como ya procesado (no agregarlo como item básico)
+        processedParentIndicators.add(parentIndicator);
       }
     }
 
     // 4. Procesar módulos sin parent: items básicos en top-level
+    // Excluir módulos que ya fueron procesados como padres de grupo
     for (const module of modulesWithoutParent) {
-      if (this.userHasModulePermission(userPermissions, module)) {
+      if (
+        !processedParentIndicators.has(module.indicator) &&
+        this.userHasModulePermission(userPermissions, module)
+      ) {
         navigationItems.push(this.mapModuleToNavigationItem(module));
       }
     }

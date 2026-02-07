@@ -65,17 +65,15 @@ export const SYSTEM_ROLES = [
       `${MODULES.ROLES}.*`,
       `${MODULES.PERMISSIONS}.*`,
 
-      // Tenants - View sensitive data
-      `${MODULES.TENANTS}.read`,
-      `${MODULES.TENANTS}.view-sensitive`,
+      // Tenants - Acceso completo para gestión de seguridad
+      `${MODULES.TENANTS}.*`,
 
       // Auditoría
       `${MODULES.AUDIT}.export`,
 
       // External Service
-      `${MODULES.EXTERNAL_SERVICE}.read_status`,
       `${MODULES.EXTERNAL_SERVICE}.export`,
-      `${MODULES.EXTERNAL_SERVICE}.rotate_integration`,
+      `${MODULES.EXTERNAL_SERVICE}.rotate`,
     ],
     status: 'active',
     isSystem: true,
@@ -108,32 +106,29 @@ export const SYSTEM_ROLES = [
       `${MODULES.TERMINALS}.enable`,
       `${MODULES.TERMINALS}.disable`,
 
-      // Merchants (solo CRUD)
+      // Merchants
       `${MODULES.MERCHANTS}.view`,
       `${MODULES.MERCHANTS}.create`,
       `${MODULES.MERCHANTS}.edit`,
       `${MODULES.MERCHANTS}.delete`,
 
-      // Users
-      `${MODULES.MERCHANTS}.view`,
-      `${MODULES.MERCHANTS}.edit`,
+      // Transactions
+      `${MODULES.TRANSACTIONS}.create`,
+      `${MODULES.TRANSACTIONS}.read`,
+      `${MODULES.TRANSACTIONS}.update`,
+      `${MODULES.TRANSACTIONS}.export`,
 
       // Cards
       `${MODULES.CARDS}.read`,
 
-      // Transactions
-      `${MODULES.TRANSACTIONS}.read`,
-      `${MODULES.TRANSACTIONS}.export`,
-
       // Tenants
       `${MODULES.TENANTS}.read`,
       `${MODULES.TENANTS}.create`,
-      `${MODULES.TENANTS}.write`,
-      `${MODULES.TENANTS}.approve`,
+      `${MODULES.TENANTS}.update`,
 
       // External Service
-      `${MODULES.EXTERNAL_SERVICE}.invoke`,
-      `${MODULES.EXTERNAL_SERVICE}.read_status`,
+      `${MODULES.EXTERNAL_SERVICE}.export`,
+      `${MODULES.EXTERNAL_SERVICE}.rotate`,
       // Audit
       `${MODULES.AUDIT}.read`,
     ],
@@ -185,9 +180,8 @@ export const SYSTEM_ROLES = [
       `${MODULES.VAULT}.export`,
       // Tenants
       `${MODULES.TENANTS}.read`,
-      `${MODULES.TENANTS}.view-sensitive`,
-      `${MODULES.EXTERNAL_SERVICE}.read_status`,
       `${MODULES.EXTERNAL_SERVICE}.export`,
+      `${MODULES.EXTERNAL_SERVICE}.rotate`,
     ],
     status: 'active',
     isSystem: true,
@@ -208,6 +202,10 @@ export const SYSTEM_ROLES = [
       `${MODULES.SUPPORT}.read`,
       `${MODULES.CONTACT}.read`,
       `${MODULES.DASHBOARD}.read`,
+
+      // Mi Negocio (propio tenant)
+      `${MODULES.MY_TENANT}.read`,
+      `${MODULES.MY_TENANT}.update`,
 
       // Perfil de usuario (propio)
       `${MODULES.USERS}.read`,
@@ -249,37 +247,44 @@ export const SYSTEM_ROLES = [
       `${MODULES.CONTACT}.read`,
       `${MODULES.DASHBOARD}.read`,
 
+      // Mi Negocio (gestión del propio tenant)
+      `${MODULES.MY_TENANT}.read`,
+      `${MODULES.MY_TENANT}.update`,
+
       // Gestión del comercio (propio)
       `${MODULES.MERCHANTS}.create`,
-      `${MODULES.MERCHANTS}.read`,
+      `${MODULES.MERCHANTS}.view`,
       `${MODULES.MERCHANTS}.edit`,
       `${MODULES.MERCHANTS}.delete`,
 
       // Terminales del comercio
       `${MODULES.TERMINALS}.create`,
-      `${MODULES.TERMINALS}.read`,
-      `${MODULES.TERMINALS}.update`,
+      `${MODULES.TERMINALS}.view`,
+      `${MODULES.TERMINALS}.create`,
       `${MODULES.TERMINALS}.export`,
-      `${MODULES.TERMINALS}.enable`,
-      `${MODULES.TERMINALS}.disable`,
+      `${MODULES.TERMINALS}.webhooks`,
+      `${MODULES.TERMINALS}.logs`,
 
       // Usuarios del comercio
       `${MODULES.USERS}.create`,
       `${MODULES.USERS}.read`,
-      `${MODULES.USERS}.edit`,
+      `${MODULES.USERS}.update`,
       `${MODULES.USERS}.delete`,
 
       // Transacciones del comercio
+      `${MODULES.TRANSACTIONS}.create`,
       `${MODULES.TRANSACTIONS}.read`,
       `${MODULES.TRANSACTIONS}.export`,
-      `${MODULES.TRANSACTIONS}.create`,
 
-      // Cartas / clientes
+      // Tarjetas / clientes
       `${MODULES.CARDS}.read`,
+      `${MODULES.CARDS}.create`,
+      `${MODULES.CARDS}.update`,
+      `${MODULES.CARDS}.delete`,
 
       // Integraciones externas necesarias
-      `${MODULES.EXTERNAL_SERVICE}.invoke`,
-      `${MODULES.EXTERNAL_SERVICE}.read_status`,
+      `${MODULES.EXTERNAL_SERVICE}.export`,
+      `${MODULES.EXTERNAL_SERVICE}.rotate`,
     ],
     status: 'active',
     isSystem: true,
