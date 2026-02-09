@@ -134,8 +134,9 @@ export class VaultHttpAdapter implements IVaultClient {
         return Result.fail(tokenResult.getError());
       }
 
-      const fullPath = `/v1/${this.kvMount}/data/${path}`;
+      const fullPath = `/v1/${this.kvMount}/data/${this.vaultNamespace}/${path}`;
       const response = await this.httpClient.get<VaultKVData>(fullPath);
+      console.log({ response })
 
       this.logger.debug(`Read secret from Vault: ${path}`);
       this.emitEvent('read', path, 'completed');
@@ -159,7 +160,7 @@ export class VaultHttpAdapter implements IVaultClient {
         return Result.fail(tokenResult.getError());
       }
 
-      const fullPath = `/v1/${this.kvMount}/data/${path}`;
+      const fullPath = `/v1/${this.kvMount}/data/${this.vaultNamespace}/${path}`;
       const response = await this.httpClient.post<VaultKVData>(fullPath, {
         data,
       });
@@ -183,7 +184,7 @@ export class VaultHttpAdapter implements IVaultClient {
         return Result.fail(tokenResult.getError());
       }
 
-      const fullPath = `/v1/${this.kvMount}/metadata/${path}`;
+      const fullPath = `/v1/${this.kvMount}/metadata/${this.vaultNamespace}/${path}`;
       await this.httpClient.delete(fullPath);
 
       this.logger.debug(`Deleted secret from Vault: ${path}`);

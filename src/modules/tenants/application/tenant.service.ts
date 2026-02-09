@@ -100,11 +100,28 @@ export class TenantsService {
 
       const panVaultKeyId = savePanResult.getValue();
 
-      // ⭐ NUEVO: Generar credenciales OAuth2 y webhook automáticamente
+      // Generar credenciales OAuth2 y webhook automáticamente
       const oauth2Credentials = this.oauth2CredentialsService.generateCredentials();
+
+      // Guardar secreto del OAuth2 en Vault
+      const saveOAuth2SecretResult = await this.vaultService.saveOAuth2ClientSecret(
+        tenantId,
+        oauth2Credentials.clientSecret!,
+      );
+
+      if (saveOAuth2SecretResult.isFailure) {
+        this.logger.error('Failed to save OAuth2 client secret to Vault');
+        return ApiResponse.fail<Tenant>(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'Error al procesar credenciales OAuth2',
+          'Error interno',
+        );
+      }
+
       const webhook = this.webhooksService.generateWebhook();
 
       // Crear tenant en MongoDB
+      // Nota: Solo guardamos clientId, el clientSecret se guarda en Vault
       const tenantData = {
         id: tenantId,
         businessName: dto.businessName,
@@ -118,7 +135,10 @@ export class TenantsService {
         status: TenantStatus.PENDING_REVIEW,
         userId,
         notes: dto.notes,
-        oauth2ClientCredentials: oauth2Credentials,
+        oauth2ClientCredentials: {
+          clientId: oauth2Credentials.clientId,
+          // clientSecret NO se guarda aquí, está en Vault
+        },
         webhook: webhook,
       };
 
@@ -578,10 +598,14 @@ export class TenantsService {
       }
 
       // Mapear credenciales
+      // Obtener clientSecret del Vault
+      const clientSecretResult = await this.vaultService.getOAuth2ClientSecret(tenant.id);
+      const clientSecret = clientSecretResult.isSuccess ? clientSecretResult.getValue() : '';
+
       const credentials: TenantCredentialsResponseDto = {
         oauth2: {
           clientId: tenant.oauth2ClientCredentials?.clientId || '',
-          clientSecret: tenant.oauth2ClientCredentials?.clientSecret || '',
+          clientSecret,
         },
         webhook: {
           id: tenant.webhook?.id || '',
@@ -642,10 +666,14 @@ export class TenantsService {
         webhook: webhookUpdate,
       });
 
+      // Obtener clientSecret del Vault
+      const clientSecretResult = await this.vaultService.getOAuth2ClientSecret(tenant.id);
+      const clientSecret = clientSecretResult.isSuccess ? clientSecretResult.getValue() : '';
+
       const credentials: TenantCredentialsResponseDto = {
         oauth2: {
           clientId: updatedTenant.oauth2ClientCredentials?.clientId || '',
-          clientSecret: updatedTenant.oauth2ClientCredentials?.clientSecret || '',
+          clientSecret,
         },
         webhook: {
           id: updatedTenant.webhook?.id || '',

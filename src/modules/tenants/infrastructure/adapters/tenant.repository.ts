@@ -173,7 +173,9 @@ export class TenantsRepository implements ITenantPort {
    * Actualizar las credenciales OAuth2 de un tenant
    * @param tenantId ID del tenant
    * @param clientId Nuevo clientId
-   * @param clientSecret Nuevo clientSecret
+   * @param clientSecret Nuevo clientSecret (se ignora - el secret se guarda en Vault)
+   * 
+   * Nota: El clientSecret se guarda en Vault, no en la BD
    */
   async updateOAuth2Credentials(
     tenantId: string,
@@ -181,10 +183,11 @@ export class TenantsRepository implements ITenantPort {
     clientSecret: string,
   ): Promise<Tenant> {
     try {
+      // Solo guardar clientId en BD, el clientSecret va al Vault
       const updated = await this.tenantModel
         .findOneAndUpdate(
           { id: tenantId },
-          { oauth2ClientCredentials: { clientId, clientSecret }, updatedAt: new Date() },
+          { oauth2ClientCredentials: { clientId }, updatedAt: new Date() },
           { new: true },
         )
         .lean();

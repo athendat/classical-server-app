@@ -29,5 +29,5 @@ export class OAuth2ClientCredentials {
      * @example
      * 's3cr3tV@lu3'
      */
-    clientSecret: string;
+    clientSecret?: string;
 }

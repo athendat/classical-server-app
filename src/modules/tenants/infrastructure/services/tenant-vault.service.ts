@@ -149,4 +149,182 @@ export class TenantVaultService {
       return false;
     }
   }
+
+  /**
+   * Guardar el clientSecret del OAuth2 en Vault
+   * @param tenantId - ID del tenant
+   * @param clientSecret - Secret del cliente OAuth2
+   * @returns Resultado con la clave de Vault creada
+   */
+  async saveOAuth2ClientSecret(
+    tenantId: string,
+    clientSecret: string,
+  ): Promise<Result<string>> {
+    try {
+      // Validar que el clientSecret no esté vacío
+      if (!clientSecret || clientSecret.trim().length === 0) {
+        return Result.fail(new Error('OAuth2 client secret cannot be empty'));
+      }
+
+      // Crear clave de Vault
+      const vaultKeyId = `tenants/${tenantId}/oauth2-secret`;
+
+      // Guardar en Vault
+      const writeResult = await this.vaultClient.writeKV(vaultKeyId, {
+        clientSecret: clientSecret,
+        savedAt: new Date().toISOString(),
+        version: 1,
+      });
+
+      if (!writeResult.isSuccess) {
+        return Result.fail(writeResult.getError());
+      }
+
+      this.logger.debug(
+        `OAuth2 client secret saved for tenant: ${tenantId}`,
+      );
+      return Result.ok(vaultKeyId);
+    } catch (error) {
+      this.logger.error(
+        `Error saving OAuth2 client secret for tenant ${tenantId}:`,
+        error,
+      );
+      return Result.fail(error as Error);
+    }
+  }
+
+  /**
+   * Leer el clientSecret del OAuth2 desde Vault
+   * NOTA: Solo debe usarse internamente, nunca exponer directamente al cliente
+   * @param tenantId - ID del tenant
+   * @returns Resultado con el clientSecret
+   */
+  async getOAuth2ClientSecret(tenantId: string): Promise<Result<string>> {
+    try {
+      const vaultKeyId = `tenants/${tenantId}/oauth2-secret`;
+
+      const readResult = await this.vaultClient.readKV(vaultKeyId);
+
+      if (!readResult.isSuccess) {
+        return Result.fail(readResult.getError());
+      }
+
+      const vaultData = readResult.getValue();
+      const oauth2Data = vaultData.data as any;
+
+      if (!oauth2Data?.data?.clientSecret) {
+        return Result.fail(new Error('OAuth2 client secret not found in Vault'));
+      }
+
+      this.logger.debug(
+        `OAuth2 client secret retrieved for tenant: ${tenantId}`,
+      );
+      return Result.ok(oauth2Data.data.clientSecret as string);
+    } catch (error) {
+      this.logger.error(
+        `Error retrieving OAuth2 client secret for tenant ${tenantId}:`,
+        error,
+      );
+      return Result.fail(error as Error);
+    }
+  }
+
+  /**
+   * Rotar el clientSecret del OAuth2 (generar uno nuevo)
+   * @param tenantId - ID del tenant
+   * @param newClientSecret - Nuevo secret del cliente OAuth2
+   * @returns Resultado con la versión actualizada
+   */
+  async rotateOAuth2ClientSecret(
+    tenantId: string,
+    newClientSecret: string,
+  ): Promise<Result<{ version: number; rotatedAt: string }>> {
+    try {
+      // Validar que el nuevo clientSecret no esté vacío
+      if (!newClientSecret || newClientSecret.trim().length === 0) {
+        return Result.fail(new Error('New OAuth2 client secret cannot be empty'));
+      }
+
+      const vaultKeyId = `tenants/${tenantId}/oauth2-secret`;
+
+      // Leer la versión anterior
+      const currentResult = await this.vaultClient.readKV(vaultKeyId);
+      let previousVersion = 1;
+
+      if (currentResult.isSuccess) {
+        const currentData = currentResult.getValue();
+        const oauth2Data = currentData.data as any;
+        previousVersion = (oauth2Data?.data?.version || 0) + 1;
+      }
+
+      // Guardar el nuevo secret con versión incrementada
+      const rotatedAt = new Date().toISOString();
+      const writeResult = await this.vaultClient.writeKV(vaultKeyId, {
+        clientSecret: newClientSecret,
+        version: previousVersion,
+        rotatedAt,
+        previousRotation: currentResult.isSuccess ? {} : undefined,
+      });
+
+      if (!writeResult.isSuccess) {
+        return Result.fail(writeResult.getError());
+      }
+
+      this.logger.debug(
+        `OAuth2 client secret rotated for tenant: ${tenantId}, version: ${previousVersion}`,
+      );
+      return Result.ok({
+        version: previousVersion,
+        rotatedAt,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error rotating OAuth2 client secret for tenant ${tenantId}:`,
+        error,
+      );
+      return Result.fail(error as Error);
+    }
+  }
+
+  /**
+   * Eliminar el clientSecret del OAuth2 desde Vault
+   * @param tenantId - ID del tenant
+   * @returns Resultado de la operación
+   */
+  async deleteOAuth2ClientSecret(tenantId: string): Promise<Result<void>> {
+    try {
+      const vaultKeyId = `tenants/${tenantId}/oauth2-secret`;
+
+      const deleteResult = await this.vaultClient.deleteKV(vaultKeyId);
+
+      if (!deleteResult.isSuccess) {
+        return Result.fail(deleteResult.getError());
+      }
+
+      this.logger.debug(
+        `OAuth2 client secret deleted for tenant: ${tenantId}`,
+      );
+      return Result.ok();
+    } catch (error) {
+      this.logger.error(
+        `Error deleting OAuth2 client secret for tenant ${tenantId}:`,
+        error,
+      );
+      return Result.fail(error as Error);
+    }
+  }
+
+  /**
+   * Verificar si existe un clientSecret almacenado en Vault
+   * @param tenantId - ID del tenant
+   * @returns true si existe el clientSecret, false en caso contrario
+   */
+  async existsOAuth2ClientSecret(tenantId: string): Promise<boolean> {
+    try {
+      const result = await this.getOAuth2ClientSecret(tenantId);
+      return result.isSuccess;
+    } catch (error) {
+      return false;
+    }
+  }
 }

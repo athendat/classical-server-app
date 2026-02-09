@@ -6,8 +6,7 @@ export class OAuth2ClientCredentialsSchema {
     @Prop({ type: String, required: true })
     clientId: string;
     
-    @Prop({ type: String, required: true })
-    clientSecret: string;
+    // clientSecret NO se almacena aquí, se guarda en Vault por seguridad
 }
 
 export const OAuth2ClientCredentialsSchemaFactory = SchemaFactory.createForClass(OAuth2ClientCredentialsSchema);
