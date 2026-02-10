@@ -16,7 +16,7 @@ export class TenantsRepository implements ITenantPort {
   constructor(
     @InjectModel(Tenant.name)
     private readonly tenantModel: Model<TenantDocument>,
-  ) {}
+  ) { }
 
   /**
    * Buscar un tenant por su ID
@@ -25,7 +25,7 @@ export class TenantsRepository implements ITenantPort {
     try {
       const tenant = await this.tenantModel.findOne({ id: tenantId }).lean();
       return tenant as Tenant | null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error finding tenant by id: ${tenantId}`, error);
       return null;
     }
@@ -40,7 +40,7 @@ export class TenantsRepository implements ITenantPort {
         .findOne({ email: email.toLowerCase() })
         .lean();
       return tenant as Tenant | null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error finding tenant by email: ${email}`, error);
       return null;
     }
@@ -55,7 +55,7 @@ export class TenantsRepository implements ITenantPort {
         .findOne({ userId })
         .lean();
       return tenant as Tenant | null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error finding tenant by userId: ${userId}`, error);
       return null;
     }
@@ -73,7 +73,7 @@ export class TenantsRepository implements ITenantPort {
     },
   ): Promise<{ data: Tenant[]; total: number }> {
     try {
-      this.logger.debug(
+      this.logger.log(
         `Finding Tenants with filter: ${JSON.stringify(filter)}, skip=${options.skip}, limit=${options.limit}`,
       );
 
@@ -89,7 +89,7 @@ export class TenantsRepository implements ITenantPort {
         this.tenantModel.countDocuments(filter as any).exec(),
       ]);
 
-      this.logger.debug(
+      this.logger.log(
         `Found ${tenants.length} Tenants (total: ${total}, skip: ${options.skip}, limit: ${options.limit})`,
       );
 
@@ -97,7 +97,7 @@ export class TenantsRepository implements ITenantPort {
         data: tenants as Tenant[],
         total,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error finding Tenants with filter: ${error instanceof Error ? error.message : String(error)}`,
         error,
@@ -108,6 +108,26 @@ export class TenantsRepository implements ITenantPort {
     }
   }
 
+
+  /**
+   * Obtener usuarios por una lista de IDs.
+   * @param ids 
+   * @returns 
+   */
+  async findByIds(ids: string[]): Promise<Tenant[]> {
+    return this.tenantModel
+      .find({ id: { $in: ids }, })
+      .select(
+        {
+          _id: 0,
+          id: 1,
+          businessName: 1,
+        },
+      )
+      .lean()
+      .exec();
+  }
+
   /**
    * Crear un nuevo tenant
    */
@@ -116,7 +136,7 @@ export class TenantsRepository implements ITenantPort {
       const newTenant = new this.tenantModel(tenantData);
       const savedTenant = await newTenant.save();
       return savedTenant.toObject() as Tenant;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error creating tenant', error);
       throw error;
     }
@@ -138,7 +158,7 @@ export class TenantsRepository implements ITenantPort {
         throw new Error(`Tenant not found: ${tenantId}`);
       }
       return updated as Tenant;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error updating tenant: ${tenantId}`, error);
       throw error;
     }
@@ -160,7 +180,7 @@ export class TenantsRepository implements ITenantPort {
         throw new Error(`Tenant not found: ${tenantId}`);
       }
       return updated as Tenant;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error updating tenant status: ${tenantId} to ${status}`,
         error,
@@ -195,7 +215,7 @@ export class TenantsRepository implements ITenantPort {
         throw new Error(`Tenant not found: ${tenantId}`);
       }
       return updated as Tenant;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error updating OAuth2 credentials for tenant: ${tenantId}`,
         error,
@@ -226,7 +246,7 @@ export class TenantsRepository implements ITenantPort {
         throw new Error(`Tenant not found: ${tenantId}`);
       }
       return updated as Tenant;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error updating webhook secret for tenant: ${tenantId}`,
         error,
@@ -254,7 +274,7 @@ export class TenantsRepository implements ITenantPort {
         throw new Error(`Tenant not found: ${tenantId}`);
       }
       return updated as Tenant;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error updating webhook URL for tenant: ${tenantId}`,
         error,
@@ -269,7 +289,7 @@ export class TenantsRepository implements ITenantPort {
   async delete(tenantId: string): Promise<void> {
     try {
       await this.tenantModel.deleteOne({ id: tenantId });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error deleting tenant: ${tenantId}`, error);
       throw error;
     }

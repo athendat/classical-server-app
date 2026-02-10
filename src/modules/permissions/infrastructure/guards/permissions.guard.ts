@@ -150,7 +150,7 @@ export class PermissionsGuard implements CanActivate {
       }
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       // Si es ForbiddenException, re-lanzar sin modificar
       if (error instanceof ForbiddenException) {
         throw error;

@@ -34,7 +34,7 @@ export class ConfirmationCodeService {
 
     await this.cacheService.set(key, code, this.CODE_TTL_SECONDS);
 
-    this.logger.debug(`Generated ${type} code for phone ${phone}: ${code}`);
+    this.logger.log(`Generated ${type} code for phone ${phone}: ${code}`);
 
     return code;
   }
@@ -50,17 +50,17 @@ export class ConfirmationCodeService {
     type: ConfirmationCodeType,
   ): Promise<ValidationResult> {
     // Log
-    this.logger.debug(`Validating ${type} code for phone ${phone}`);
+    this.logger.log(`Validating ${type} code for phone ${phone}`);
 
     const codeKey = this.getCodeKey(phone, type);
-    this.logger.debug(`Code key: ${codeKey}`);
+    this.logger.log(`Code key: ${codeKey}`);
 
     const attemptsKey = this.getAttemptsKey(phone, type);
-    this.logger.debug(`Attempts key: ${attemptsKey}`);
+    this.logger.log(`Attempts key: ${attemptsKey}`);
 
     // Obtener código almacenado
     const storedCode = await this.cacheService.getByKey<string>(codeKey);
-    this.logger.debug(`Stored code: ${storedCode}`);
+    this.logger.log(`Stored code: ${storedCode}`);
 
     if (!storedCode) {
       this.logger.warn(`No ${type} code found for phone ${phone}`);
@@ -112,7 +112,7 @@ export class ConfirmationCodeService {
     }
 
     // Código válido
-    this.logger.debug(`Valid ${type} code for phone ${phone}`);
+    this.logger.log(`Valid ${type} code for phone ${phone}`);
     return { isValid: true };
   }
 
@@ -126,7 +126,7 @@ export class ConfirmationCodeService {
     await this.cacheService.delete(codeKey);
     await this.cacheService.delete(attemptsKey);
 
-    this.logger.debug(`Cleared ${type} code and attempts for phone ${phone}`);
+    this.logger.log(`Cleared ${type} code and attempts for phone ${phone}`);
   }
 
   /**
@@ -160,7 +160,7 @@ export class ConfirmationCodeService {
 
     await this.cacheService.set(resendKey, newCount, this.RESENDS_TTL_SECONDS);
 
-    this.logger.debug(
+    this.logger.log(
       `Incremented resend count for phone ${phone}: ${newCount}/${this.MAX_RESENDS}`,
     );
   }
@@ -176,7 +176,7 @@ export class ConfirmationCodeService {
     const attemptsKey = this.getAttemptsKey(phone, type);
     await this.cacheService.delete(attemptsKey);
 
-    this.logger.debug(`Reset attempts for ${type} code for phone ${phone}`);
+    this.logger.log(`Reset attempts for ${type} code for phone ${phone}`);
   }
 
   /**

@@ -35,7 +35,7 @@ export class HttpService {
         this._httpService.get<T>(url, config),
       );
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       this.#handleError(error);
     }
   }
@@ -58,7 +58,7 @@ export class HttpService {
         this._httpService.post<T>(url, data, config),
       );
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       this.#handleError(error);
     }
   }
@@ -81,7 +81,7 @@ export class HttpService {
         this._httpService.put<T>(url, data, config),
       );
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       this.#handleError(error);
     }
   }
@@ -99,7 +99,7 @@ export class HttpService {
         this._httpService.delete<T>(url, config),
       );
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       this.#handleError(error);
     }
   }

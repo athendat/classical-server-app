@@ -71,7 +71,7 @@ export class AuditLogService {
     const userId = this.asyncContext.getActorId();
     console.log({ queryParams })
     try {
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Fetching audit logs for user: ${userId} - page=${queryParams.page}, limit=${queryParams.limit}`,
       );
 
@@ -232,7 +232,7 @@ export class AuditLogService {
           pagination: paginationMeta,
         },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `[${requestId}] Failed to find audit logs: ${errorMessage}`,
@@ -256,7 +256,7 @@ export class AuditLogService {
     const userId = this.asyncContext.getActorId();
 
     try {
-      this.logger.debug(`[${requestId}] Fetching audit log by ID: ${id} for user: ${userId}`);
+      this.logger.log(`[${requestId}] Fetching audit log by ID: ${id} for user: ${userId}`);
 
       // Validar que sea un ObjectId válido
       if (!id.match(/^[0-9a-fA-F]{24}$/)) {
@@ -293,7 +293,7 @@ export class AuditLogService {
         'Audit log retrieved successfully',
         { requestId, userId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `[${requestId}] Failed to find audit log by ID: ${errorMessage}`,
@@ -317,7 +317,7 @@ export class AuditLogService {
     const userId = this.asyncContext.getActorId();
 
     try {
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Fetching audit summary for user: ${userId} - Range: ${startDate} to ${endDate}`,
       );
 
@@ -440,7 +440,7 @@ export class AuditLogService {
         'Audit summary retrieved successfully',
         { requestId, userId, total: data.total },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `[${requestId}] Failed to get audit summary: ${errorMessage}`,

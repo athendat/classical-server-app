@@ -166,12 +166,12 @@ export class JwtTokenAdapter implements IJwtTokenPort {
       };
       this.eventEmitter.emit('auth.jwt-generated', event);
 
-      this.logger.debug(
+      this.logger.log(
         `JWT signed successfully. kid=${activeKey.kid}, sub=${payload.sub}, duration=${Date.now() - startTime}ms`,
       );
 
       return Result.ok(token);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to sign JWT: ${err.message}`, err.stack);
 
@@ -304,12 +304,12 @@ export class JwtTokenAdapter implements IJwtTokenPort {
       };
       this.eventEmitter.emit('auth.jwt-validated', event);
 
-      this.logger.debug(
+      this.logger.log(
         `JWT verified successfully. kid=${kid}, sub=${payload.sub}, duration=${Date.now() - startTime}ms`,
       );
 
       return Result.ok(payload);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.warn(
         `JWT verification failed: ${err.message} (duration=${Date.now() - startTime}ms)`,
@@ -354,7 +354,7 @@ export class JwtTokenAdapter implements IJwtTokenPort {
           header: decoded.header,
         }),
       );
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to decode JWT: ${err.message}`);
 

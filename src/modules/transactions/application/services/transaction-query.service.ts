@@ -35,17 +35,13 @@ export class TransactionQueryService {
     const userId = this.asyncContextService.getActorId();
     const actor = this.asyncContextService.getActor()!;
 
-    this.logger.debug(
+    this.logger.log(
       `[${requestId}] Fetching all tenants: page=${queryParams.page}, limit=${queryParams.limit}, search=${queryParams.search || 'none'}`,
     );
 
     // this.logger.log(`[${requestId}] Listando transacciones para actor=${actor.actorId}, roleKey=${actor.roleKey}`);
 
     try {
-      // Extraer roleKey del actor
-      // Nota: Asumimos que Actor tiene un campo roleKey o lo obtenemos de scopes
-      const roleKey = this.extractRoleKey(actor);
-
       // Campos permitidos para búsqueda
       const searchFields = [
         'ref',
@@ -60,29 +56,15 @@ export class TransactionQueryService {
         searchFields,
       );
 
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] MongoDB filter: ${JSON.stringify(mongoFilter)}`,
       );
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Query options: ${JSON.stringify(options)}`,
       );
 
-      // // Aplicar filtrado según rol
-      // if (roleKey === 'user') {
-      //   // Usuario: solo sus propias transacciones
-      //   filters.customerId = actor.actorId;
-      // } else if (roleKey === 'merchant') {
-      //   // Merchant: transacciones de su tenant
-      //   // TODO: Obtener tenantId del actor o contexto
-      //   filters.tenantId = query.tenantId ?? this.getTenantIdFromActor(actor);
-      // } else {
-      //   // Otros roles (admin, etc): permitir filtrar por params
-      //   if (query.tenantId) filters.tenantId = query.tenantId;
-      //   if (query.customerId) filters.customerId = query.customerId;
-      // }
-
       // Ejecutar consulta directamente en MongoDB
-      const { data: transactions, total } = await this.transactionsRepository.findAll(
+      const { data: transactions, total, meta } = await this.transactionsRepository.findAll(
         mongoFilter,
         options,
       );
@@ -93,7 +75,7 @@ export class TransactionQueryService {
       const skip = options.skip;
       const hasMore = skip + limit < total;
 
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Retrieved ${transactions.length} transactions from page ${page} (total: ${total})`,
       );
 
@@ -126,10 +108,11 @@ export class TransactionQueryService {
             totalPages,
             hasMore,
           } as PaginationMeta,
+          ...meta
         },
       );
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`[${requestId}] Error listando transacciones: ${error.message}`);
       throw error;
     }
@@ -201,7 +184,7 @@ export class TransactionQueryService {
         }
       );
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`[${requestId}] Error obteniendo transacción: ${error.message}`);
       throw error;
     }

@@ -93,7 +93,7 @@ export class TenantWebhooksService {
         { requestId, tenantId, userId },
       );
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `[${requestId}] Error regenerating webhook secret for tenant ${tenantId}: ${error?.message ?? error}`,
         error,
@@ -194,7 +194,7 @@ export class TenantWebhooksService {
         'URL del webhook actualizada exitosamente',
         { requestId, tenantId, userId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `[${requestId}] Error updating webhook URL for tenant ${tenantId}: ${error?.message ?? error}`,
         error,

@@ -40,7 +40,7 @@ export class ModulesSeedService {
       const modulesCount = await this.moduleModel.countDocuments().exec();
 
       if (modulesCount > 0) {
-        this.logger.debug(
+        this.logger.log(
           `Modules collection already has ${modulesCount} documents - skipping auto-seed`,
         );
         return;
@@ -51,7 +51,7 @@ export class ModulesSeedService {
       );
       await this.seedSystemModules();
       this.logger.log('✅ Modules auto-seeding completed successfully');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error during modules auto-seed: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
@@ -69,7 +69,7 @@ export class ModulesSeedService {
 
     for (const module of SYSTEM_MODULES) {
       try {
-        this.logger.debug(`Seeding module: ${module.name}`);
+        this.logger.log(`Seeding module: ${module.name}`);
 
         // Crear el módulo directamente usando el modelo
         // Usar la estructura que espera el ModulesService
@@ -98,8 +98,8 @@ export class ModulesSeedService {
         );
 
         seedCount++;
-        this.logger.debug(`   ✓ Seeded module: ${module.name}`);
-      } catch (error) {
+        this.logger.log(`   ✓ Seeded module: ${module.name}`);
+      } catch (error: any) {
         this.logger.warn(
           `   ⚠ Error seeding module '${module.name}': ${error instanceof Error ? error.message : String(error)}`,
         );

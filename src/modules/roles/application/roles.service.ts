@@ -128,7 +128,7 @@ export class RolesService {
         'Rol creado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al crear rol: ${errorMsg}`, error);
 
@@ -168,7 +168,7 @@ export class RolesService {
 
       // Retornar desde caché si está válido
       if (isCached) {
-        this.logger.debug('Retornando roles desde caché');
+        this.logger.log('Retornando roles desde caché');
 
         // Filtrar super_admin
         const filteredRoles = this.rolesCache!.filter(
@@ -227,7 +227,7 @@ export class RolesService {
         'Roles obtenidos exitosamente',
         { requestId, cached: false },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al obtener roles: ${errorMsg}`, error);
 
@@ -309,7 +309,7 @@ export class RolesService {
         'Rol obtenido exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al obtener rol: ${errorMsg}`, error);
 
@@ -391,7 +391,7 @@ export class RolesService {
         'Rol obtenido exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al obtener rol: ${errorMsg}`, error);
 
@@ -519,7 +519,7 @@ export class RolesService {
         'Rol actualizado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al actualizar rol: ${errorMsg}`, error);
 
@@ -653,7 +653,7 @@ export class RolesService {
         'Rol deshabilitado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al deshabilitar rol: ${errorMsg}`, error);
 
@@ -816,7 +816,7 @@ export class RolesService {
         'Rol eliminado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al eliminar rol: ${errorMsg}`, error);
 
@@ -866,7 +866,7 @@ export class RolesService {
         'Roles del sistema obtenidos exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `Error al obtener roles del sistema: ${errorMsg}`,
@@ -1025,7 +1025,7 @@ export class RolesService {
         'Permisos del rol actualizados exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `Error al actualizar permisos del rol: ${errorMsg}`,
@@ -1070,7 +1070,7 @@ export class RolesService {
         roleKeys,
         RoleStatus.ACTIVE,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error al obtener roles activos por keys: ${(error as Error).message}`,
         (error as Error).stack,
@@ -1085,6 +1085,6 @@ export class RolesService {
   private invalidateCache(): void {
     this.rolesCache = null;
     this.rolesCacheTimestamp = 0;
-    this.logger.debug('Caché de roles invalidado');
+    this.logger.log('Caché de roles invalidado');
   }
 }

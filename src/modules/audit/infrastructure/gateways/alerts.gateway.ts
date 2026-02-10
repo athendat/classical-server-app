@@ -98,7 +98,7 @@ export class AlertsGateway
         clientId: client.id,
         maxConnections: this.maxConnections,
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error handling connection: ${(error as Error).message}`,
       );
@@ -137,7 +137,7 @@ export class AlertsGateway
     }
 
     if (count > 0) {
-      this.logger.debug(`Broadcasted event '${eventType}' to ${count} clients`);
+      this.logger.log(`Broadcasted event '${eventType}' to ${count} clients`);
     }
   }
 

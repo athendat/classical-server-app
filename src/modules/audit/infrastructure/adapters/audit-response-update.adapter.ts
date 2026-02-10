@@ -116,7 +116,7 @@ export class AuditResponseUpdateAdapter implements OnModuleInit {
       }
 
       if (updatedCount > 0) {
-        this.logger.debug(
+        this.logger.log(
           `[${data.requestId}] Updated ${updatedCount} audit event(s) with response: statusCode=${data.statusCode}, latency=${data.responseTime}ms`,
         );
         console.log(
@@ -130,7 +130,7 @@ export class AuditResponseUpdateAdapter implements OnModuleInit {
           `[AUDIT-RESPONSE-UPDATE] WARNING: Found records but none needed updating`,
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log(`[AUDIT-RESPONSE-UPDATE-ERROR] ${error.message}`);
       this.logger.error(
         `Failed to update audit event with response for requestId ${data.requestId}: ${error.message}`,

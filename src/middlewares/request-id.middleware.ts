@@ -57,8 +57,8 @@ export class RequestIdMiddleware implements NestMiddleware {
         ipAddress: this.extractIpAddress(req),
         actorType: decoded.actorType || 'user',
       };
-    } catch (error) {
-      this.logger.debug(`Failed to extract actor from JWT: ${error.message}`);
+    } catch (error: any) {
+      this.logger.log(`Failed to extract actor from JWT: ${error.message}`);
       return undefined;
     }
   }

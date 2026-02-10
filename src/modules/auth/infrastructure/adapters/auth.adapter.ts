@@ -122,7 +122,7 @@ export class AuthAdapter implements IAuthService {
         this.activeKeyId,
       );
       return Result.ok(signedToken);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to sign JWT: ${err.message}`, err.stack);
 
@@ -202,7 +202,7 @@ export class AuthAdapter implements IAuthService {
         kid,
       );
       return Result.ok(payload);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to verify JWT: ${err.message}`);
 
@@ -234,7 +234,7 @@ export class AuthAdapter implements IAuthService {
       };
 
       return Promise.resolve(Result.ok(jwks));
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to get JWKS: ${err.message}`);
 
@@ -278,7 +278,7 @@ export class AuthAdapter implements IAuthService {
       );
 
       return this.getJWKS();
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to rotate JWKS: ${err.message}`, err.stack);
 
@@ -305,7 +305,7 @@ export class AuthAdapter implements IAuthService {
       const isSeen = await this.antiReplayCache.has(jti);
       this.emitEvent('check-replay', 'completed', 0);
       return Result.ok(isSeen);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to check anti-replay: ${err.message}`);
 
@@ -358,7 +358,7 @@ export class AuthAdapter implements IAuthService {
 
     this.keys.set(kid, keyData);
     this.activeKeyId = kid;
-    this.logger.debug(`Generated new key with kid: ${kid}`);
+    this.logger.log(`Generated new key with kid: ${kid}`);
   }
 
   private async extractRSAComponents(
@@ -391,11 +391,11 @@ export class AuthAdapter implements IAuthService {
         }
 
         // else fall through to jose-based extraction
-        this.logger.debug(
+        this.logger.log(
           'createPublicKey.export(jwk) did not return RSA n/e, falling back to jose',
         );
       } catch (nodeErr) {
-        this.logger.debug(
+        this.logger.log(
           'Node crypto JWK export unavailable or failed, falling back to jose',
           nodeErr as Error,
         );
@@ -433,7 +433,7 @@ export class AuthAdapter implements IAuthService {
         );
         throw joseErr;
       }
-    } catch (error) {
+    } catch (error: any) {
       // Ensure the caller gets an explicit failure rather than the placeholder
       throw new Error(
         `extractRSAComponents failed: ${(error as Error).message}`,

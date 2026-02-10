@@ -79,7 +79,7 @@ export class OrdersService {
   async handleOrderCreated(event: OrderCreatedEvent): Promise<void> {
     try {
       await this.processOrder(event);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to process order', { event, error });
       // Don't rethrow - would crash the process
       await this.deadLetterQueue.add('order.created', event);
@@ -97,7 +97,7 @@ export class CleanupService {
     try {
       await this.cleanupService.run();
       this.logger.log('Daily cleanup completed');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Daily cleanup failed', error.stack);
       // Alert or retry logic
     }

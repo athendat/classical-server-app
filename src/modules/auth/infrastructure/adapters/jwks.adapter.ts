@@ -85,7 +85,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `JWKS adapter initialized. Next rotation in ${this.keyRotationIntervalMs}ms`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to initialize JWKS adapter', error);
       // Fail-closed: si no podemos cargar claves, el servicio no arranca
       throw error;
@@ -155,7 +155,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       }
 
       this.logger.log(`Loaded ${this.keysCache.size} keys from Vault`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to load keys from Vault', error);
       throw error;
     }
@@ -186,8 +186,8 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
         );
       }
 
-      this.logger.debug(`Saved JWKS metadata to Vault`);
-    } catch (error) {
+      this.logger.log(`Saved JWKS metadata to Vault`);
+    } catch (error: any) {
       this.logger.error('Failed to save keys to Vault', error);
       throw error;
     }
@@ -234,7 +234,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
     };
 
     this.keysCache.set(kid, key);
-    this.logger.debug(`Generated new RSA key pair with kid ${kid}`);
+    this.logger.log(`Generated new RSA key pair with kid ${kid}`);
 
     return key;
   }
@@ -294,7 +294,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       try {
         const newKey = await this.rotateKey();
         return newKey;
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error('Failed to auto-rotate expired key', error);
         return null;
       }
@@ -346,7 +346,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       );
 
       return newKey;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to rotate JWKS key', error);
       throw error;
     }
@@ -386,7 +386,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       } as JwksKeyInvalidatedEvent);
 
       this.logger.log(`JWKS key invalidated: ${kid}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to invalidate key', error);
       throw error;
     }
@@ -416,7 +416,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       try {
         const newKey = await this.rotateKey();
         return this.getPrivateKey(newKey.kid);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error('Failed to auto-rotate expired key', error);
         throw new Error('No active JWKS key available for signing');
       }

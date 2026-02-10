@@ -1,7 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CardStatusEnum } from '../domain/enums/card-status.enum';
 import { CardTypeEnum } from '../domain/enums/card-type.enum';
 import { Transaction } from 'src/modules/transactions/domain/entities/transaction.entity';
+import { User } from 'src/modules/users/infrastructure/schemas/user.schema';
 
 export class CardResponseDto {
   @ApiProperty({
@@ -48,6 +49,24 @@ export class CardResponseDto {
 
   @ApiProperty({
     description:
+      'Fecha de expiración en formato MM/YY para display. Se recomienda generar a partir de expiryMonth y expiryYear.',
+    example: '12/28',
+    type: String,
+    pattern: '^(0[1-9]|1[0-2])\\/([0-9]{2})$',
+    required: true,
+  })
+  expiration: string;
+
+  @ApiProperty({
+    description: 'Referencia del ticket asociada a la tarjeta.',
+    example: 'TC-5698',
+    type: String,
+    required: true,
+  })
+  ticketReference: string;
+
+  @ApiProperty({
+    description:
       'Tipo de tarjeta según la enumeración del dominio (por ejemplo: DEBIT, CREDIT, VIRTUAL).',
     example: 'DEBIT',
     enum: CardTypeEnum,
@@ -84,11 +103,16 @@ export class CardResponseDto {
   })
   createdAt: Date;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Lista de las últimas transacciones asociadas a la tarjeta.',
   })
-  lastTransactions: LastTransactionsDtoResponse[];
+  lastTransactions?: LastTransactionsDtoResponse[];
+
+  @ApiPropertyOptional({
+    description: 'Información del cliente propietario de la tarjeta.',
+  })
+  customer?: User;
 }
 
 /**

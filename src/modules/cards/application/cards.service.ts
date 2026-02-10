@@ -6,7 +6,7 @@ import { AuditService } from 'src/modules/audit/application/audit.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { Iso4PinblockService } from '../infrastructure/services/iso4-pinblock.service';
 
-import { CardRepository } from '../infrastructure/adapters/card.repository';
+import { CardsRepository } from '../infrastructure/adapters/card.repository';
 
 import type { ICardVaultPort } from '../domain/ports/card-vault.port';
 
@@ -18,6 +18,9 @@ import { CardStatusEnum } from '../domain/enums/card-status.enum';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { CardVaultAdapter } from '../infrastructure/adapters';
+import { MongoDbUsersRepository } from 'src/modules/users/infrastructure/adapters';
+import { PaginationMeta, QueryParams } from 'src/common/types';
+import { buildMongoQuery } from 'src/common/helpers';
 
 /**
  * Card Service - Application layer for card operations
@@ -28,12 +31,13 @@ export class CardsService {
   private readonly logger = new Logger(CardsService.name);
 
   constructor(
-    private readonly cardRepository: CardRepository,
-    private readonly iso4PinblockService: Iso4PinblockService,
-    private readonly cardVaultAdapter: CardVaultAdapter,
-    private readonly auditService: AuditService,
     private readonly asyncContextService: AsyncContextService,
-  ) {}
+    private readonly auditService: AuditService,
+    private readonly cardsRepository: CardsRepository,
+    private readonly cardVaultAdapter: CardVaultAdapter,
+    private readonly iso4PinblockService: Iso4PinblockService,
+    private readonly usersRepository: MongoDbUsersRepository,
+  ) { }
 
   /**
    * Register a new card for a user
@@ -49,7 +53,7 @@ export class CardsService {
       this.logger.log(`[${requestId}] Creating card: cardType=${dto.cardType}`);
 
       // Step 1: Check if user already has a card of this type
-      const existingCards = await this.cardRepository.findByUserId(userId);
+      const existingCards = await this.cardsRepository.findByUserId(userId);
       const cardTypeExists = existingCards?.some(
         (card) => card.cardType === dto.cardType,
       );
@@ -115,7 +119,7 @@ export class CardsService {
         ticketReference: dto.ticketReference,
       };
 
-      const savedCard = await this.cardRepository.create(cardData);
+      const savedCard = await this.cardsRepository.create(cardData);
 
       // Step 7: Audit log
       this.auditService.logAllow('CREATE_CARD', 'card', cardId, {
@@ -137,7 +141,7 @@ export class CardsService {
         responseDto,
         'Tarjeta creada exitosamente',
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to create card: ${errorMsg}`,
@@ -166,16 +170,85 @@ export class CardsService {
   }
 
   /**
+   * Get card details by ID (without sensitive data)
+   * Includes last transactions and customer info via virtuals
+   * @param id - ID of the card to retrieve
+   */
+  async findById(id: string): Promise<ApiResponse<CardResponseDto | null>> {
+    const requestId = this.asyncContextService.getRequestId();
+    const userId = this.asyncContextService.getActorId()!;
+    this.logger.log(`[${requestId}] Fetching card details by user=${userId}`);
+    try {
+      const card = await this.cardsRepository.findById(id);
+
+      if (!card) {
+        const errorMsg = `Card not found: ${id}`;
+        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        return ApiResponse.fail<CardResponseDto>(
+          HttpStatus.NOT_FOUND,
+          'Tarjeta no encontrada',
+          errorMsg,
+          { requestId },
+        );
+      }
+
+      this.logger.log(
+        `[${requestId}] Retrieved card ${id} for user ${userId}`,
+      );
+
+      // Registrar lectura exitosa
+      this.auditService.logAllow('CARD_DETAILS_FETCHED', 'card', 'details', {
+        module: 'cards',
+        severity: 'MEDIUM',
+        tags: ['card', 'read', 'details', 'successful'],
+        actorId: userId,
+      });
+
+      return ApiResponse.ok<CardResponseDto>(
+        HttpStatus.OK,
+        this.mapCardToResponse(card),
+        'Detalles de la tarjeta obtenidos',
+        { requestId },
+      );
+
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[${requestId}] Failed to fetch card details: ${errorMsg}`,
+        error,
+      );
+      // Registrar error
+      this.auditService.logError(
+        'CARD_DETAILS_FETCHED',
+        'card',
+        'details',
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          severity: 'MEDIUM',
+          tags: ['card', 'read', 'details', 'error'],
+          actorId: userId,
+        },
+      );
+      return ApiResponse.fail<CardResponseDto>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        errorMsg,
+        'Error al obtener detalles de la tarjeta',
+        { requestId, id },
+      );
+    }
+  }
+
+  /**
    * List all cards for a user with pagination
    */
   async listCardsForUser(id?: string): Promise<ApiResponse<CardResponseDto[]>> {
     const requestId = this.asyncContextService.getRequestId();
-    const userId = id ? id :this.asyncContextService.getActorId()!;
-    this.logger.debug(`[${requestId}] Fetching all cards for user=${userId}`);
+    const userId = id ? id : this.asyncContextService.getActorId()!;
+    this.logger.log(`[${requestId}] Fetching all cards for user=${userId}`);
     try {
-      const cards = await this.cardRepository.findByUserId(userId);
+      const cards = await this.cardsRepository.findByUserId(userId);
 
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Retrieved ${cards?.length || 0} cards for user ${userId}`,
       );
 
@@ -198,7 +271,112 @@ export class CardsService {
         cards ? 'Tarjetas recuperadas' : 'No se encontraron tarjetas',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[${requestId}] Failed to fetch cards: ${errorMsg}`,
+        error,
+      );
+      // Registrar error
+      this.auditService.logError(
+        'CARD_LIST_FETCHED',
+        'card',
+        'list',
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          severity: 'MEDIUM',
+          tags: ['card', 'read', 'list', 'error'],
+          actorId: userId,
+        },
+      );
+      return ApiResponse.fail<CardResponseDto[]>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        errorMsg,
+        'Error al obtener tarjetas',
+        { requestId },
+      );
+    }
+  }
+
+  /**
+   * List all cards for a user with pagination
+   */
+  async list(queryParams: QueryParams): Promise<ApiResponse<CardResponseDto[]>> {
+    const requestId = this.asyncContextService.getRequestId();
+    const userId = this.asyncContextService.getActorId()!;
+    this.logger.log(`[${requestId}] Fetching all cards for user=${userId}`);
+    try {
+
+      // Campos permitidos para búsqueda
+      const searchFields = [
+        'cardType',
+        'status',
+        'lastFour',
+        'ticketReference',
+      ];
+
+      // Construir query de MongoDB
+      const { mongoFilter, options } = buildMongoQuery(
+        queryParams,
+        searchFields,
+      );
+
+      this.logger.log(
+        `[${requestId}] MongoDB filter: ${JSON.stringify(mongoFilter)}`,
+      );
+      this.logger.log(
+        `[${requestId}] Query options: ${JSON.stringify(options)}`,
+      );
+
+      // Ejecutar consulta directamente en MongoDB
+      const { data: cards, total, meta } = await this.cardsRepository.findAll(
+        mongoFilter,
+        options,
+      );
+
+      const limit = options.limit;
+      const page = queryParams.page || 1;
+      const totalPages = Math.ceil(total / limit);
+      const skip = options.skip;
+      const hasMore = skip + limit < total;
+
+      this.logger.log(
+        `[${requestId}] Retrieved ${cards.length} cards from page ${page} (total: ${total})`,
+      );
+
+      // Registrar lectura exitosa
+      this.auditService.logAllow('CARD_LIST_FETCHED', 'card', 'list', {
+        module: 'cards',
+        severity: 'LOW',
+        tags: ['card', 'read', 'list', 'successful'],
+        actorId: userId,
+        changes: {
+          after: {
+            count: cards.length,
+            total,
+            page,
+            hasMore,
+          },
+        },
+      });
+
+      return ApiResponse.ok<CardResponseDto[]>(
+        HttpStatus.OK,
+        cards.map((card) => this.mapCardToResponse(card)),
+        `${cards.length} de ${total} cards encontradas`,
+        {
+          requestId,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasMore,
+          } as PaginationMeta,
+          ...meta
+        },
+      );
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to fetch tenants: ${errorMsg}`,
@@ -242,11 +420,14 @@ export class CardsService {
       maskedPan: this.maskPan(card.lastFour),
       expiryMonth: card.expiryMonth,
       expiryYear: card.expiryYear,
+      expiration: `${card.expiryMonth.toString().padStart(2, '0')}/${card.expiryYear}`,
       cardType: card.cardType,
       balance: card.balance,
       status: card.status,
       createdAt: card.createdAt,
       lastTransactions: card.lastTransactions,
+      ticketReference: card.ticketReference,
+      customer: card.customer,
     };
   }
 }

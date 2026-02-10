@@ -35,7 +35,7 @@ export class AuditPersistenceAdapter implements OnModuleInit {
   handleAuditEventCreated(entry: Partial<AuditEvent>) {
     // Fire-and-forget: guardar en background sin bloquear
     console.log(`[AUDIT-PERSISTENCE-EVENT] action=${entry.action}`);
-    this.logger.debug(`[${entry.requestId}] AUDIT-PERSISTENCE: Starting persistAuditEventInBackground`);
+    this.logger.log(`[${entry.requestId}] AUDIT-PERSISTENCE: Starting persistAuditEventInBackground`);
     
     // ⭐ FIX: Asegurar que la promesa siempre se resuelve (con timeout para prevenir deadlocks)
     this.persistAuditEventInBackground(entry)
@@ -80,10 +80,10 @@ export class AuditPersistenceAdapter implements OnModuleInit {
       ]);
 
       console.log(`[AUDIT-PERSISTENCE-SAVED] action=${entry.action}`);
-      this.logger.debug(
+      this.logger.log(
         `[${entry.requestId}] Audit event persisted: ${entry.action} on ${entry.resourceType}`,
       );
-    } catch (error) {
+    } catch (error: any) {
       console.log(`[AUDIT-PERSISTENCE-SAVE-FAILED] error=${error.message}`);
       this.logger.error(
         `Failed to persist audit event for action ${entry.action}: ${error.message}`,

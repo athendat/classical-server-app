@@ -34,7 +34,7 @@ export class CardVaultAdapter implements ICardVaultPort {
       }
 
       return Result.ok();
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = new VaultError(
         500,
         'CARD_VAULT_ERROR',
@@ -65,7 +65,7 @@ export class CardVaultAdapter implements ICardVaultPort {
       }
 
       return Result.ok(pan);
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = new VaultError(
         500,
         'CARD_VAULT_ERROR',
@@ -96,7 +96,7 @@ export class CardVaultAdapter implements ICardVaultPort {
       }
 
       return Result.ok(pinblock);
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = new VaultError(
         500,
         'CARD_VAULT_ERROR',
@@ -117,7 +117,7 @@ export class CardVaultAdapter implements ICardVaultPort {
       }
 
       return Result.ok();
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = new VaultError(
         500,
         'CARD_VAULT_ERROR',

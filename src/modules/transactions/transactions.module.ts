@@ -23,6 +23,8 @@ import { TenantWebhookDispatcher } from './application/services/tenant-webhook.d
 // Ports
 import { Tenant, TenantSchema } from '../tenants/infrastructure/schemas/tenant.schema';
 import { TenantsModule } from '../tenants';
+import { UsersModule } from '../users/users.module';
+import { CardsModule } from '../cards/cards.module';
 
 @Module({
     imports: [
@@ -46,7 +48,9 @@ import { TenantsModule } from '../tenants';
         ]),
         ScheduleModule.forRoot(),
         CommonModule,
+        CardsModule,
         TenantsModule,
+        UsersModule,
     ],
     controllers: [TransactionsController],
     providers: [

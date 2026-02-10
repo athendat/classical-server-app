@@ -29,7 +29,7 @@ export class TenantLifecycleRepository {
       const newEvent = new this.lifecycleModel(event);
       const savedEvent = await newEvent.save();
       return savedEvent.toObject() as TenantLifecycle;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error creating lifecycle event', error);
       throw error;
     }
@@ -68,7 +68,7 @@ export class TenantLifecycleRepository {
         total,
         meta,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error finding lifecycle events for tenant: ${tenantId}`,
         error,
@@ -91,7 +91,7 @@ export class TenantLifecycleRepository {
         .sort({ timestamp: -1 })
         .lean();
       return event as TenantLifecycle | null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error getting last lifecycle event for tenant: ${tenantId}`,
         error,
@@ -130,7 +130,7 @@ export class TenantLifecycleRepository {
         total,
         meta,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error finding all lifecycle events', error);
       return {
         data: [],

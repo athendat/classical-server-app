@@ -5,6 +5,7 @@ import { AbstractSchema } from 'src/common/schemas/abstract.schema';
 
 import { CardStatusEnum, CardTypeEnum } from '../../domain/enums';
 import { Transaction } from 'src/modules/transactions/domain/entities/transaction.entity';
+import { User, UserSchema } from '../../../users/infrastructure/schemas/user.schema';
 
 export type CardDocument = HydratedDocument<Card>;
 
@@ -43,6 +44,8 @@ export class Card extends AbstractSchema {
   balance: number;
 
   lastTransactions?: Transaction[];
+
+  customer?: User;
 }
 
 export const CardSchema = SchemaFactory.createForClass(Card);
@@ -58,4 +61,11 @@ CardSchema.virtual('lastTransactions', {
   foreignField: 'cardId',
   justOne: false,
   options: { sort: { createdAt: -1 }, limit: 5 },
+});
+
+CardSchema.virtual('customer', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: 'id',
+  justOne: true,
 });

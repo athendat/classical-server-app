@@ -137,10 +137,10 @@ export class AuditInterceptor implements NestInterceptor {
               timestamp: new Date().toISOString(),
             });
 
-            this.logger.debug(
+            this.logger.log(
               `[${requestId}] ${req.method} ${req.path} → ${res.statusCode} (${duration}ms)`,
             );
-          } catch (error) {
+          } catch (error: any) {
             this.logger.warn(`Failed to capture response: ${error.message}`);
           }
         });
@@ -238,7 +238,7 @@ export class AuditInterceptor implements NestInterceptor {
     try {
       const sanitized = this.serializeValue(obj, 0);
       return sanitized;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to redact sensitive data: ${error.message}`);
       return '[ERROR_SERIALIZING]';
     }

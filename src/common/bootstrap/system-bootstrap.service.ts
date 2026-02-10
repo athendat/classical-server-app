@@ -44,7 +44,7 @@ export class SystemBootstrapService implements OnModuleInit {
       await this.bootstrapSuperAdmin();
 
       this.logger.log('✅ System bootstrap completed successfully');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `❌ System bootstrap failed: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
@@ -63,7 +63,7 @@ export class SystemBootstrapService implements OnModuleInit {
       const count = await this.moduleModel.countDocuments().exec();
 
       if (count > 0) {
-        this.logger.debug(
+        this.logger.log(
           `   ⏭️  Modules collection already has ${count} documents - skipping seed`,
         );
         return;
@@ -87,7 +87,7 @@ export class SystemBootstrapService implements OnModuleInit {
             { upsert: true },
           );
           seedCount++;
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn(
             `   ⚠️  Error seeding module '${module.name}': ${error instanceof Error ? error.message : String(error)}`,
           );
@@ -97,7 +97,7 @@ export class SystemBootstrapService implements OnModuleInit {
       this.logger.log(
         `✅ PHASE 1 completed: ${seedCount}/${SYSTEM_MODULES.length} modules seeded`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error during PHASE 1: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -117,7 +117,7 @@ export class SystemBootstrapService implements OnModuleInit {
       const count = await this.roleModel.countDocuments().exec();
 
       if (count > 0) {
-        this.logger.debug(
+        this.logger.log(
           `   ⏭️  Roles collection already has ${count} documents - skipping seed`,
         );
         return;
@@ -140,7 +140,7 @@ export class SystemBootstrapService implements OnModuleInit {
             { upsert: true },
           );
           seedCount++;
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn(
             `   ⚠️  Error seeding role '${role.key}': ${error instanceof Error ? error.message : String(error)}`,
           );
@@ -150,7 +150,7 @@ export class SystemBootstrapService implements OnModuleInit {
       this.logger.log(
         `✅ PHASE 2 completed: ${seedCount}/${SYSTEM_ROLES.length} roles seeded`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error during PHASE 2: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -168,7 +168,7 @@ export class SystemBootstrapService implements OnModuleInit {
       const count = await this.userModel.countDocuments().exec();
 
       if (count > 0) {
-        this.logger.debug(
+        this.logger.log(
           `   ⏭️  Users collection already has ${count} documents - skipping seed`,
         );
         return;
@@ -189,7 +189,7 @@ export class SystemBootstrapService implements OnModuleInit {
       this.logger.log(
         `✅ PHASE 3 completed: Super admin user would be created (email: ${saEmail})`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error during PHASE 3: ${error instanceof Error ? error.message : String(error)}`,
       );

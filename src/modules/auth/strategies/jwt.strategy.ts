@@ -94,7 +94,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       };
 
       return actor;
-    } catch (error) {
+    } catch (error: any) {
       const msg = error instanceof Error ? error.message : String(error);
       throw new UnauthorizedException(`Invalid subject format: ${msg}`);
     }

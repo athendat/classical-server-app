@@ -182,7 +182,7 @@ export class TenantsService {
         'Tenant creado exitosamente',
         { requestId }
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to create tenant: ${errorMsg}`,
@@ -215,7 +215,7 @@ export class TenantsService {
    */
   async getTenantById(id: string): Promise<ApiResponse<Tenant>> {
     const requestId = this.asyncContextService.getRequestId();
-    this.logger.debug(`[${requestId}] Fetching tenant by id: ${id}`);
+    this.logger.log(`[${requestId}] Fetching tenant by id: ${id}`);
 
     try {
       const tenant = await this.tenantsRepository.findById(id);
@@ -252,7 +252,7 @@ export class TenantsService {
         requestId,
         id,
       });
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       const userId = this.asyncContextService.getActorId();
       this.logger.error(
@@ -287,7 +287,7 @@ export class TenantsService {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
 
-    this.logger.debug(`[${requestId}] Fetching tenant by user: ${userId}`);
+    this.logger.log(`[${requestId}] Fetching tenant by user: ${userId}`);
     try {
 
       const tenant = await this.tenantsRepository.findByUserId(userId);
@@ -329,7 +329,7 @@ export class TenantsService {
         requestId,
         userId,
       });
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       const userId = this.asyncContextService.getActorId();
       this.logger.error(
@@ -363,7 +363,7 @@ export class TenantsService {
   async listTenants(queryParams: QueryParams): Promise<ApiResponse<Tenant[]>> {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId();
-    this.logger.debug(
+    this.logger.log(
       `[${requestId}] Fetching all tenants: page=${queryParams.page}, limit=${queryParams.limit}, search=${queryParams.search || 'none'}`,
     );
 
@@ -383,10 +383,10 @@ export class TenantsService {
         searchFields,
       );
 
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] MongoDB filter: ${JSON.stringify(mongoFilter)}`,
       );
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Query options: ${JSON.stringify(options)}`,
       );
 
@@ -402,7 +402,7 @@ export class TenantsService {
       const skip = options.skip;
       const hasMore = skip + limit < total;
 
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Retrieved ${tenants.length} tenants from page ${page} (total: ${total})`,
       );
 
@@ -437,7 +437,7 @@ export class TenantsService {
           } as PaginationMeta,
         },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to fetch tenants: ${errorMsg}`,
@@ -549,7 +549,7 @@ export class TenantsService {
         'Tenant actualizado',
         { requestId }
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to update tenant: ${errorMsg}`,
@@ -583,7 +583,7 @@ export class TenantsService {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
 
-    this.logger.debug(`[${requestId}] Fetching credentials for user: ${userId}`);
+    this.logger.log(`[${requestId}] Fetching credentials for user: ${userId}`);
 
     try {
       const tenant = await this.tenantsRepository.findByUserId(userId);
@@ -621,7 +621,7 @@ export class TenantsService {
         'Credenciales obtenidas con éxito',
         { requestId }
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`[${requestId}] Failed to fetch credentials: ${errorMsg}`, error);
       return ApiResponse.fail<TenantCredentialsResponseDto>(
@@ -707,7 +707,7 @@ export class TenantsService {
         'Credenciales actualizadas exitosamente',
         { requestId }
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`[${requestId}] Failed to update credentials: ${errorMsg}`, error);
       return ApiResponse.fail<TenantCredentialsResponseDto>(
@@ -792,7 +792,7 @@ export class TenantsService {
         responseDto,
         'Estado actualizado exitosamente',
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error transitioning tenant ${tenantId}:`, error);
       return ApiResponse.fail<Tenant>(
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -829,7 +829,7 @@ export class TenantsService {
         response,
         'Historial recuperado',
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error getting lifecycle for tenant ${tenantId}:`,
         error,
@@ -886,7 +886,7 @@ export class TenantsService {
         maskedPan,
         unmaskPan: unmaskPan || undefined,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(
         `Failed to enrich tenant ${tenant.id} with vault data: ${error instanceof Error ? error.message : String(error)}`,
         error,

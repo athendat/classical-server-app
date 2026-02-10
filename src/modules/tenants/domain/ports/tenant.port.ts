@@ -30,6 +30,13 @@ export interface ITenantPort {
   ): Promise<{ data: Tenant[]; total: number }>;
 
   /**
+   * Buscar múltiples tenants por sus IDs
+   * @param ids 
+   * @returns 
+   */
+  findByIds(ids: string[]): Promise<Tenant[]>;
+
+  /**
    * Crear un nuevo tenant
    */
   create(tenantData: any): Promise<Tenant>;

@@ -143,7 +143,7 @@ export class TenantOAuth2CredentialsService {
                 'Credenciales OAuth2 regeneradas exitosamente',
                 { requestId, tenantId: tenant.id, userId },
             );
-        } catch (error) {
+        } catch (error: any) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             this.logger.error(
                 `[${requestId}] Error regenerating OAuth2 secret for tenant of user: ${userId}: ${errorMsg}`,

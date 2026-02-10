@@ -4,7 +4,7 @@ import { CardStatusEnum } from '../enums';
 
 /**
  * Puerto (interfaz de puerto) que define las operaciones disponibles para cards
- * Implementado por CardRepository en la capa de infraestructura
+ * Implementado por CardsRepository en la capa de infraestructura
  */
 export interface ICardPort {
   /**

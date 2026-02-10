@@ -1,10 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter } from 'mongoose';
+import { Model, MongooseError, QueryFilter } from 'mongoose';
 import { Transaction } from '../../domain/entities/transaction.entity';
 import { ITransactionsRepository } from '../../domain/ports/transactions.repository';
 import { TransactionSchema } from '../schemas/transaction.schema';
 import { TransactionStatus } from '../../domain/entities/transaction.entity';
+import { AsyncContextService } from 'src/common/context';
+import { MongoDbUsersRepository } from 'src/modules/users/infrastructure/adapters';
+import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
+import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
+import { UserDocument } from 'src/modules/users/infrastructure/schemas/user.schema';
+import { Card, CardDocument } from 'src/modules/cards/infrastructure/schemas/card.schema';
+import { CardsRepository } from 'src/modules/cards/infrastructure/adapters';
 
 /**
  * Adapter: Implementación de repositorio de transacciones con MongoDB
@@ -16,6 +23,11 @@ export class TransactionsRepository implements ITransactionsRepository {
   constructor(
     @InjectModel(TransactionSchema.name)
     private readonly transactionModel: Model<TransactionSchema>,
+    private readonly asyncContextService: AsyncContextService,
+    private readonly cardsRepository: CardsRepository,
+    private readonly tenantsRepository: TenantsRepository,
+    private readonly usersRepository: MongoDbUsersRepository,
+
   ) { }
 
   async create(transaction: Transaction): Promise<Transaction> {
@@ -24,7 +36,7 @@ export class TransactionsRepository implements ITransactionsRepository {
         ...transaction,
       });
       return this.mapToDomain(created);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error creando transacción: ${error.message}`);
       throw error;
     }
@@ -34,7 +46,7 @@ export class TransactionsRepository implements ITransactionsRepository {
     try {
       const document = await this.transactionModel.findOne({ id });
       return document ? this.mapToDomain(document) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error buscando transacción por ID: ${error.message}`);
       throw error;
     }
@@ -44,7 +56,7 @@ export class TransactionsRepository implements ITransactionsRepository {
     try {
       const document = await this.transactionModel.findOne({ ref, transactionId });
       return document ? this.mapToDomain(document) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error buscando transacción por ref: ${error.message}`);
       throw error;
     }
@@ -54,7 +66,7 @@ export class TransactionsRepository implements ITransactionsRepository {
     try {
       const document = await this.transactionModel.findOne({ tenantId, intentId });
       return document ? this.mapToDomain(document) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error buscando transacción por intentId: ${error.message}`);
       throw error;
     }
@@ -100,7 +112,7 @@ export class TransactionsRepository implements ITransactionsRepository {
         data: transactions.map((doc) => this.mapToDomain(doc)),
         total,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error listando transacciones del transaction: ${error.message}`);
       throw error;
     }
@@ -147,7 +159,7 @@ export class TransactionsRepository implements ITransactionsRepository {
         data: transactions.map((doc) => this.mapToDomain(doc)),
         total,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error listando transacciones del cliente: ${error.message}`);
       throw error;
     }
@@ -160,11 +172,31 @@ export class TransactionsRepository implements ITransactionsRepository {
       limit: number;
       sort?: Record<string, number>;
     },
-  ): Promise<{ data: Transaction[]; total: number }> {
+  ): Promise<{
+    data: Transaction[];
+    total: number,
+    meta?: {
+      customers?: UserDocument[],
+      tenants?: Tenant[],
+      cards?: Card[]
+    }
+  }> {
     try {
-      this.logger.debug(
+      this.logger.log(
         `Finding Transactions with filter: ${JSON.stringify(filter)}, skip=${options.skip}, limit=${options.limit}`,
       );
+
+      // Definir si el usuario que hace la petición un merchant
+      const userId = this.asyncContextService.getActorId()!;
+      const user = await this.usersRepository.findById(userId);
+      const isMerchant = user!.roleKey === 'merchant' || user!.additionalRoleKeys?.includes('merchant');
+
+      // Definir filtro de tenant si el usuario es un merchant
+      if (isMerchant) {
+        const tenantId = user!.tenantId!;
+        filter.tenantId = tenantId;
+        this.logger.log(`User ${userId} is a merchant, applying tenant filter: ${tenantId}`);
+      }
 
       // Ejecutar query en paralelo: obtener documentos y contar total
       const [transactions, total] = await Promise.all([
@@ -184,7 +216,9 @@ export class TransactionsRepository implements ITransactionsRepository {
               amount: 1,
               tenantName: 1,
               expiresAt: 1,
-              createdAt: 1
+              createdAt: 1,
+              customerId: 1,
+              tenantId: 1
             },
           )
           .lean()
@@ -192,15 +226,34 @@ export class TransactionsRepository implements ITransactionsRepository {
         this.transactionModel.countDocuments(filter as any).exec(),
       ]);
 
-      this.logger.debug(
+      // Obtener listado de todos los clientes que están en las transacciones listadas (para evitar N+1)
+      const customerIds = Array.from(new Set(transactions.map((t) => t.customerId)));
+      const customers = customerIds.length ? await this.usersRepository.findByIds(customerIds) : [];
+
+      // Obtener listado de todos los tenants que están en las transacciones listadas (para evitar N+1)
+      const tenantIds = Array.from(new Set(transactions.map((t) => t.tenantId)));
+      const tenants = await this.tenantsRepository.findByIds(tenantIds);
+
+      // Obtener listado de todas las tarjetas que están en las transacciones listadas (para evitar N+1)
+      const cardIds = Array.from(new Set(transactions.map((t) => t.cardId))).filter(
+        (id): id is string => typeof id === 'string',
+      );
+      const cards = cardIds.length ? await this.cardsRepository.findByIds(cardIds) : [];
+
+      this.logger.log(
         `Found ${transactions.length} Transactions (total: ${total}, skip: ${options.skip}, limit: ${options.limit})`,
       );
 
       return {
         data: transactions as unknown as Transaction[],
         total,
+        meta: {
+          cards,
+          customers,
+          tenants,
+        },
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error finding Transactions with filter: ${error instanceof Error ? error.message : String(error)}`,
         error,
@@ -221,7 +274,7 @@ export class TransactionsRepository implements ITransactionsRepository {
 
       const updated = await this.transactionModel.findOneAndUpdate({ id }, updateData, { new: true });
       return updated ? this.mapToDomain(updated) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error actualizando estado de transacción: ${error.message}`);
       throw error;
     }
@@ -236,7 +289,7 @@ export class TransactionsRepository implements ITransactionsRepository {
 
       const updated = await this.transactionModel.findOneAndUpdate({ id }, updateData, { new: true });
       return updated ? this.mapToDomain(updated) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error actualizando transacción: ${error.message}`);
       throw error;
     }
@@ -251,7 +304,7 @@ export class TransactionsRepository implements ITransactionsRepository {
       });
 
       return documents.map((doc) => this.mapToDomain(doc));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error buscando transacciones expiradas: ${error.message}`);
       throw error;
     }

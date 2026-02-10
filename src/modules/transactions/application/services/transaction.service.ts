@@ -184,7 +184,7 @@ export class TransactionService {
         'Transacción creada exitosamente',
         { requestId }
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to create tenant: ${errorMsg}`,
@@ -305,7 +305,7 @@ export class TransactionService {
           transactionId: transaction.id
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to confirm transaction: ${errorMsg}`,
@@ -414,7 +414,7 @@ export class TransactionService {
           transactionId: transaction.id
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to cancel transaction: ${errorMsg}`,
@@ -474,7 +474,7 @@ export class TransactionService {
               tags: ['transactions', 'system'],
             });
           }
-        } catch (error) {
+        } catch (error: any) {
           this.logger.error(
             `Error expirando transacción ${transaction.id}: ${error.message}`,
           );
@@ -483,7 +483,7 @@ export class TransactionService {
 
       this.logger.log(`${count} transacciones marcadas como expiradas`);
       return count;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en tarea de expiración: ${error.message}`);
       return 0;
     }

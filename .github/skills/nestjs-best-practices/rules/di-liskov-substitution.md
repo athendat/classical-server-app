@@ -97,7 +97,7 @@ export class StripeService implements PaymentGateway {
         transactionId: response.id,
         amount: response.amount,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error.type === 'card_error') {
         throw new PaymentFailedException(error.message);
       }
@@ -163,7 +163,7 @@ export class OrdersService {
       order.transactionId = result.transactionId;
       order.status = 'paid';
       return order;
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof PaymentFailedException) {
         order.status = 'payment_failed';
         return order;

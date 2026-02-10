@@ -145,7 +145,7 @@ export class RolesRepository implements IRolesRepository {
       const saved = await roleDoc.save();
       this.logger.log(`Role created: ${saved.id}`);
       return this.mapToEntity(saved);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error creating role: ${error}`);
       throw error;
     }
@@ -161,7 +161,7 @@ export class RolesRepository implements IRolesRepository {
         .sort({ createdAt: -1 })
         .exec();
       return roles.map((r) => this.mapToEntity(r));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error fetching all roles: ${error}`);
       throw error;
     }
@@ -176,7 +176,7 @@ export class RolesRepository implements IRolesRepository {
         .findOne({ id, status: RoleStatus.ACTIVE })
         .exec();
       return role ? this.mapToEntity(role) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error finding role by id ${id}: ${error}`);
       throw error;
     }
@@ -194,7 +194,7 @@ export class RolesRepository implements IRolesRepository {
         })
         .exec();
       return role ? this.mapToEntity(role) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error finding role by key ${key}: ${error}`);
       throw error;
     }
@@ -213,7 +213,7 @@ export class RolesRepository implements IRolesRepository {
         )
         .exec();
       return updated ? this.mapToEntity(updated) : null;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error updating role ${id}: ${error}`);
       throw error;
     }
@@ -235,7 +235,7 @@ export class RolesRepository implements IRolesRepository {
         .deleteOne({ id })
         .exec();
       return result.deletedCount > 0;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error deleting role ${id}: ${error}`);
       throw error;
     }
@@ -250,7 +250,7 @@ export class RolesRepository implements IRolesRepository {
         .find({ isSystem: true, status: RoleStatus.ACTIVE })
         .exec();
       return roles.map((r) => this.mapToEntity(r));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error fetching system roles: ${error}`);
       throw error;
     }
@@ -377,7 +377,7 @@ export class AuditAdapter {
 
       // ⭐ Retornar Result.ok con los datos
       return Result.ok({ entries, total });
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Query failed: ${err.message}`, err.stack);
 
@@ -427,7 +427,7 @@ export class AuditAdapter {
       };
 
       return Result.ok(entry);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Get entry failed: ${err.message}`);
 

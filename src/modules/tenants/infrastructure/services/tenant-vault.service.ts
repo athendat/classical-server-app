@@ -46,9 +46,9 @@ export class TenantVaultService {
         return Result.fail(writeResult.getError());
       }
 
-      this.logger.debug(`PAN saved for tenant: ${tenantId}`);
+      this.logger.log(`PAN saved for tenant: ${tenantId}`);
       return Result.ok(vaultKeyId);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error saving PAN for tenant ${tenantId}:`, error);
       return Result.fail(error as Error);
     }
@@ -77,9 +77,9 @@ export class TenantVaultService {
         return Result.fail(new Error('PAN not found in Vault'));
       }
 
-      this.logger.debug(`PAN retrieved for tenant: ${tenantId}`);
+      this.logger.log(`PAN retrieved for tenant: ${tenantId}`);
       return Result.ok(panData.data.pan as string);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error retrieving PAN for tenant ${tenantId}:`, error);
       return Result.fail(error as Error);
     }
@@ -100,9 +100,9 @@ export class TenantVaultService {
         return Result.fail(deleteResult.getError());
       }
 
-      this.logger.debug(`PAN deleted for tenant: ${tenantId}`);
+      this.logger.log(`PAN deleted for tenant: ${tenantId}`);
       return Result.ok();
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error deleting PAN for tenant ${tenantId}:`, error);
       return Result.fail(error as Error);
     }
@@ -145,7 +145,7 @@ export class TenantVaultService {
     try {
       const result = await this.getPan(tenantId);
       return result.isSuccess;
-    } catch (error) {
+    } catch (error: any) {
       return false;
     }
   }
@@ -180,11 +180,11 @@ export class TenantVaultService {
         return Result.fail(writeResult.getError());
       }
 
-      this.logger.debug(
+      this.logger.log(
         `OAuth2 client secret saved for tenant: ${tenantId}`,
       );
       return Result.ok(vaultKeyId);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error saving OAuth2 client secret for tenant ${tenantId}:`,
         error,
@@ -216,11 +216,11 @@ export class TenantVaultService {
         return Result.fail(new Error('OAuth2 client secret not found in Vault'));
       }
 
-      this.logger.debug(
+      this.logger.log(
         `OAuth2 client secret retrieved for tenant: ${tenantId}`,
       );
       return Result.ok(oauth2Data.data.clientSecret as string);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error retrieving OAuth2 client secret for tenant ${tenantId}:`,
         error,
@@ -270,14 +270,14 @@ export class TenantVaultService {
         return Result.fail(writeResult.getError());
       }
 
-      this.logger.debug(
+      this.logger.log(
         `OAuth2 client secret rotated for tenant: ${tenantId}, version: ${previousVersion}`,
       );
       return Result.ok({
         version: previousVersion,
         rotatedAt,
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error rotating OAuth2 client secret for tenant ${tenantId}:`,
         error,
@@ -301,11 +301,11 @@ export class TenantVaultService {
         return Result.fail(deleteResult.getError());
       }
 
-      this.logger.debug(
+      this.logger.log(
         `OAuth2 client secret deleted for tenant: ${tenantId}`,
       );
       return Result.ok();
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error deleting OAuth2 client secret for tenant ${tenantId}:`,
         error,
@@ -323,7 +323,7 @@ export class TenantVaultService {
     try {
       const result = await this.getOAuth2ClientSecret(tenantId);
       return result.isSuccess;
-    } catch (error) {
+    } catch (error: any) {
       return false;
     }
   }

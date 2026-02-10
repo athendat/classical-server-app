@@ -75,7 +75,7 @@ export interface IUsersRepository {
 export class MongoDbUsersRepository implements IUsersRepository {
   private readonly logger = new Logger(MongoDbUsersRepository.name);
 
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
 
   /**
    * Crear usuario.
@@ -133,6 +133,25 @@ export class MongoDbUsersRepository implements IUsersRepository {
   async findAll(): Promise<UserDocument[]> {
     return this.userModel
       .find({ status: UserStatus.ACTIVE })
+      .populate(this.populateOptions())
+      .exec();
+  }
+
+  /**
+   * Obtener usuarios por una lista de IDs.
+   * @param ids 
+   * @returns 
+   */
+  async findByIds(ids: string[]): Promise<UserDocument[]> {
+    return this.userModel
+      .find({ id: { $in: ids } })
+      .select(
+        {
+          _id: 0,
+          id: 1,
+          fullname: 1,
+        },
+      )
       .populate(this.populateOptions())
       .exec();
   }

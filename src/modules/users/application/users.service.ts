@@ -115,7 +115,7 @@ export class UsersService implements IUsersService {
         'Usuario creado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to create user: ${errorMsg}`,
@@ -153,11 +153,11 @@ export class UsersService implements IUsersService {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
     try {
-      this.logger.debug(`[${requestId}] Fetching user by ID: ${id}`);
+      this.logger.log(`[${requestId}] Fetching user by ID: ${id}`);
       const user = await this.usersRepository.findById(id);
 
       if (!user) {
-        this.logger.debug(`[${requestId}] User not found: ${id}`);
+        this.logger.log(`[${requestId}] User not found: ${id}`);
         this.auditService.logDeny(
           'USER_READ_NOT_FOUND',
           'user',
@@ -184,7 +184,7 @@ export class UsersService implements IUsersService {
       return ApiResponse.ok<UserDTO>(HttpStatus.OK, dto, undefined, {
         requestId,
       });
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to find user by ID: ${errorMsg}`,
@@ -223,11 +223,11 @@ export class UsersService implements IUsersService {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
     try {
-      this.logger.debug(`[${requestId}] Fetching user by email: ${email}`);
+      this.logger.log(`[${requestId}] Fetching user by email: ${email}`);
       const user = await this.usersRepository.findByEmail(email);
 
       if (!user) {
-        this.logger.debug(`[${requestId}] User not found by email: ${email}`);
+        this.logger.log(`[${requestId}] User not found by email: ${email}`);
         this.auditService.logDeny(
           'USER_FIND_BY_EMAIL_NOT_FOUND',
           'user',
@@ -253,7 +253,7 @@ export class UsersService implements IUsersService {
       return ApiResponse.ok<UserDTO>(HttpStatus.OK, dto, undefined, {
         requestId,
       });
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to find user by email: ${errorMsg}`,
@@ -292,7 +292,7 @@ export class UsersService implements IUsersService {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
     try {
-      this.logger.debug(`[${requestId}] Listing all users`);
+      this.logger.log(`[${requestId}] Listing all users`);
       const users = await this.usersRepository.findAll();
 
       // Filtrar y excluir al usuario super_admin (sistema, oculto)
@@ -313,7 +313,7 @@ export class UsersService implements IUsersService {
         requestId,
         count: dtos.length,
       });
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to list users: ${errorMsg}`,
@@ -408,7 +408,7 @@ export class UsersService implements IUsersService {
         'Rol actualizado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to update user role: ${errorMsg}`,
@@ -511,7 +511,7 @@ export class UsersService implements IUsersService {
         'Contraseña actualizada exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to update user password: ${errorMsg}`,
@@ -606,7 +606,7 @@ export class UsersService implements IUsersService {
         'Datos de usuario actualizados exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to update user data: ${errorMsg}`,
@@ -692,7 +692,7 @@ export class UsersService implements IUsersService {
         'Usuario deshabilitado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to disable user: ${errorMsg}`,
@@ -740,7 +740,7 @@ export class UsersService implements IUsersService {
   async verifyPassword(password: string, hash: string): Promise<boolean> {
     try {
       return await argon2.verify(hash, password);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error verifying password:', error);
       return false;
     }
@@ -775,11 +775,11 @@ export class UsersService implements IUsersService {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
     try {
-      this.logger.debug(`[${requestId}] Fetching user by phone: ${phone}`);
+      this.logger.log(`[${requestId}] Fetching user by phone: ${phone}`);
       const user = await this.usersRepository.findByPhone(phone);
 
       if (!user) {
-        this.logger.debug(`[${requestId}] User not found by phone: ${phone}`);
+        this.logger.log(`[${requestId}] User not found by phone: ${phone}`);
         this.auditService.logDeny(
           'USER_FIND_BY_PHONE_NOT_FOUND',
           'user',
@@ -805,7 +805,7 @@ export class UsersService implements IUsersService {
       return ApiResponse.ok<UserDTO>(HttpStatus.OK, dto, undefined, {
         requestId,
       });
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to find user by phone: ${errorMsg}`,
@@ -840,7 +840,7 @@ export class UsersService implements IUsersService {
     try {
       const count = await this.userModel.countDocuments({ phone }).exec();
       return count > 0;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error checking if phone exists ${phone}:`, error);
       return false;
     }
@@ -859,8 +859,8 @@ export class UsersService implements IUsersService {
         )
         .exec();
 
-      this.logger.debug(`Phone confirmed for user ${userId}`);
-    } catch (error) {
+      this.logger.log(`Phone confirmed for user ${userId}`);
+    } catch (error: any) {
       this.logger.error(
         `Error marking phone as confirmed for user ${userId}:`,
         error,
@@ -881,8 +881,8 @@ export class UsersService implements IUsersService {
         .findOneAndUpdate({ phone }, { passwordHash }, { new: true })
         .exec();
 
-      this.logger.debug(`Password updated for user with phone ${phone}`);
-    } catch (error) {
+      this.logger.log(`Password updated for user with phone ${phone}`);
+    } catch (error: any) {
       this.logger.error(
         `Error updating password for user with phone ${phone}:`,
         error,
@@ -950,7 +950,7 @@ export class UsersService implements IUsersService {
         'Datos de perfil actualizados exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to update user profile: ${errorMsg}`,
@@ -1081,7 +1081,7 @@ export class UsersService implements IUsersService {
         'Contraseña actualizada exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `[${requestId}] Failed to update user password: ${errorMsg}`,

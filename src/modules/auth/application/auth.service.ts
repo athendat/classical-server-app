@@ -41,6 +41,7 @@ import { UserRegisteredEvent } from '../events/auth.events';
 import { CardsService } from 'src/modules/cards/application/cards.service';
 import { PermissionsService } from '../../permissions/application/permissions.service';
 import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
+import { TenantVaultService } from 'src/modules/tenants/infrastructure/services/tenant-vault.service';
 
 interface ValidationResponse {
   valid: boolean;
@@ -67,6 +68,7 @@ export class AuthService {
     private readonly sessionService: SessionService,
     private readonly usersService: UsersService,
     private readonly tenantsRepository: TenantsRepository,
+    private readonly tenantVaultService: TenantVaultService,
   ) {
     this.jwtAudience =
       configService.get<string>('JWT_AUDIENCE') || 'classical-service';
@@ -237,7 +239,7 @@ export class AuthService {
           cards: cardsData.data
         },
       );
-    } catch (error) {
+    } catch (error: any) {
       // Si ya se registró la auditoría en las condiciones anteriores, no duplicar
       if (
         !(error instanceof BadRequestException) &&
@@ -314,17 +316,17 @@ export class AuthService {
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const payload = verifyResult.getValue();
-      
+
       // Validar que sea un refresh token
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const tokenType = payload.type;
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const scope = payload.scope;
-      
+
       // Aceptar si tiene type: 'refresh' O scope: 'refresh'
       const isRefreshToken = (typeof tokenType === 'string' && tokenType === 'refresh') ||
-                             (typeof scope === 'string' && scope === 'refresh');
-      
+        (typeof scope === 'string' && scope === 'refresh');
+
       if (!isRefreshToken) {
         const tokenTypeValue = tokenType || scope || 'unknown';
         this.auditService.logDeny(
@@ -437,7 +439,7 @@ export class AuthService {
         'Token refreshed successfully',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       // Si ya se registró en las condiciones anteriores, no duplicar
       if (
         !(error instanceof BadRequestException) &&
@@ -502,7 +504,7 @@ export class AuthService {
       // Si el usuario existe pero no está confirmado, actualizar contraseña
       if (existingUser && !existingUser.phoneConfirmed) {
         await this.usersService.updatePasswordByPhone(phone, password);
-        this.logger.debug(
+        this.logger.log(
           `Updated password for unconfirmed user: ${phone}, requestId: ${requestId}`,
         );
       } else {
@@ -515,7 +517,7 @@ export class AuthService {
           roleKey: 'user',
         });
 
-        this.logger.debug(
+        this.logger.log(
           `Created new user: ${phone}, requestId: ${requestId}`,
         );
 
@@ -562,7 +564,7 @@ export class AuthService {
         'Registro exitoso. Código de confirmación enviado al SMS',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.auditService.logError(
         'AUTH_REGISTER',
         'user',
@@ -744,7 +746,7 @@ export class AuthService {
           additionalRoleKeys: ['merchant'], // ⭐ NUEVO: Usuario como comerciante
         });
 
-        this.logger.debug(
+        this.logger.log(
           `Created new merchant user: ${phone}, requestId: ${requestId}`,
         );
 
@@ -794,7 +796,7 @@ export class AuthService {
         'Registro de comerciante exitoso',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.auditService.logError(
         'MERCHANT_REGISTRATION',
         'user',
@@ -830,7 +832,7 @@ export class AuthService {
     const requestId = this.asyncContext.getRequestId();
 
     // Log de inicio del proceso
-    this.logger.debug(
+    this.logger.log(
       `Starting phone confirmation process for phone ${phone}, requestId: ${requestId}`,
     );
 
@@ -842,7 +844,7 @@ export class AuthService {
         'confirmation',
       );
 
-      this.logger.debug(
+      this.logger.log(
         `[FASE 1] Validation result: ${JSON.stringify(validationResult)}`,
       );
 
@@ -940,7 +942,7 @@ export class AuthService {
         'Confirmación exitosa',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.auditService.logError(
         'AUTH_CONFIRM_PHONE',
         'user',
@@ -1062,7 +1064,7 @@ export class AuthService {
         'Código reenviado',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.auditService.logError(
         'AUTH_RESEND_CODE',
         'user',
@@ -1161,7 +1163,7 @@ export class AuthService {
         'Solicitud procesada',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.auditService.logError(
         'AUTH_FORGOT_PASSWORD',
         'user',
@@ -1293,7 +1295,7 @@ export class AuthService {
         'Reset exitoso',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.auditService.logError(
         'AUTH_RESET_PASSWORD',
         'user',
@@ -1364,10 +1366,14 @@ export class AuthService {
 
       const foundTenant = tenant.data[0];
 
+      // Obtener clientSecret del tenant del vault
+      const clientSecretResult = await this.tenantVaultService.getOAuth2ClientSecret(
+        foundTenant.id
+      );
+
       // Validar clientSecret
       if (
-        !foundTenant.oauth2ClientCredentials ||
-        foundTenant.oauth2ClientCredentials.clientSecret !== clientSecret
+        !clientSecretResult.getValue() || !clientSecretResult.isSuccess || clientSecretResult.getValue() !== clientSecret
       ) {
         this.logger.warn(
           `[${requestId}] Service login failed: invalid clientSecret for tenant ${foundTenant.id}`,
@@ -1460,7 +1466,7 @@ export class AuthService {
         'Login exitoso',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `[${requestId}] Error during service login: ${error instanceof Error ? error.message : String(error)}`,
         error,
@@ -1539,7 +1545,7 @@ export class AuthService {
       }
 
       return { valid: true, user };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error validating credentials:', error);
       return { valid: false };
     }

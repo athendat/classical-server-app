@@ -133,7 +133,7 @@ export class TenantWebhookDispatcher {
       // Obtener configuración de webhook del tenant
       const tenant = await this.tenantModel.findOne({ id: tenantId }).exec();
       if (!tenant || !tenant.webhook) {
-        this.logger.debug(`Ningún webhook configurado para tenant ${tenantId}`);
+        this.logger.log(`Ningún webhook configurado para tenant ${tenantId}`);
         return;
       }
 
@@ -143,7 +143,7 @@ export class TenantWebhookDispatcher {
       );
 
       if (activeWebhook.length === 0) {
-        this.logger.debug(
+        this.logger.log(
           `Ningún webhook activo para evento ${eventType} en tenant ${tenantId}`,
         );
         return;
@@ -157,7 +157,7 @@ export class TenantWebhookDispatcher {
           );
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error despachando webhook para tenant ${tenantId}: ${error.message}`);
     }
   }
@@ -186,7 +186,7 @@ export class TenantWebhookDispatcher {
       const payloadString = JSON.stringify(fullPayload);
       const signature = this.cryptoService.createSignature(payloadString, webhook.secret);
 
-      this.logger.debug(`Enviando webhook a ${webhook.url} con evento ${eventType}`);
+      this.logger.log(`Enviando webhook a ${webhook.url} con evento ${eventType}`);
 
       // Enviar POST con firma en header
       await this.httpService.post(webhook.url, fullPayload, {
@@ -198,7 +198,7 @@ export class TenantWebhookDispatcher {
       });
 
       this.logger.log(`Webhook enviado exitosamente a ${webhook.url}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error enviando webhook a ${webhook.url}: ${error.message}`,
       );

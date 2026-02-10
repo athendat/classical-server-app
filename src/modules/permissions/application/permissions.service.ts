@@ -74,7 +74,7 @@ export class PermissionsService {
         cachedAt: Date.now(),
       });
       return permissions;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to resolve permissions for ${actor.actorType}:${actor.actorId}: ${(error as Error).message}`,
         (error as Error).stack,
@@ -208,7 +208,7 @@ export class PermissionsService {
    */
   invalidateCache(actorType: 'user' | 'service', actorId: string): void {
     const cacheKey = `permissions:${actorType}:${actorId}`;
-    this.logger.debug(`Cache invalidated for ${cacheKey}`);
+    this.logger.log(`Cache invalidated for ${cacheKey}`);
   }
 
   /**

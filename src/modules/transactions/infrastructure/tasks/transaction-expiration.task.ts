@@ -24,7 +24,7 @@ export class TransactionExpirationTask {
       if (count > 0) {
         this.logger.log(`${count} transacciones fueron marcadas como expiradas`);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en tarea de expiración: ${error.message}`);
       // No relanzar error, dejar que continúe ejecutándose
     }

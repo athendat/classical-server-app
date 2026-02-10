@@ -1042,7 +1042,7 @@ export class StripeService implements PaymentGateway {
         transactionId: response.id,
         amount: response.amount,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error.type === 'card_error') {
         throw new PaymentFailedException(error.message);
       }
@@ -1108,7 +1108,7 @@ export class OrdersService {
       order.transactionId = result.transactionId;
       order.status = 'paid';
       return order;
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof PaymentFailedException) {
         order.status = 'payment_failed';
         return order;
@@ -1522,7 +1522,7 @@ export class OrdersService {
   async handleOrderCreated(event: OrderCreatedEvent): Promise<void> {
     try {
       await this.processOrder(event);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to process order', { event, error });
       // Don't rethrow - would crash the process
       await this.deadLetterQueue.add('order.created', event);
@@ -1540,7 +1540,7 @@ export class CleanupService {
     try {
       await this.cleanupService.run();
       this.logger.log('Daily cleanup completed');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Daily cleanup failed', error.stack);
       // Alert or retry logic
     }
@@ -1704,7 +1704,7 @@ export class UsersController {
         });
       }
       return res.json(user);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       return res.status(500).json({
         statusCode: 500,
@@ -2727,7 +2727,7 @@ export class ModulePreloader implements OnApplicationBootstrap {
       const module = await importFn();
       const moduleType = module.default || Object.values(module)[0];
       await this.lazyModuleLoader.load(() => moduleType);
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Failed to preload module', error);
     }
   }
@@ -3873,7 +3873,7 @@ export class TransferService {
       });
 
       await queryRunner.commitTransaction();
-    } catch (error) {
+    } catch (error: any) {
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
@@ -4817,7 +4817,7 @@ export class RedisHealthIndicator extends HealthIndicator {
     try {
       const pong = await this.redis.ping();
       return this.getStatus(key, pong === 'PONG');
-    } catch (error) {
+    } catch (error: any) {
       throw new HealthCheckError('Redis check failed', this.getStatus(key, false));
     }
   }
@@ -5064,7 +5064,7 @@ async getUser(userId: string): Promise<User> {
 async handleOrderCreated(data: OrderCreatedEvent): Promise<void> {
   try {
     await this.processOrder(data);
-  } catch (error) {
+  } catch (error: any) {
     // Log and potentially retry - don't throw
     this.logger.error('Failed to process order event', error);
     await this.deadLetterQueue.add(data);
@@ -5226,7 +5226,7 @@ export class EmailProcessor {
         template,
         context: data,
       });
-    } catch (error) {
+    } catch (error: any) {
       // BullMQ will retry based on job options
       throw error;
     }
@@ -5735,7 +5735,7 @@ export class UsersService {
       const user = await this.repo.save(dto);
       console.log('User created:', user.id);
       return user;
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error:', error); // Using log for errors
       throw error;
     }
@@ -5775,7 +5775,7 @@ export class UsersService {
       const user = await this.repo.save(dto);
       this.logger.log('User created', { userId: user.id });
       return user;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to create user', error.stack, {
         email: dto.email,
       });

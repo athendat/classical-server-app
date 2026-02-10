@@ -301,7 +301,7 @@ export class AuthController {
     return res.status(response.statusCode).json(response);
   }
 
-  // ⭐ NUEVO: Endpoint para login de servicio
+  // Endpoint para login de servicio
   @Post('service-login')
   @HttpCode(HttpStatus.OK)
   @UseGuards(ApiKeyGuard)

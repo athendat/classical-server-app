@@ -10,7 +10,7 @@ import { Iso4PinblockService } from './infrastructure/services/iso4-pinblock.ser
 import { CardController } from './infrastructure/controllers/card.controller';
 
 import { CardVaultAdapter } from './infrastructure/adapters/card-vault.adapter';
-import { CardRepository } from './infrastructure/adapters/card.repository';
+import { CardsRepository } from './infrastructure/adapters/card.repository';
 
 
 import { Card, CardSchema } from './infrastructure/schemas/card.schema';
@@ -18,24 +18,26 @@ import {
   CardLifecycle,
   CardLifecycleSchema,
 } from './infrastructure/schemas/card-lifecycle.schema';
+import { UsersModule } from '../users/users.module';
 
 
 @Module({
   imports: [
+    AuditModule,
     MongooseModule.forFeature([
       { name: Card.name, schema: CardSchema },
       { name: CardLifecycle.name, schema: CardLifecycleSchema },
     ]),
-    AuditModule
+    UsersModule,
   ],
   controllers: [CardController],
   providers: [
     AsyncContextService,
     CardsService,
-    CardRepository,
+    CardsRepository,
     CardVaultAdapter,
     Iso4PinblockService,
   ],
-  exports: [CardsService, CardRepository, Iso4PinblockService, MongooseModule],
+  exports: [CardsService, CardsRepository, Iso4PinblockService, MongooseModule],
 })
 export class CardsModule {}

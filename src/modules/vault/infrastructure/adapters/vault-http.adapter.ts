@@ -77,7 +77,7 @@ export class VaultHttpAdapter implements IVaultClient {
 
       // If wrapped token, unwrap first
       if (this.secretIdWrapped) {
-        this.logger.debug('Unwrapping secret ID from wrapped token (one-time)');
+        this.logger.log('Unwrapping secret ID from wrapped token (one-time)');
         const unwrapResult = await this.unwrapToken();
         if (unwrapResult.isFailure) {
           this.emitEvent('login', undefined, 'failed', unwrapResult.getError());
@@ -119,7 +119,7 @@ export class VaultHttpAdapter implements IVaultClient {
       this.emitEvent('login', undefined, 'completed');
 
       return Result.ok(response.data);
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'login');
       this.emitEvent('login', undefined, 'failed', vaultError);
       return Result.fail(vaultError);
@@ -137,11 +137,11 @@ export class VaultHttpAdapter implements IVaultClient {
       const fullPath = `/v1/${this.kvMount}/data/${this.vaultNamespace}/${path}`;
       const response = await this.httpClient.get<VaultKVData>(fullPath);
 
-      this.logger.debug(`Read secret from Vault: ${path}`);
+      this.logger.log(`Read secret from Vault: ${path}`);
       this.emitEvent('read', path, 'completed');
 
       return Result.ok(response.data);
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'read', path);
       this.emitEvent('read', path, 'failed', vaultError);
       return Result.fail(vaultError);
@@ -164,11 +164,11 @@ export class VaultHttpAdapter implements IVaultClient {
         data,
       });
 
-      this.logger.debug(`Wrote secret to Vault: ${path}`);
+      this.logger.log(`Wrote secret to Vault: ${path}`);
       this.emitEvent('write', path, 'completed');
 
       return Result.ok(response.data);
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'write', path);
       this.emitEvent('write', path, 'failed', vaultError);
       return Result.fail(vaultError);
@@ -186,11 +186,11 @@ export class VaultHttpAdapter implements IVaultClient {
       const fullPath = `/v1/${this.kvMount}/metadata/${this.vaultNamespace}/${path}`;
       await this.httpClient.delete(fullPath);
 
-      this.logger.debug(`Deleted secret from Vault: ${path}`);
+      this.logger.log(`Deleted secret from Vault: ${path}`);
       this.emitEvent('delete', path, 'completed');
 
       return Result.ok();
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'delete', path);
       this.emitEvent('delete', path, 'failed', vaultError);
       return Result.fail(vaultError);
@@ -210,7 +210,7 @@ export class VaultHttpAdapter implements IVaultClient {
 
     // Try to renew if renewable
     if (this.isRenewable && this.token) {
-      this.logger.debug('Token approaching expiration, attempting renewal');
+      this.logger.log('Token approaching expiration, attempting renewal');
       const renewResult = await this.renewToken();
       if (renewResult.isSuccess) {
         return Result.ok(this.token);
@@ -244,9 +244,9 @@ export class VaultHttpAdapter implements IVaultClient {
       const durationMs = (authData?.token_duration ?? 3600) * 1000;
       this.tokenExpire = new Date(Date.now() + durationMs);
 
-      this.logger.debug('Token renewal successful');
+      this.logger.log('Token renewal successful');
       return Result.ok();
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'renew');
       return Result.fail(vaultError);
     }
@@ -264,12 +264,12 @@ export class VaultHttpAdapter implements IVaultClient {
       const unwrapData = response.data?.data;
       if (unwrapData?.secret_id) {
         this.secretId = unwrapData.secret_id;
-        this.logger.debug('Secret ID unwrapped successfully');
+        this.logger.log('Secret ID unwrapped successfully');
         return Result.ok();
       }
 
       throw new Error('Unwrapped token missing secret_id field');
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'unwrap');
       return Result.fail(vaultError);
     }
@@ -359,9 +359,9 @@ export class VaultHttpAdapter implements IVaultClient {
         return Result.fail(writeResult.getError());
       }
 
-      this.logger.debug(`PAN saved for tenant: ${tenantId}`);
+      this.logger.log(`PAN saved for tenant: ${tenantId}`);
       return Result.ok(vaultPath);
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'write', `tenants/${tenantId}/pan`);
       this.emitEvent('write', `tenants/${tenantId}/pan`, 'failed', vaultError);
       return Result.fail(vaultError);
@@ -393,9 +393,9 @@ export class VaultHttpAdapter implements IVaultClient {
         return Result.fail(error);
       }
 
-      this.logger.debug(`PAN retrieved for tenant: ${tenantId}`);
+      this.logger.log(`PAN retrieved for tenant: ${tenantId}`);
       return Result.ok(panData.pan as string);
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'read', `tenants/${tenantId}/pan`);
       this.emitEvent('read', `tenants/${tenantId}/pan`, 'failed', vaultError);
       return Result.fail(vaultError);
@@ -414,9 +414,9 @@ export class VaultHttpAdapter implements IVaultClient {
         return Result.fail(deleteResult.getError());
       }
 
-      this.logger.debug(`PAN deleted for tenant: ${tenantId}`);
+      this.logger.log(`PAN deleted for tenant: ${tenantId}`);
       return Result.ok();
-    } catch (error) {
+    } catch (error: any) {
       const vaultError = this.handleError(error, 'delete', `tenants/${tenantId}/pan`);
       this.emitEvent('delete', `tenants/${tenantId}/pan`, 'failed', vaultError);
       return Result.fail(vaultError);
@@ -430,7 +430,7 @@ export class VaultHttpAdapter implements IVaultClient {
     try {
       const result = await this.getPan(tenantId);
       return result.isSuccess;
-    } catch (error) {
+    } catch (error: any) {
       return false;
     }
   }

@@ -153,7 +153,7 @@ export class EmailProcessor {
         template,
         context: data,
       });
-    } catch (error) {
+    } catch (error: any) {
       // BullMQ will retry based on job options
       throw error;
     }

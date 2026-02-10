@@ -59,6 +59,11 @@ import { UsersModule } from '../users/users.module';
     TenantVaultService,
   ],
   controllers: [TenantController],
-  exports: [TenantsService, TenantsRepository, TenantWebhooksService],
+  exports: [
+    TenantsService,
+    TenantsRepository,
+    TenantWebhooksService,
+    TenantVaultService,
+  ],
 })
-export class TenantsModule {}
+export class TenantsModule { }

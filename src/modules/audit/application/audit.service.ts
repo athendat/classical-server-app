@@ -194,10 +194,10 @@ export class AuditService {
       this.eventEmitter.emit('audit.event-created', auditEntry);
       console.log(`[AUDIT-EMIT-EVENT-DONE] requestId=${requestId}`);
 
-      this.logger.debug(
+      this.logger.log(
         `[${requestId}] Audit logged: ${action} on ${resourceType}/${resourceRef} - ${result}`,
       );
-    } catch (error) {
+    } catch (error: any) {
       console.log(`[AUDIT-LOG-OPERATION-ERROR] requestId=${requestId} error=${error}`);
       this.logger.error(
         `Failed to log audit entry for action ${action}: ${error.message}`,

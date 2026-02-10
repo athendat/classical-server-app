@@ -23,7 +23,7 @@ export class UsersService {
       const user = await this.repo.save(dto);
       console.log('User created:', user.id);
       return user;
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error:', error); // Using log for errors
       throw error;
     }
@@ -63,7 +63,7 @@ export class UsersService {
       const user = await this.repo.save(dto);
       this.logger.log('User created', { userId: user.id });
       return user;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to create user', error.stack, {
         email: dto.email,
       });

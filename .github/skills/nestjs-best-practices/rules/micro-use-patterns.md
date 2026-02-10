@@ -156,7 +156,7 @@ async getUser(userId: string): Promise<User> {
 async handleOrderCreated(data: OrderCreatedEvent): Promise<void> {
   try {
     await this.processOrder(data);
-  } catch (error) {
+  } catch (error: any) {
     // Log and potentially retry - don't throw
     this.logger.error('Failed to process order event', error);
     await this.deadLetterQueue.add(data);

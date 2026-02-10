@@ -55,7 +55,7 @@ export class ReplayProtectionAdapter implements IReplayProtectionPort {
       }
     }
 
-    this.logger.debug(`Cleaned up ${cleaned} expired JTIs`);
+    this.logger.log(`Cleaned up ${cleaned} expired JTIs`);
     return cleaned;
   }
 }

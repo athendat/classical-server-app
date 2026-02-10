@@ -58,7 +58,7 @@ export class Iso4PinblockService implements IPinblockService {
       const iso4Pinblock = xorResult.toString('hex').toUpperCase();
 
       return Result.ok(iso4Pinblock);
-    } catch (error) {
+    } catch (error: any) {
       return Result.fail(
         new Error(
           `Failed to convert to ISO-4 pinblock: ${error instanceof Error ? error.message : String(error)}`,

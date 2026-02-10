@@ -154,7 +154,7 @@ export class ModulesService {
         'Módulo creado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al crear módulo: ${errorMsg}`, error);
 
@@ -193,7 +193,7 @@ export class ModulesService {
 
       // Retornar desde caché si está válido
       if (isCached) {
-        this.logger.debug('Retornando módulos desde caché');
+        this.logger.log('Retornando módulos desde caché');
 
         // Fire-and-forget: Auditar lectura desde caché
         this.auditService.logAllow('MODULE_READ_ALL', 'modules', 'all', {
@@ -242,7 +242,7 @@ export class ModulesService {
         'Módulos obtenidos exitosamente',
         { requestId, cached: false },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al obtener módulos: ${errorMsg}`, error);
 
@@ -320,7 +320,7 @@ export class ModulesService {
         'Módulo obtenido exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al obtener módulo: ${errorMsg}`, error);
 
@@ -412,7 +412,7 @@ export class ModulesService {
         'Módulo obtenido exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al obtener módulo: ${errorMsg}`, error);
 
@@ -584,7 +584,7 @@ export class ModulesService {
         'Módulo actualizado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al actualizar módulo: ${errorMsg}`, error);
 
@@ -722,7 +722,7 @@ export class ModulesService {
         'Módulo deshabilitado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al deshabilitar módulo: ${errorMsg}`, error);
 
@@ -896,7 +896,7 @@ export class ModulesService {
         'Módulo eliminado exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error al eliminar módulo: ${errorMsg}`, error);
 
@@ -949,7 +949,7 @@ export class ModulesService {
         'Módulos del sistema obtenidos exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `Error al obtener módulos del sistema: ${errorMsg}`,
@@ -1101,7 +1101,7 @@ export class ModulesService {
   private invalidateCache(): void {
     this.modulesCache = null;
     this.modulesCacheTimestamp = 0;
-    this.logger.debug('Caché de módulos invalidado');
+    this.logger.log('Caché de módulos invalidado');
   }
 
   /**
@@ -1241,7 +1241,7 @@ export class ModulesService {
         'Módulos reordenados exitosamente',
         { requestId },
       );
-    } catch (error) {
+    } catch (error: any) {
       const message =
         error instanceof Error ? error.message : 'Error desconocido';
       this.logger.error(
@@ -1275,7 +1275,7 @@ export class ModulesService {
    */
   @OnEvent('modules.modules_reordered')
   async onModulesReordered(event: ModulesReorderedEvent): Promise<void> {
-    this.logger.debug(
+    this.logger.log(
       `Invalidando caché de navegación: módulos reordenados (padre: ${event.parent || 'top-level'})`,
     );
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);
@@ -1293,7 +1293,7 @@ export class ModulesService {
    */
   @OnEvent('modules.module_created')
   async onModuleCreated(event: ModuleCreatedEvent): Promise<void> {
-    this.logger.debug(
+    this.logger.log(
       `Invalidando caché de navegación: módulo creado (${event.module.indicator})`,
     );
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);
@@ -1311,7 +1311,7 @@ export class ModulesService {
    */
   @OnEvent('modules.module_updated')
   async onModuleUpdated(event: ModuleUpdatedEvent): Promise<void> {
-    this.logger.debug(
+    this.logger.log(
       `Invalidando caché de navegación: módulo actualizado (${event.module.indicator})`,
     );
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);
@@ -1329,7 +1329,7 @@ export class ModulesService {
    */
   @OnEvent('modules.module_disabled')
   async onModuleDisabled(event: ModuleDisabledEvent): Promise<void> {
-    this.logger.debug(
+    this.logger.log(
       `Invalidando caché de navegación: módulo deshabilitado (${event.moduleId})`,
     );
     await this.cacheService.delete(this.NAVIGATION_CACHE_KEY);

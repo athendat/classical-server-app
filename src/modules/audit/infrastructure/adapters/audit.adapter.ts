@@ -77,7 +77,7 @@ export class AuditAdapter implements IAuditService {
       );
 
       return Result.ok(entryId);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to log audit event: ${err.message}`, err.stack);
 
@@ -148,7 +148,7 @@ export class AuditAdapter implements IAuditService {
       );
 
       return Result.ok({ entries, total });
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(
         `Failed to query audit logs: ${err.message}`,
@@ -208,7 +208,7 @@ export class AuditAdapter implements IAuditService {
       this.emitEvent('get-entry', 'completed', Date.now() - startTime, entryId);
 
       return Result.ok(entry);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Failed to get audit entry: ${err.message}`, err.stack);
 
@@ -240,7 +240,7 @@ export class AuditAdapter implements IAuditService {
       this.emitEvent('archive', 'completed', Date.now() - startTime);
 
       return Result.ok(result.deletedCount || 0);
-    } catch (error) {
+    } catch (error: any) {
       const err = error as Error;
       this.logger.error(
         `Failed to archive audit entries: ${err.message}`,

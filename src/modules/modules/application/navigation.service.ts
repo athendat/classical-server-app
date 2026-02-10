@@ -114,7 +114,7 @@ export class NavigationService {
           requestId,
         },
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `[${requestId}] Error building navigation: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,

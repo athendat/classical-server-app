@@ -27,7 +27,7 @@ export class SessionService implements ISessionPort {
   ): Promise<void> {
     const key = this.getSessionKey(userId);
     await this.cacheService.set(key, sessionData, ttl);
-    this.logger.debug(`Session saved for user ${userId} with TTL ${ttl}s`);
+    this.logger.log(`Session saved for user ${userId} with TTL ${ttl}s`);
   }
 
   /**
@@ -39,7 +39,7 @@ export class SessionService implements ISessionPort {
     const key = this.getSessionKey(userId);
     const sessionData = await this.cacheService.getByKey<SessionData>(key);
     if (sessionData) {
-      this.logger.debug(`Session retrieved for user ${userId}`);
+      this.logger.log(`Session retrieved for user ${userId}`);
     }
     return sessionData;
   }
@@ -69,7 +69,7 @@ export class SessionService implements ISessionPort {
     };
 
     await this.cacheService.set(key, updatedSession, ttl);
-    this.logger.debug(`Session updated for user ${userId} with TTL ${ttl}s`);
+    this.logger.log(`Session updated for user ${userId} with TTL ${ttl}s`);
   }
 
   /**
@@ -79,7 +79,7 @@ export class SessionService implements ISessionPort {
   async clearSession(userId: string): Promise<void> {
     const key = this.getSessionKey(userId);
     await this.cacheService.delete(key);
-    this.logger.debug(`Session cleared for user ${userId}`);
+    this.logger.log(`Session cleared for user ${userId}`);
   }
 
   /**

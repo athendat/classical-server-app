@@ -111,7 +111,7 @@ export class ModulePreloader implements OnApplicationBootstrap {
       const module = await importFn();
       const moduleType = module.default || Object.values(module)[0];
       await this.lazyModuleLoader.load(() => moduleType);
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Failed to preload module', error);
     }
   }

@@ -35,7 +35,7 @@ export class MongoDbSequenceAdapter implements ISequencePort {
       );
 
       return result.nextNo;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error obteniendo próximo número de transacción: ${error.message}`);
       throw error;
     }
