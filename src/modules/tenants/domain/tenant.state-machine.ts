@@ -11,13 +11,15 @@ import { TenantStatus } from './enums';
  * - approved: Aprobado pero no completamente activo
  * - rejected: Rechazado (terminal)
  * - active: Completamente activo y operativo
+ * - suspended: Suspendido temporalmente
  *
  * Transiciones permitidas:
  * - pending_review → {more_data_requested, approved, rejected}
- * - more_data_requested → {approved, rejected, active}
- * - approved → active
+ * - more_data_requested → {approved, active, rejected, suspended}
+ * - approved → {suspended, active}
+ * - active → suspended
+ * - suspended → active
  * - rejected → (terminal, sin transiciones)
- * - active → (terminal de operación normal)
  */
 export const tenantStateMachine = createMachine(
   {
@@ -49,6 +51,9 @@ export const tenantStateMachine = createMachine(
           REJECT: {
             target: TenantStatus.REJECTED,
           },
+          SUSPEND: {
+            target: TenantStatus.SUSPENDED,
+          },
         },
       },
 
@@ -57,6 +62,28 @@ export const tenantStateMachine = createMachine(
           ACTIVATE: {
             target: TenantStatus.ACTIVE,
           },
+          SUSPEND: {
+            target: TenantStatus.SUSPENDED,
+          },
+        },
+      },
+
+      [TenantStatus.ACTIVE]: {
+        on: {
+          SUSPEND: {
+            target: TenantStatus.SUSPENDED,
+          },
+        },
+      },
+
+      [TenantStatus.SUSPENDED]: {
+        on: {
+          ACTIVATE: {
+            target: TenantStatus.ACTIVE,
+          },
+          APPROVE: {
+            target: TenantStatus.APPROVED,
+          },
         },
       },
 
@@ -64,12 +91,8 @@ export const tenantStateMachine = createMachine(
         type: 'final',
       },
 
-      [TenantStatus.ACTIVE]: {
-        type: 'final',
-      },
     },
   },
-  {},
 );
 
 /**
@@ -98,10 +121,18 @@ export function isValidStateTransition(
       TenantStatus.APPROVED,
       TenantStatus.ACTIVE,
       TenantStatus.REJECTED,
+      TenantStatus.SUSPENDED,
     ],
-    [TenantStatus.APPROVED]: [TenantStatus.ACTIVE],
+    [TenantStatus.APPROVED]: [
+      TenantStatus.ACTIVE,
+      TenantStatus.SUSPENDED,
+    ],
+    [TenantStatus.SUSPENDED]: [
+      TenantStatus.ACTIVE,
+      TenantStatus.APPROVED,
+    ],
+    [TenantStatus.ACTIVE]: [TenantStatus.SUSPENDED],
     [TenantStatus.REJECTED]: [], // Terminal, sin transiciones
-    [TenantStatus.ACTIVE]: [], // Terminal de operación, sin cambios de estado
   };
 
   const allowedTargets = validTransitions[fromState] || [];
@@ -128,9 +159,18 @@ export function getTransitionEvent(
       [TenantStatus.APPROVED]: 'APPROVE',
       [TenantStatus.ACTIVE]: 'ACTIVATE',
       [TenantStatus.REJECTED]: 'REJECT',
+      [TenantStatus.SUSPENDED]: 'SUSPEND',
     },
     [TenantStatus.APPROVED]: {
       [TenantStatus.ACTIVE]: 'ACTIVATE',
+      [TenantStatus.SUSPENDED]: 'SUSPEND',
+    },
+    [TenantStatus.SUSPENDED]: {
+      [TenantStatus.ACTIVE]: 'ACTIVATE',
+      [TenantStatus.APPROVED]: 'APPROVE',
+    },
+    [TenantStatus.ACTIVE]: {
+      [TenantStatus.SUSPENDED]: 'SUSPEND',
     },
   };
 

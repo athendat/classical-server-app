@@ -8,6 +8,7 @@ import { AddressSchema } from './address.schema';
 
 import { Address, Webhook, TenantStatus, OAuth2ClientCredentials } from '../../domain';
 import { OAuth2ClientCredentialsSchema } from './oauth2-client-credentials.schema';
+import { TenantLifecycle } from './tenant-lifecycle.schema';
 
 
 
@@ -19,6 +20,12 @@ import { OAuth2ClientCredentialsSchema } from './oauth2-client-credentials.schem
   timestamps: true,
   collection: 'tenants',
   versionKey: false,
+  toJSON: {
+    virtuals: true,
+  },
+  toObject: {
+    virtuals: true,
+  },
 })
 export class Tenant extends AbstractSchema {
   /**
@@ -57,11 +64,11 @@ export class Tenant extends AbstractSchema {
     type: String,
     required: true,
     unique: true,
-    length: 11, 
+    length: 11,
     match: /^[0-9]{11}$/, // solo números
   })
   nit: string;
-  
+
   /**
    * Código MCC del negocio (Merchant Category Code)
    * Opcional, pero recomendado para clasificación de negocios
@@ -125,6 +132,15 @@ export class Tenant extends AbstractSchema {
   notes?: string;
 
   /**
+   * URL del sitio web del negocio (opcional)
+   */
+  @Prop({
+    type: String,
+    required: false,
+  })
+  website?: string;
+
+  /**
    * Webhooks configurados para este tenant
    * Array de configuraciones de webhook con URLs, events, y secrets
    */
@@ -146,7 +162,10 @@ export class Tenant extends AbstractSchema {
   oauth2ClientCredentials?: OAuth2ClientCredentials;
 
   maskedPan?: string;
+
   unmaskPan?: string;
+
+  lifecycleHistory?: TenantLifecycle[];
 }
 
 export type TenantDocument = HydratedDocument<Tenant>;
@@ -161,3 +180,9 @@ TenantSchema.index({ createdAt: 1 });
 TenantSchema.index({ createdBy: 1 });
 TenantSchema.index({ 'webhook.url': 1 }, { sparse: true }); // Para búsquedas de webhooks por URL
 
+TenantSchema.virtual('lifecycleHistory', {
+  ref: 'TenantLifecycle',
+  localField: 'id',
+  foreignField: 'tenantId',
+  justOne: false,
+});

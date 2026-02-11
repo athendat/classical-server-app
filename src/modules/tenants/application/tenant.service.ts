@@ -245,13 +245,34 @@ export class TenantsService {
       });
 
       // Enriquecer tenant con datos del Vault
-      const vaultData = await this.enrichTenantWithVaultData(tenant);
-      const responseDto = this.mapTenantToResponse(tenant, vaultData);
+      const panResult = await this.vaultService.getPan(tenant.id);
 
-      return ApiResponse.ok<Tenant>(HttpStatus.OK, responseDto, undefined, {
+      const maskedPan = this.vaultService.maskPan(panResult.getValue());
+      const unmaskPan = panResult.getValue();
+
+      // Obtener clientSecret del Vault
+      const clientSecretResult = await this.vaultService.getOAuth2ClientSecret(tenant.id);
+      const clientSecret = clientSecretResult.isSuccess ? clientSecretResult.getValue() : '';
+
+      const responseDto = this.mapTenantToResponse(
+        {
+          ...tenant,
+          oauth2ClientCredentials: {
+            clientId: tenant.oauth2ClientCredentials?.clientId || '',
+            clientSecret,
+          },
+        },
+        { maskedPan, unmaskPan }
+      );
+
+      return ApiResponse.ok<Tenant>(
+        HttpStatus.OK,
+        responseDto,
+        undefined, {
         requestId,
         id,
-      });
+      }
+      );
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       const userId = this.asyncContextService.getActorId();
@@ -322,7 +343,7 @@ export class TenantsService {
 
       const maskedPan = this.vaultService.maskPan(panResult.getValue());
       const unmaskPan = panResult.getValue();
-      
+
       const responseDto = this.mapTenantToResponse(tenant, { maskedPan, unmaskPan });
 
       return ApiResponse.ok<Tenant>(HttpStatus.OK, responseDto, undefined, {
@@ -372,9 +393,9 @@ export class TenantsService {
       const searchFields = [
         'businessName',
         'legalRepresentative',
+        'nit',
         'email',
         'phone',
-        'status',
       ];
 
       // Construir query de MongoDB
@@ -391,7 +412,7 @@ export class TenantsService {
       );
 
       // Ejecutar consulta directamente en MongoDB
-      const { data: tenants, total } = await this.tenantsRepository.findAll(
+      const { data: tenants, total, meta } = await this.tenantsRepository.findAll(
         mongoFilter,
         options,
       );
@@ -435,6 +456,7 @@ export class TenantsService {
             totalPages,
             hasMore,
           } as PaginationMeta,
+          ...meta
         },
       );
     } catch (error: any) {
@@ -744,7 +766,7 @@ export class TenantsService {
       // Validar transición de estado
       if (!isValidStateTransition(currentState, targetState)) {
         return ApiResponse.fail<Tenant>(
-          HttpStatus.BAD_REQUEST,
+          HttpStatus.NOT_ACCEPTABLE,
           `Transición inválida de ${currentState} a ${targetState}`,
           'Transición no permitida',
         );
@@ -919,6 +941,7 @@ export class TenantsService {
       },
       maskedPan: vaultData.maskedPan,
       unmaskPan: vaultData.unmaskPan,
+      lifecycleHistory: tenant.lifecycleHistory,
       email: tenant.email,
       phone: tenant.phone,
       nit: tenant.nit,
@@ -926,6 +949,8 @@ export class TenantsService {
       status: tenant.status as TenantStatus,
       userId: tenant.userId,
       notes: tenant.notes,
+      webhook: tenant.webhook,
+      oauth2ClientCredentials: tenant.oauth2ClientCredentials,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
     };

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { TenantStatus } from '../domain/enums';
 
@@ -16,13 +16,13 @@ export class TransitionTenantStateDto {
   })
   targetState: TenantStatus;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Comentario opcional sobre la transición de estado',
     example: 'Se solicitan documentos adicionales de registro mercantil',
     required: false,
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
+  @IsString({ message: 'El comentario debe ser una cadena de texto' })
+  @MaxLength(500, { message: 'El comentario no puede exceder los 500 caracteres' })
   comment?: string;
 }

@@ -26,4 +26,9 @@ export enum TenantStatus {
    * Tenant completamente activo y operativo
    */
   ACTIVE = 'active',
+
+  /**
+   * Tenant suspendido por incumplimiento o problemas
+   */
+  SUSPENDED = 'suspended',
 }

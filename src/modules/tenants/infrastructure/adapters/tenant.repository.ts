@@ -23,7 +23,9 @@ export class TenantsRepository implements ITenantPort {
    */
   async findById(tenantId: string): Promise<Tenant | null> {
     try {
-      const tenant = await this.tenantModel.findOne({ id: tenantId }).lean();
+      const tenant = await this.tenantModel.findOne({ id: tenantId })
+        .populate('lifecycleHistory') // Popula el historial de lifecycle
+        .lean();
       return tenant as Tenant | null;
     } catch (error: any) {
       this.logger.error(`Error finding tenant by id: ${tenantId}`, error);
@@ -71,14 +73,24 @@ export class TenantsRepository implements ITenantPort {
       limit: number;
       sort?: Record<string, number>;
     },
-  ): Promise<{ data: Tenant[]; total: number }> {
+  ): Promise<{
+    data: Tenant[];
+    total: number,
+    meta?: {
+      pendingVerification: number,
+      approved: number,
+      suspended: number,
+      mcc: string[],
+      status: string[],
+    }
+  }> {
     try {
       this.logger.log(
         `Finding Tenants with filter: ${JSON.stringify(filter)}, skip=${options.skip}, limit=${options.limit}`,
       );
 
       // Ejecutar query en paralelo: obtener documentos y contar total
-      const [tenants, total] = await Promise.all([
+      const [tenants, total, pendingVerification, approved, suspended, mcc, status] = await Promise.all([
         this.tenantModel
           .find(filter as any)
           .sort((options.sort || { createdAt: -1 }) as any)
@@ -87,6 +99,11 @@ export class TenantsRepository implements ITenantPort {
           .lean()
           .exec(),
         this.tenantModel.countDocuments(filter as any).exec(),
+        this.tenantModel.countDocuments({ status: TenantStatus.PENDING_REVIEW }).exec(),
+        this.tenantModel.countDocuments({ status: TenantStatus.APPROVED }).exec(),
+        this.tenantModel.countDocuments({ status: TenantStatus.SUSPENDED }).exec(),
+        this.tenantModel.distinct('mcc').exec(),
+        this.tenantModel.distinct('status').exec(),
       ]);
 
       this.logger.log(
@@ -96,6 +113,13 @@ export class TenantsRepository implements ITenantPort {
       return {
         data: tenants as Tenant[],
         total,
+        meta: {
+          pendingVerification,
+          approved,
+          suspended,
+          mcc,
+          status
+        }
       };
     } catch (error: any) {
       this.logger.error(

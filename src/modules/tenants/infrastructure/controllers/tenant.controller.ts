@@ -46,14 +46,8 @@ import {
   UpdateTenantCredentialsDto,
 } from 'src/modules/tenants/dto';
 import { TenantWebhooksService } from 'src/modules/tenants/application/services/tenant-webhooks.service';
-import {
-  CreateTenantWebhookDto,
-  RegenerateWebhookSecretDto,
-  UpdateWebhookUrlDto,
-} from 'src/modules/tenants/dto/webhook.dto';
 import { TenantOAuth2CredentialsService } from 'src/modules/tenants/application/services/tenant-oauth2-credentials.service';
-import { RegenerateOAuth2SecretDto } from 'src/modules/tenants/dto/oauth2-credentials.dto';
-import { TenantStatus } from 'src/modules/tenants/domain/enums';
+
 
 import type { QueryParams, SortOrder } from 'src/common/types';
 
@@ -74,7 +68,6 @@ export class TenantController {
 
   constructor(
     private readonly tenantService: TenantsService,
-    private readonly tenantWebhooksService: TenantWebhooksService,
     private readonly tenantOAuth2CredentialsService: TenantOAuth2CredentialsService,
   ) { }
 
@@ -166,6 +159,21 @@ export class TenantController {
     description: 'Sort order: ascending or descending',
     example: 'asc',
   })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: String,
+    enum: ['active', 'approved', 'rejected', 'suspended', 'pending_review', 'more_data_requested'],
+    description: 'Filter tenants by status',
+    example: 'active',
+  })
+  @ApiQuery({
+    name: 'mcc',
+    required: false,
+    type: String,
+    description: 'Filter tenants by MCC (Merchant Category Code)',
+    example: '5311',
+  })
   @ApiOkResponse({
     description: 'Tenants recuperados',
     type: TenantPaginatedResponseDto,
@@ -186,6 +194,9 @@ export class TenantController {
     @Query('search') search?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: SortOrder,
+    @Query('status') status?: string,
+    @Query('mcc') mcc?: string,
+
   ): Promise<Response> {
     // Construimos parámetros de consulta
     const queryParams: QueryParams = {
@@ -194,6 +205,10 @@ export class TenantController {
       sortBy: sortBy,
       sortOrder: sortOrder,
       search: search?.trim(),
+      filters: {
+        ...(status ? { status: status?.trim() } : {}),
+        ...(mcc ? { mcc: mcc?.trim() } : {}),
+      },
     };
 
     const response = await this.tenantService.listTenants(queryParams);

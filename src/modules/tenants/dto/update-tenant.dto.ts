@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   Length,
   Matches,
   MaxLength,
@@ -21,16 +22,15 @@ export class UpdateTenantDto {
   @ApiProperty({
     description: 'Nombre legal del negocio',
     example: 'Mi Empresa S.A.',
-    required: false,
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'El nombre legal del negocio no puede estar vacío.' })
   @IsString({
     message: 'El nombre legal del negocio debe ser una cadena de texto.',
   })
   @MaxLength(255, {
     message: 'El nombre legal del negocio no puede exceder 255 caracteres.',
   })
-  businessName?: string;
+  businessName: string;
 
 
   @ApiProperty({
@@ -68,7 +68,7 @@ export class UpdateTenantDto {
   })
   pan: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Nombre del representante legal',
     example: 'Juan Pérez García',
     required: false,
@@ -83,7 +83,7 @@ export class UpdateTenantDto {
   })
   legalRepresentative?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Dirección del negocio',
     type: BusinessAddressDto,
     required: false,
@@ -93,7 +93,7 @@ export class UpdateTenantDto {
   @Type(() => BusinessAddressDto)
   businessAddress?: BusinessAddressDto;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Email del negocio',
     example: 'contacto@miempresa.com',
     required: false,
@@ -102,7 +102,7 @@ export class UpdateTenantDto {
   @IsEmail({}, { message: 'El correo electrónico del negocio no es válido.' })
   email?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Teléfono de contacto',
     example: '55551234',
     required: false,
@@ -111,7 +111,7 @@ export class UpdateTenantDto {
   @IsPhone({ message: 'El teléfono de contacto no es válido.' })
   phone?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Notas adicionales',
     example: 'Actualización de información',
     required: false,
@@ -119,4 +119,12 @@ export class UpdateTenantDto {
   @IsOptional()
   @IsString({ message: 'Las notas deben ser una cadena de texto.' })
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'URL del sitio web del negocio',
+    example: 'https://www.miempresa.com',
+  })
+  @IsOptional()
+  @IsUrl({}, { message: 'La URL del sitio web no es válida.' })
+  website?: string;
 }
