@@ -10,7 +10,7 @@ import { UsersService } from './application/users.service';
 import { UsersController } from './infrastructure/controllers/users.controller';
 import { ProfileController } from './infrastructure/controllers/profile.controller';
 
-import { MongoDbUsersRepository } from './infrastructure/adapters/mongodb-users.repository';
+import { UsersRepository } from './infrastructure/adapters/users.repository';
 
 import { User, UserSchema } from './infrastructure/schemas/user.schema';
 
@@ -22,7 +22,7 @@ import { User, UserSchema } from './infrastructure/schemas/user.schema';
  *
  * Servicios:
  * - UsersService: CRUD básico con validaciones y encapsulación de Argon2
- * - MongoDbUsersRepository: Adaptador MongoDB implementando patrón Repository
+ * - UsersRepository: Adaptador MongoDB implementando patrón Repository
  *
  * Controladores:
  * - UsersController: Endpoints REST protegidos por JWT y permisos
@@ -39,7 +39,7 @@ import { User, UserSchema } from './infrastructure/schemas/user.schema';
  *
  * Exportaciones:
  * - UsersService: Para acceso desde otros módulos
- * - MongoDbUsersRepository: Para acceso desde otros módulos
+ * - UsersRepository: Para acceso desde otros módulos
  * - MongooseModule: Para extensiones de esquema
  *
  * Nota: Este módulo importa AuthzModule para acceso a PermissionsGuard.
@@ -53,7 +53,7 @@ import { User, UserSchema } from './infrastructure/schemas/user.schema';
     // PermissionsModule,
   ],
   controllers: [UsersController, ProfileController],
-  providers: [AsyncContextService, UsersService, MongoDbUsersRepository],
-  exports: [MongooseModule, UsersService, MongoDbUsersRepository],
+  providers: [AsyncContextService, UsersService, UsersRepository],
+  exports: [MongooseModule, UsersService, UsersRepository],
 })
 export class UsersModule {}

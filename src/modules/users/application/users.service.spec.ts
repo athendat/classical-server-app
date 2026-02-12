@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { MongoDbUsersRepository } from '../infrastructure/adapters/mongodb-users.repository';
+import { UsersRepository } from '../infrastructure/adapters/users.repository';
 import { User } from '../infrastructure/schemas/user.schema';
 import { UserStatus } from '../domain/enums';
 import { AsyncContextService } from 'src/common/context/async-context.service';
@@ -12,7 +12,7 @@ import { AuditService } from '../../audit/application/audit.service';
 
 describe('UsersService', () => {
   let service: UsersService;
-  let repository: MongoDbUsersRepository;
+  let repository: UsersRepository;
   let mockUserModel: any;
   let mockEventEmitter: any;
   let mockConfigService: any;
@@ -64,7 +64,7 @@ describe('UsersService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
-        MongoDbUsersRepository,
+        UsersRepository,
         {
           provide: getModelToken(User.name),
           useValue: mockUserModel,
@@ -89,7 +89,7 @@ describe('UsersService', () => {
     }).compile();
 
     service = module.get<UsersService>(UsersService);
-    repository = module.get<MongoDbUsersRepository>(MongoDbUsersRepository);
+    repository = module.get<UsersRepository>(UsersRepository);
   });
 
   it('should be defined', () => {

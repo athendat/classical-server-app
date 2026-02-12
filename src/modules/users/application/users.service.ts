@@ -1,12 +1,9 @@
 import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-
-import { Model } from 'mongoose';
 
 import * as argon2 from 'argon2';
 
-import { MongoDbUsersRepository } from '../infrastructure/adapters/mongodb-users.repository';
+import { UsersRepository } from '../infrastructure/adapters/users.repository';
 
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from '../../audit/application/audit.service';
@@ -26,6 +23,8 @@ import {
   UpdateUserDto,
   UpdateMyPasswordDto,
 } from '../dto';
+import { PaginationMeta, QueryParams } from 'src/common/types';
+import { buildMongoQuery } from 'src/common/helpers';
 
 /**
  * Servicio de gestión de usuarios.
@@ -44,12 +43,11 @@ export class UsersService implements IUsersService {
   private readonly logger = new Logger(UsersService.name);
 
   constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private eventEmitter: EventEmitter2,
-    private usersRepository: MongoDbUsersRepository,
+    private usersRepository: UsersRepository,
     private asyncContextService: AsyncContextService,
     private auditService: AuditService,
-  ) {}
+  ) { }
 
   /**
    * Crear nuevo usuario.
@@ -288,12 +286,49 @@ export class UsersService implements IUsersService {
    *
    * Auditoría: registro de listado
    */
-  async list(): Promise<ApiResponse<UserDTO[]>> {
+  async list(queryParams: QueryParams): Promise<ApiResponse<UserDTO[]>> {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
+    this.logger.log(
+      `[${requestId}] Fetching all users: page=${queryParams.page}, limit=${queryParams.limit}, search=${queryParams.search || 'none'}`,
+    );
     try {
-      this.logger.log(`[${requestId}] Listing all users`);
-      const users = await this.usersRepository.findAll();
+      // Campos permitidos para búsqueda
+      const searchFields = [
+        'fullname',
+        'idNumber',
+        'email',
+        'phone',
+      ];
+
+      // Construir query de MongoDB
+      const { mongoFilter, options } = buildMongoQuery(
+        queryParams,
+        searchFields,
+      );
+
+      this.logger.log(
+        `[${requestId}] MongoDB filter: ${JSON.stringify(mongoFilter)}`,
+      );
+      this.logger.log(
+        `[${requestId}] Query options: ${JSON.stringify(options)}`,
+      );
+
+      // Ejecutar consulta directamente en MongoDB
+      const { data: users, total, meta } = await this.usersRepository.findAll(
+        mongoFilter,
+        options,
+      );
+
+      const limit = options.limit;
+      const page = queryParams.page || 1;
+      const totalPages = Math.ceil(total / limit);
+      const skip = options.skip;
+      const hasMore = skip + limit < total;
+
+      this.logger.log(
+        `[${requestId}] Retrieved ${users.length} tenants from page ${page} (total: ${total})`,
+      );
 
       // Filtrar y excluir al usuario super_admin (sistema, oculto)
       const filteredUsers = users.filter((u) => u.roleKey !== 'super_admin');
@@ -304,15 +339,28 @@ export class UsersService implements IUsersService {
         module: 'users',
         severity: 'LOW',
         tags: ['users', 'list'],
+        actorId: userId,
         response: {
           count: dtos.length,
         },
       });
 
-      return ApiResponse.ok<UserDTO[]>(HttpStatus.OK, dtos, undefined, {
-        requestId,
-        count: dtos.length,
-      });
+      return ApiResponse.ok<UserDTO[]>(
+        HttpStatus.OK,
+        dtos,
+        undefined,
+        {
+          requestId,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasMore,
+          } as PaginationMeta,
+          ...meta
+        }
+      );
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -723,8 +771,8 @@ export class UsersService implements IUsersService {
   /**
    * Obtener documento raw (usado internamente).
    */
-  async findByIdRaw(id: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ id }).exec();
+  async findByIdRaw(id: string): Promise<User | null> {
+    return this.usersRepository.findByIdRaw(id);
   }
 
   /**
@@ -749,7 +797,7 @@ export class UsersService implements IUsersService {
   /**
    * Mapear documento de usuario a DTO.
    */
-  private mapToDTO(user: UserDocument): UserDTO {
+  private mapToDTO(user: User): UserDTO {
     return {
       id: user.id,
       email: user.email,
@@ -765,6 +813,7 @@ export class UsersService implements IUsersService {
       userId: user.userId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      initials: user.initials,
     };
   }
 
@@ -837,36 +886,14 @@ export class UsersService implements IUsersService {
    * Verifica si un teléfono ya existe en la base de datos
    */
   async existsByPhone(phone: string): Promise<boolean> {
-    try {
-      const count = await this.userModel.countDocuments({ phone }).exec();
-      return count > 0;
-    } catch (error: any) {
-      this.logger.error(`Error checking if phone exists ${phone}:`, error);
-      return false;
-    }
+    return this.usersRepository.existsByPhone(phone);
   }
 
   /**
    * Marca el teléfono de un usuario como confirmado
    */
   async markPhoneConfirmed(userId: string): Promise<void> {
-    try {
-      await this.userModel
-        .findOneAndUpdate(
-          { id: userId },
-          { phoneConfirmed: true },
-          { new: true },
-        )
-        .exec();
-
-      this.logger.log(`Phone confirmed for user ${userId}`);
-    } catch (error: any) {
-      this.logger.error(
-        `Error marking phone as confirmed for user ${userId}:`,
-        error,
-      );
-      throw error;
-    }
+    return this.usersRepository.markPhoneConfirmed(userId);
   }
 
   /**
@@ -876,19 +903,7 @@ export class UsersService implements IUsersService {
     phone: string,
     passwordHash: string,
   ): Promise<void> {
-    try {
-      await this.userModel
-        .findOneAndUpdate({ phone }, { passwordHash }, { new: true })
-        .exec();
-
-      this.logger.log(`Password updated for user with phone ${phone}`);
-    } catch (error: any) {
-      this.logger.error(
-        `Error updating password for user with phone ${phone}:`,
-        error,
-      );
-      throw error;
-    }
+    return this.usersRepository.updatePasswordByPhone(phone, passwordHash);
   }
 
   /**

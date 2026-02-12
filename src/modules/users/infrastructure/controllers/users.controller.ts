@@ -12,6 +12,7 @@ import {
   HttpCode,
   HttpStatus,
   Res,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,6 +27,9 @@ import {
   ApiNoContentResponse,
   ApiHeader,
   ApiSecurity,
+  ApiForbiddenResponse,
+  ApiInternalServerErrorResponse,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 // import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
@@ -38,6 +42,8 @@ import {
   UpdatePasswordDto,
   UpdateUserDto,
 } from 'src/modules/users/dto';
+import { UserStatus } from '../../domain/enums';
+import type { QueryParams, SortOrder } from 'src/common/types';
 
 /**
  * UsersController: Endpoints HTTP para gestión de usuarios
@@ -61,7 +67,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly asyncContextService: AsyncContextService,
-  ) {}
+  ) { }
 
   /**
    * Crear nuevo usuario
@@ -188,11 +194,89 @@ export class UsersController {
       },
     },
   })
-  @ApiUnauthorizedResponse({
-    description: 'No autorizado',
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1,
   })
-  async listUsers(@Res() res: Response): Promise<Response> {
-    const response = await this.usersService.list();
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 10, max: 100)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description:
+      'Search query to filter terminals by sn, brand, model, or description',
+    example: 'Samsung',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Field to sort by',
+    example: 'sn',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    type: String,
+    description: 'Sort order: ascending or descending',
+    example: 'asc',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: String,
+    enum: UserStatus,
+    description: 'Filter users by status',
+    example: 'active',
+  })
+  @ApiQuery({
+    name: 'roleKey',
+    required: false,
+    type: String,
+    description: 'Filter users by role key',
+    example: 'admin',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Falta x-api-key o es inválida',
+  })
+  @ApiForbiddenResponse({
+    description: 'Sin permisos para leer tenants',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Error interno del servidor',
+  })
+  async listUsers(
+    @Res() res: Response,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: SortOrder,
+    @Query('status') status?: string,
+    @Query('roleKey') roleKey?: string,
+  ): Promise<Response> {
+    // Construimos parámetros de consulta
+    const queryParams: QueryParams = {
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 10,
+      sortBy: sortBy,
+      sortOrder: sortOrder,
+      search: search?.trim(),
+      filters: {
+        ...(status ? { status: status?.trim() } : {}),
+        ...(roleKey ? { roleKey: roleKey?.trim() } : {}),
+      },
+    };
+    const response = await this.usersService.list(queryParams);
     return res.status(response.statusCode).json(response);
   }
 

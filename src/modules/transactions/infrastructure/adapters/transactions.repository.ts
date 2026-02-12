@@ -1,17 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, MongooseError, QueryFilter } from 'mongoose';
-import { Transaction } from '../../domain/entities/transaction.entity';
-import { ITransactionsRepository } from '../../domain/ports/transactions.repository';
-import { TransactionSchema } from '../schemas/transaction.schema';
-import { TransactionStatus } from '../../domain/entities/transaction.entity';
-import { AsyncContextService } from 'src/common/context';
-import { MongoDbUsersRepository } from 'src/modules/users/infrastructure/adapters';
-import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
-import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
-import { UserDocument } from 'src/modules/users/infrastructure/schemas/user.schema';
-import { Card, CardDocument } from 'src/modules/cards/infrastructure/schemas/card.schema';
+
+import { Model, QueryFilter } from 'mongoose';
+
 import { CardsRepository } from 'src/modules/cards/infrastructure/adapters';
+import { ITransactionsRepository } from '../../domain/ports/transactions.repository';
+import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
+import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
+
+import { AsyncContextService } from 'src/common/context';
+
+import { Transaction, TransactionStatus } from '../../domain/entities/transaction.entity';
+
+import { Card } from 'src/modules/cards/infrastructure/schemas/card.schema';
+import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
+import { TransactionSchema } from '../schemas/transaction.schema';
+import { User } from 'src/modules/users/infrastructure/schemas/user.schema';
 
 /**
  * Adapter: Implementación de repositorio de transacciones con MongoDB
@@ -23,10 +27,11 @@ export class TransactionsRepository implements ITransactionsRepository {
   constructor(
     @InjectModel(TransactionSchema.name)
     private readonly transactionModel: Model<TransactionSchema>,
+    
     private readonly asyncContextService: AsyncContextService,
     private readonly cardsRepository: CardsRepository,
     private readonly tenantsRepository: TenantsRepository,
-    private readonly usersRepository: MongoDbUsersRepository,
+    private readonly usersRepository: UsersRepository,
 
   ) { }
 
@@ -176,7 +181,7 @@ export class TransactionsRepository implements ITransactionsRepository {
     data: Transaction[];
     total: number,
     meta?: {
-      customers?: UserDocument[],
+      customers?: User[],
       tenants?: Tenant[],
       cards?: Card[]
     }

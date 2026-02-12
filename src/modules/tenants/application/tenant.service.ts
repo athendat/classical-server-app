@@ -33,7 +33,7 @@ import { TenantLifecycleEvent } from '../domain/interfaces/lifecycle-event.inter
 import { TenantStatus } from '../domain/enums';
 import { TenantOAuth2CredentialsService } from './services/tenant-oauth2-credentials.service';
 import { TenantWebhooksService } from './services/tenant-webhooks.service';
-import { MongoDbUsersRepository } from 'src/modules/users/infrastructure/adapters';
+import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 
 /**
  * Servicio de aplicación para tenants
@@ -52,7 +52,7 @@ export class TenantsService {
     private readonly tenantsRepository: TenantsRepository,
     private readonly vaultService: TenantVaultService,
     private readonly webhooksService: TenantWebhooksService,
-    private readonly usersRepository: MongoDbUsersRepository,
+    private readonly usersRepository: UsersRepository,
   ) { }
 
   /**
@@ -433,7 +433,7 @@ export class TenantsService {
         severity: 'LOW',
         tags: ['tenant', 'read', 'list', 'successful'],
         actorId: userId,
-        changes: {
+        response: {
           after: {
             count: tenants.length,
             total,

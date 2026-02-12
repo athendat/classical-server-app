@@ -7,7 +7,7 @@ import { ApiResponse } from 'src/common/types/api-response.type';
 import { ModuleEntity } from '../domain/module.entity';
 import { NavigationItem, NavigationResponse } from 'src/common/types';
 import { PermissionsService } from 'src/modules/permissions/application/permissions.service';
-import { MongoDbUsersRepository } from 'src/modules/users/infrastructure/adapters';
+import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 
 /**
  * NavigationService
@@ -25,7 +25,7 @@ export class NavigationService {
     private readonly asyncContextService: AsyncContextService,
     private readonly modulesService: ModulesService,
     private readonly permissionsService: PermissionsService,
-    private readonly usersRepository: MongoDbUsersRepository,
+    private readonly usersRepository: UsersRepository,
   ) {}
 
   /**

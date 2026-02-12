@@ -1,86 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, QueryFilter } from 'mongoose';
 
 import { User, UserDocument } from '../schemas/user.schema';
 import type {
-  CreateUserPayload,
   UpdateUserRolesPayload,
-  UpdateUserPasswordPayload,
+  IUsersPort,
 } from '../../domain/ports/users.port';
 import { UserStatus } from '../../domain/enums';
-
-export interface IUsersRepository {
-  /**
-   * Crear usuario.
-   */
-  create(payload: CreateUserPayload): Promise<UserDocument>;
-
-  /**
-   * Obtener usuario por ID.
-   * @param id
-   */
-  findById(id: string): Promise<UserDocument | null>;
-
-  /**
-   * Obtener usuario por email.
-   * @param email
-   */
-  findByEmail(email: string): Promise<UserDocument | null>;
-
-  /**
-   * Obtener todos los usuarios activos.
-   */
-  findAll(): Promise<UserDocument[]>;
-
-  /**
-   * Actualizar roles del usuario.
-   * @param id
-   * @param payload
-   */
-  updateRoles(
-    id: string,
-    payload: UpdateUserRolesPayload,
-  ): Promise<UserDocument | null>;
-
-  /**
-   * Actualizar contraseña del usuario.
-   * @param id
-   * @param payload
-   */
-  updatePassword(
-    id: string,
-    payload: UpdateUserPasswordPayload,
-  ): Promise<UserDocument | null>;
-
-  /**
-   * Actualizar datos del usuario (email, fullname, phone, etc).
-   * @param id
-   * @param payload
-   */
-  updateUser(id: string, payload: any): Promise<UserDocument | null>;
-
-  /**
-   * Deshabilitar usuario (soft delete).
-   * @param id
-   */
-  disable(id: string): Promise<boolean>;
-}
 
 /**
  * Adaptador MongoDB para Users.
  * Implementa el patrón Repository, aislando la lógica de persistencia.
  */
 @Injectable()
-export class MongoDbUsersRepository implements IUsersRepository {
-  private readonly logger = new Logger(MongoDbUsersRepository.name);
+export class UsersRepository implements IUsersPort {
+  private readonly logger = new Logger(UsersRepository.name);
 
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
 
   /**
    * Crear usuario.
    */
-  async create(payload: Partial<UserDocument>): Promise<UserDocument> {
+  async create(payload: Partial<UserDocument>): Promise<User> {
     const user = await this.userModel.create({
       userId: payload.userId,
       email: payload.email,
@@ -100,7 +42,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
   /**
    * Obtener usuario por ID.
    */
-  async findById(id: string): Promise<UserDocument | null> {
+  async findById(id: string): Promise<User | null> {
     return this.userModel
       .findOne({ id, status: UserStatus.ACTIVE })
       .populate(this.populateOptions())
@@ -110,7 +52,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
   /**
    * Obtener usuario por email.
    */
-  async findByEmail(email: string): Promise<UserDocument | null> {
+  async findByEmail(email: string): Promise<User | null> {
     return this.userModel
       .findOne({ email, status: UserStatus.ACTIVE })
       .populate(this.populateOptions())
@@ -120,7 +62,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
   /**
    * Obtener usuario por phone.
    */
-  async findByPhone(phone: string): Promise<UserDocument | null> {
+  async findByPhone(phone: string): Promise<User | null> {
     return this.userModel
       .findOne({ phone, status: UserStatus.ACTIVE })
       .populate(this.populateOptions())
@@ -130,11 +72,71 @@ export class MongoDbUsersRepository implements IUsersRepository {
   /**
    * Obtener todos los usuarios activos.
    */
-  async findAll(): Promise<UserDocument[]> {
-    return this.userModel
-      .find({ status: UserStatus.ACTIVE })
-      .populate(this.populateOptions())
-      .exec();
+  async findAll(
+    filter: QueryFilter<User>,
+    options: {
+      skip: number;
+      limit: number;
+      sort?: Record<string, number>;
+    },
+  ): Promise<{
+    data: User[];
+    total: number,
+    meta?: {
+      active: number,
+      inactive: number,
+      suspended: number,
+      roleKeys: string[],
+      status: string[],
+    }
+  }> {
+    try {
+      this.logger.log(
+        `Finding Users with filter: ${JSON.stringify(filter)}, skip=${options.skip}, limit=${options.limit}`,
+      );
+
+      // Ejecutar query en paralelo: obtener documentos y contar total
+      const [users, total, active, inactive, suspended, roleKeys, status] = await Promise.all([
+        this.userModel
+          .find(filter as any)
+          .sort((options.sort || { createdAt: -1 }) as any)
+          .skip(options.skip)
+          .populate(this.populateOptions())
+          .limit(options.limit)
+          .lean()
+          .exec(),
+        this.userModel.countDocuments(filter as any).exec(),
+        this.userModel.countDocuments({ status: UserStatus.ACTIVE }).exec(),
+        this.userModel.countDocuments({ status: UserStatus.INACTIVE }).exec(),
+        this.userModel.countDocuments({ status: UserStatus.SUSPENDED }).exec(),
+        this.userModel.distinct('roleKey').exec(),
+        this.userModel.distinct('status').exec(),
+      ]);
+
+      this.logger.log(
+        `Found ${users.length} users (total: ${total}, skip: ${options.skip}, limit: ${options.limit})`,
+      );
+
+      return {
+        data: users as User[],
+        total,
+        meta: {
+          active,
+          inactive,
+          suspended,
+          roleKeys: roleKeys.filter((key) => key !== 'super_admin') as string[],
+          status
+        }
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error finding Tenants with filter: ${error instanceof Error ? error.message : String(error)}`,
+        error,
+      );
+      throw new Error(
+        `Find with filter failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
@@ -142,7 +144,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
    * @param ids 
    * @returns 
    */
-  async findByIds(ids: string[]): Promise<UserDocument[]> {
+  async findByIds(ids: string[]): Promise<User[]> {
     return this.userModel
       .find({ id: { $in: ids } })
       .select(
@@ -162,7 +164,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
   async updateRoles(
     id: string,
     payload: UpdateUserRolesPayload,
-  ): Promise<UserDocument | null> {
+  ): Promise<User | null> {
     return this.userModel
       .findOneAndUpdate(
         { id, status: UserStatus.ACTIVE },
@@ -181,7 +183,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
   /**
    * Actualizar contraseña.
    */
-  async updatePassword(id: string, payload: any): Promise<UserDocument | null> {
+  async updatePassword(id: string, payload: any): Promise<User | null> {
     return this.userModel
       .findOneAndUpdate(
         { id, status: UserStatus.ACTIVE },
@@ -195,7 +197,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
   /**
    * Actualizar datos del usuario (email, fullname, phone, etc).
    */
-  async updateUser(id: string, payload: any): Promise<UserDocument | null> {
+  async updateUser(id: string, payload: any): Promise<User | null> {
     const updateData: Record<string, any> = {};
 
     if (payload.email !== undefined) {
@@ -225,7 +227,7 @@ export class MongoDbUsersRepository implements IUsersRepository {
    * Agregar tenantId al usuario (cuando se asigna un tenant).
    * Esto se llama desde TenantService cuando se crea un tenant y se asigna al usuario.
    */
-  async addTenantIdToUser(userId: string, tenantId: string): Promise<UserDocument | null> {
+  async addTenantIdToUser(userId: string, tenantId: string): Promise<User | null> {
     return this.userModel
       .findOneAndUpdate(
         { id: userId, status: UserStatus.ACTIVE },
@@ -246,6 +248,71 @@ export class MongoDbUsersRepository implements IUsersRepository {
     );
 
     return result.matchedCount > 0;
+  }
+
+  /**
+   * Obtener documento raw (usado internamente).
+   */
+  async findByIdRaw(id: string): Promise<User | null> {
+    return this.userModel.findOne({ id }).exec();
+  }
+
+  /**
+   * Verifica si un teléfono ya existe en la base de datos
+   */
+  async existsByPhone(phone: string): Promise<boolean> {
+    try {
+      const count = await this.userModel.countDocuments({ phone }).exec();
+      return count > 0;
+    } catch (error: any) {
+      this.logger.error(`Error checking if phone exists ${phone}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Marca el teléfono de un usuario como confirmado
+   */
+  async markPhoneConfirmed(userId: string): Promise<void> {
+    try {
+      await this.userModel
+        .findOneAndUpdate(
+          { id: userId },
+          { phoneConfirmed: true },
+          { new: true },
+        )
+        .exec();
+
+      this.logger.log(`Phone confirmed for user ${userId}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Error marking phone as confirmed for user ${userId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Actualiza la contraseña de un usuario por teléfono
+   */
+  async updatePasswordByPhone(
+    phone: string,
+    passwordHash: string,
+  ): Promise<void> {
+    try {
+      await this.userModel
+        .findOneAndUpdate({ phone }, { passwordHash }, { new: true })
+        .exec();
+
+      this.logger.log(`Password updated for user with phone ${phone}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Error updating password for user with phone ${phone}:`,
+        error,
+      );
+      throw error;
+    }
   }
 
   /**

@@ -4,7 +4,7 @@ import { Model, QueryFilter } from 'mongoose';
 import { ICardPort } from '../../domain/ports/card.port';
 import { CardStatusEnum } from '../../domain/enums';
 import { Card, CardDocument } from '../schemas/card.schema';
-import { MongoDbUsersRepository } from 'src/modules/users/infrastructure/adapters';
+import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 
 /**
  * Repositorio de Cards implementando el puerto ICardPort
@@ -17,7 +17,7 @@ export class CardsRepository implements ICardPort {
   constructor(
     @InjectModel(Card.name)
     private readonly cardModel: Model<CardDocument>,
-    private readonly usersRepository: MongoDbUsersRepository,
+    private readonly usersRepository: UsersRepository,
   ) { }
 
   /**

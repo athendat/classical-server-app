@@ -18,7 +18,7 @@ import { CardStatusEnum } from '../domain/enums/card-status.enum';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { CardVaultAdapter } from '../infrastructure/adapters';
-import { MongoDbUsersRepository } from 'src/modules/users/infrastructure/adapters';
+import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { buildMongoQuery } from 'src/common/helpers';
 
@@ -36,7 +36,7 @@ export class CardsService {
     private readonly cardsRepository: CardsRepository,
     private readonly cardVaultAdapter: CardVaultAdapter,
     private readonly iso4PinblockService: Iso4PinblockService,
-    private readonly usersRepository: MongoDbUsersRepository,
+    private readonly usersRepository: UsersRepository,
   ) { }
 
   /**
