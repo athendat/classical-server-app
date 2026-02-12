@@ -11,6 +11,7 @@ import { Role } from 'src/modules/roles/domain';
 import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
 import { UserLifecycle } from './user-lifecycle.schema';
 import { AuditEvent } from 'src/modules/audit/schemas/audit-event.schema';
+import { Session } from 'src/modules/auth/infrastructure/schemas/session.schema';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -63,14 +64,12 @@ export class User extends AbstractSchema {
     default: UserStatus.ACTIVE,
   })
   status: UserStatus;
-
-  @Prop({ type: Date })
-  lastActive?: Date;
   
   @Prop({ type: Object })
   metadata?: Record<string, any>;
 
-  
+  lastSession?: Session;
+
   recentActivity?: AuditEvent[];
 
   lifecycleHistory?: UserLifecycle[];
@@ -119,6 +118,14 @@ UserSchema.virtual('recentActivity', {
   foreignField: 'userId',
   justOne: false,
   options: { sort: { timestamp: -1 }, limit: 10 },
+});
+
+UserSchema.virtual('lastSession', {
+  ref: 'Session',
+  localField: 'id',
+  foreignField: 'userId',
+  justOne: true,
+  options: { sort: { loginTimestamp: -1 }, limit: 1 },
 });
 
 

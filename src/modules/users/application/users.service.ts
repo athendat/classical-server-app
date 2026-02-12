@@ -821,6 +821,8 @@ export class UsersService implements IUsersService {
       updatedAt: user.updatedAt,
       initials: user.initials,
       recentActivity: user.recentActivity,
+      lastSession: user.lastSession,
+      tenant: user.tenant,
     };
   }
 

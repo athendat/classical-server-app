@@ -6,6 +6,8 @@ import { User } from '../../infrastructure/schemas/user.schema';
 import { QueryFilter } from 'mongoose';
 import { QueryParams } from 'src/common/types';
 import { AuditEvent } from 'src/modules/audit/schemas/audit-event.schema';
+import { Session } from 'src/modules/auth/infrastructure/schemas/session.schema';
+import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
 
 export interface CreateUserPayload {
   userId?: string;
@@ -36,23 +38,26 @@ export interface UpdateUserPasswordPayload {
 }
 
 export interface UserDTO {
+  fullname: string;
   id: string;
   idNumber: string;
-  userId?: string;
   phone: string;
-  phoneConfirmed?: boolean;
-  initials?: string;
+  roleKey: string;
+  status: UserStatus;
+
+  additionalRoleKeys?: string[];
+  createdAt?: Date;
   email?: string;
   emailVerified?: boolean;
-  fullname: string;
-  roleKey: string;
-  additionalRoleKeys?: string[];
-  role?: Role;
-  status: UserStatus;
+  initials?: string;
   isSystemAdmin?: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
+  lastSession?: Session;
+  phoneConfirmed?: boolean;
   recentActivity?: AuditEvent[];
+  role?: Role;
+  tenant?: Tenant;
+  updatedAt?: Date;
+  userId?: string;
 }
 
 /**

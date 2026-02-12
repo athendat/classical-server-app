@@ -374,6 +374,11 @@ export class UsersRepository implements IUsersPort {
         path: 'lifecycleHistory',
         model: 'UserLifecycle',
         select: ['id', 'userId', 'previousState', 'newState', 'reason', 'createdAt'],
+      },
+      {
+        path: 'lastSession',
+        model: 'Session',
+        select: ['id', 'userId', 'status', 'loginTimestamp', 'logoutTimestamp'],
       }
     ];
   }
