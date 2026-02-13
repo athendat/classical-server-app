@@ -67,7 +67,7 @@ export class TransactionService {
           ref: existingTransaction.ref,
           no: existingTransaction.no,
           tenantName: existingTransaction.tenantName,
-          amount: existingTransaction.amount,
+          amount: existingTransaction.amount * 100,
           expiresAt: existingTransaction.expiresAt.toISOString(),
         });
 

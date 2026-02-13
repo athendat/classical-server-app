@@ -670,7 +670,7 @@ export class TransactionsRepository implements ITransactionsRepository {
       tenantId: document.tenantId,
       tenantName: document.tenantName,
       customerId: document.customerId,
-      amount: document.amount,
+      amount: document.amount * 0.01,
       status: document.status,
       cardId: document.cardId,
       ttlMinutes: document.ttlMinutes,
