@@ -12,6 +12,7 @@ import { TransactionSequenceSchema } from './infrastructure/schemas/transaction-
 import { MongoDbSequenceAdapter } from './infrastructure/adapters/sequence.adapter';
 import { TransactionsRepository } from './infrastructure/adapters/transactions.repository';
 import { TransactionsController } from './infrastructure/controllers/transactions.controller';
+import { TestTransactionsController } from './infrastructure/controllers/test-transactions.controller';
 import { TransactionExpirationTask } from './infrastructure/tasks/transaction-expiration.task';
 
 // Application
@@ -20,6 +21,7 @@ import { TransactionService } from './application/services/transaction.service';
 import { TransactionQueryService } from './application/services/transaction-query.service';
 import { DashboardService } from './application/services/dashboard.service';
 import { TenantWebhookDispatcher } from './application/services/tenant-webhook.dispatcher';
+import { TestTransactionService } from './application/services/test-transaction.service';
 
 // Ports
 import { Tenant, TenantSchema } from '../tenants/infrastructure/schemas/tenant.schema';
@@ -53,7 +55,7 @@ import { CardsModule } from '../cards/cards.module';
         TenantsModule,
         UsersModule,
     ],
-    controllers: [TransactionsController],
+    controllers: [TransactionsController, TestTransactionsController],
     providers: [
 
         AsyncContextService,
@@ -67,6 +69,7 @@ import { CardsModule } from '../cards/cards.module';
         TransactionQueryService,
         DashboardService,
         TenantWebhookDispatcher,
+        TestTransactionService,
 
         // Tasks
         TransactionExpirationTask,

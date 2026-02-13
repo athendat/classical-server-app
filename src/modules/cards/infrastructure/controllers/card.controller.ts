@@ -200,10 +200,10 @@ export class CardController {
   }
 
   /**
-   * GET /cards/:id - Get card details by ID
+   * GET /cards/details/:id - Get card details by ID
    * @returns 200 OK with card details
    */
-  @Get(':id')
+  @Get('details/:id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Obtener detalles de una tarjeta',

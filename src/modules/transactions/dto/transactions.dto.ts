@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, Max, Min, IsUUID } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Max, Min, IsUUID, IsInt } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transaction } from '../domain/entities/transaction.entity';
 
@@ -35,7 +35,7 @@ export class CreateTransactionDto {
     description: 'Monto en centavos (entero, mínimo 1)',
     example: 1500,
   })
-  @IsNumber({}, { message: 'amount debe ser un número' })
+  @IsInt({ message: 'amount debe ser un número entero (en centavos)' })
   @Min(1, { message: 'amount debe ser como mínimo 1 (centavo)' })
   amount: number;
 
@@ -120,6 +120,12 @@ export class CreateTransactionResponseDto {
     example: 1024,
   })
   no: number;
+
+  @ApiProperty({
+    description: 'Nombre del tenant al que pertenece la transacción',
+    example: 'Tenant ABC',
+  })
+  tenantName: string;
 
   @ApiProperty({
     description: 'Monto en centavos',
