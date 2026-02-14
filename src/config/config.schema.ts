@@ -42,7 +42,7 @@ export const configValidationSchema: joi.ObjectSchema = joi
     API_KEY: joi.string().required(),
     APP_NAME: joi.string().required(),
     DB_HOST: joi.string().required(),
-    ENVIRONMENT: joi.alternatives().try(joi.string().valid('DEVELOPMENT', 'PRODUCTION', 'TEST').required()),
+    ENVIRONMENT: joi.alternatives().try(joi.string().valid('DEVELOPMENT', 'PRODUCTION', 'SANDBOX').required()),
     FIREBASE_CREDENTIALS: joi.string().optional(),
     JWT_SECRET: joi.string().required(),
     PORT: joi.number().required(),
