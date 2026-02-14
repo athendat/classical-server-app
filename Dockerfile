@@ -44,7 +44,7 @@ COPY --from=builder /usr/src/app/dist ./dist
 COPY package.json ./
 
 # Exponer puerto
-EXPOSE 8100
+EXPOSE 3000
 
 ARG MONGO_DB_ENV=ath-mongo
 ENV API_KEY=${API_KEY}
