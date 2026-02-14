@@ -61,7 +61,7 @@ export class AuthAdapter implements IAuthService {
     this.jwtExpiration = config.get<number>('jwt.expirationSec') ?? 3600;
     this.keyRotationDays = config.get<number>('jwt.keyRotationDays') ?? 30;
     this.clockSkewSecs = config.get<number>('jwt.clockSkewSec') ?? 60;
-    this.issuer = config.get<string>('jwt.issuer') ?? 'fx-kms-api';
+    this.issuer = config.get<string>('jwt.issuer') ?? 'classical-server';
 
     // Initialize with default key
     this.generateAndCacheKey();
