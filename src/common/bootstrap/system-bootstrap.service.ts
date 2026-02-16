@@ -186,15 +186,30 @@ export class SystemBootstrapService implements OnModuleInit {
         return;
       }
 
+      // Validar y limpiar variables de entorno
+      const cleanEmail = saEmail.trim();
+      const cleanPwd = saPwd.trim();
+
+      if (!cleanEmail || !cleanPwd) {
+        this.logger.warn(
+          `   ⚠️  SA_EMAIL or SA_PWD are empty after trimming - super admin not created`,
+        );
+        return;
+      }
+
+      this.logger.log(
+        `📝 Creating super admin with email: ${cleanEmail}`,
+      );
+
       // Hash de la contraseña usando el servicio de usuarios
-      const passwordHash = await this.usersService.hashPassword(saPwd);
+      const passwordHash = await this.usersService.hashPassword(cleanPwd);
 
       // Crear el usuario super admin
       const superAdminUser = await this.userModel.create({
-        email: saEmail,
+        email: cleanEmail,
         fullname: 'System Administrator',
-        idNumber: '00000000000',
-        phone: '00000000', // Teléfono de sistema
+        idNumber: 'SA-SYSTEM-0001',
+        phone: '+1-000-0000', // Teléfono de sistema con formato
         phoneConfirmed: true, // Confirmado automáticamente
         roleKey: 'super_admin',
         passwordHash,
@@ -207,7 +222,7 @@ export class SystemBootstrapService implements OnModuleInit {
       });
 
       this.logger.log(
-        `✅ PHASE 3 completed: Super admin user created successfully (email: ${saEmail}, id: ${superAdminUser.id})`,
+        `✅ PHASE 3 completed: Super admin user created successfully (email: ${cleanEmail}, id: ${superAdminUser.id})`,
       );
     } catch (error: any) {
       this.logger.error(

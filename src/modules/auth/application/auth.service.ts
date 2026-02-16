@@ -1560,6 +1560,10 @@ export class AuthService {
 
   /**
    * Validación de credenciales contra la base de datos
+   *
+   * Soporta búsqueda por:
+   * - Email (si username contiene @)
+   * - Teléfono (formato numérico)
    */
   private async validateCredentials(
     username: string,
@@ -1570,14 +1574,29 @@ export class AuthService {
     reason?: 'PHONE_NOT_CONFIRMED';
   }> {
     try {
-      // Buscar usuario por email
-      const result = await this.usersService.findByPhone(username);
+      let result;
 
-      console.log({result})
+      // Detectar si es email o teléfono
+      const isEmail = username.includes('@');
 
+      if (isEmail) {
+        // Buscar por email
+        result = await this.usersService.findByEmail(username);
+        this.logger.debug(
+          `Attempting login with email: ${username}`,
+        );
+      } else {
+        // Buscar por teléfono
+        result = await this.usersService.findByPhone(username);
+        this.logger.debug(
+          `Attempting login with phone: ${username}`,
+        );
+      }
 
       if (!result.ok) {
-        this.logger.warn(`Error finding user: ${username}`);
+        this.logger.warn(
+          `[Login] User not found: ${username}`,
+        );
         return { valid: false };
       }
 
@@ -1587,38 +1606,55 @@ export class AuthService {
         return { valid: false };
       }
 
-      // Si el usuario no tiene contraseña, aceptar
+      // Obtener documento raw para verificar contraseña
       const userRaw = await this.usersService.findByIdRaw(user.id);
-      console.log({userRaw})
-      
-      if (!userRaw || !userRaw.passwordHash) {
-        // Verificar que el teléfono esté confirmado
-        if (!userRaw?.phoneConfirmed) {
-          return { valid: false, reason: 'PHONE_NOT_CONFIRMED' };
-        }
-        return { valid: true, user };
-      }
 
-      // Verificar contraseña
-      const isPasswordValid = await this.usersService.verifyPassword(
-        password,
-        userRaw.passwordHash,
-      );
-
-      console.log({isPasswordValid})
-
-      if (!isPasswordValid) {
+      if (!userRaw) {
+        this.logger.warn(
+          `[Login] User document not found in database: ${user.id}`,
+        );
         return { valid: false };
       }
 
       // Verificar que el teléfono esté confirmado
       if (!userRaw.phoneConfirmed) {
+        this.logger.warn(
+          `[Login] Phone not confirmed for user: ${user.id}`,
+        );
         return { valid: false, reason: 'PHONE_NOT_CONFIRMED' };
       }
 
+      // Si el usuario no tiene contraseña, rechazar
+      if (!userRaw.passwordHash) {
+        this.logger.warn(
+          `[Login] User has no password hash: ${user.id}`,
+        );
+        return { valid: false };
+      }
+
+      // Verificar contraseña contra hash
+      const isPasswordValid = await this.usersService.verifyPassword(
+        password,
+        userRaw.passwordHash,
+      );
+
+      if (!isPasswordValid) {
+        this.logger.warn(
+          `[Login] Invalid password for user: ${username}`,
+        );
+        return { valid: false };
+      }
+
+      this.logger.log(
+        `[Login] Credentials validated successfully for user: ${user.id}`,
+      );
+
       return { valid: true, user };
     } catch (error: any) {
-      this.logger.error('Error validating credentials:', error);
+      this.logger.error(
+        `[Login] Error validating credentials for ${username}:`,
+        error instanceof Error ? error.stack : String(error),
+      );
       return { valid: false };
     }
   }
