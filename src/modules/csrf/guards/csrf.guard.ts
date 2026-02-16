@@ -22,6 +22,8 @@ export class CsrfGuard implements CanActivate {
     '/auth/login',
     '/auth/register',
     '/auth/register-merchant',
+    '/auth/refresh',
+    '/auth/logout',
     '/auth/forgot-password',
     '/auth/reset-password',
     '/csrf-token',
