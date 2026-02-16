@@ -27,7 +27,7 @@ export const getCookieConfig = (): CookieConfiguration => {
       ...baseConfig,
       httpOnly: true,
       maxAge: 604800000, // 7 días
-      path: '/api_053/auth/refresh',
+      path: '/',
     },
     csrf_token: {
       ...baseConfig,
