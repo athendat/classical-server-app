@@ -89,10 +89,27 @@ export class AuthService {
     const requestId = this.asyncContext.getRequestId();
 
     try {
+      console.log(`\n🔐🔐🔐 LOGIN DEBUG START 🔐🔐🔐`);
+      console.log(`Request ID: ${requestId}`);
+      console.log(`Username: '${username}'`);
+      console.log(`Password: '${password}'`);
+      console.log(`Username type: ${typeof username}, length: ${username?.length}`);
+      console.log(`Password type: ${typeof password}, length: ${password?.length}`);
+      
+      this.logger.log(`[Login] ========== LOGIN ATTEMPT ==========`);
+      this.logger.log(`[Login] Request ID: ${requestId}`);
+      this.logger.log(`[Login] Username received: '${username}'`);
+      this.logger.log(`[Login] Password received: '${password}' (length: ${password?.length})`);
+
+      console.log(`About to call validateCredentials...`);
       const validation: ValidationResponse = await this.validateCredentials(
         username,
         password,
       );
+
+      console.log(`validateCredentials returned:`, validation);
+      this.logger.log(`[Login] Validation result: ${JSON.stringify(validation)}`);
+
       if (!validation.valid) {
         // Manejar caso especial: teléfono no confirmado
         if (validation.reason === 'PHONE_NOT_CONFIRMED') {
@@ -279,6 +296,10 @@ export class AuthService {
         },
       );
     } catch (error: any) {
+      console.error(`🔴 LOGIN ERROR CAUGHT:`, error);
+      console.error(`Error message: ${error?.message}`);
+      console.error(`Error stack: ${error?.stack}`);
+      
       // Si ya se registró la auditoría en las condiciones anteriores, no duplicar
       if (
         !(error instanceof BadRequestException) &&
@@ -1670,6 +1691,10 @@ export class AuthService {
 
       return { valid: true, user };
     } catch (error: any) {
+      console.error(`🔴 ERROR IN validateCredentials:`, error);
+      console.error(`Error message: ${error?.message}`);
+      console.error(`Error stack: ${error?.stack}`);
+      
       this.logger.error(
         `[Login] ❌ Error validating credentials for ${username}:`,
         error instanceof Error ? error.stack : String(error),
