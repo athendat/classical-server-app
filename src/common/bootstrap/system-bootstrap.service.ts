@@ -179,6 +179,11 @@ export class SystemBootstrapService implements OnModuleInit {
       const saEmail = this.configService.get<string>('SA_EMAIL');
       const saPwd = this.configService.get<string>('SA_PWD');
 
+      this.logger.log(`[Bootstrap] SA_EMAIL from config: '${saEmail}'`);
+      this.logger.log(`[Bootstrap] SA_PWD from config: '${saPwd}'`);
+      this.logger.log(`[Bootstrap] SA_PWD length: ${saPwd?.length}`);
+      this.logger.log(`[Bootstrap] SA_PWD charCodes: ${saPwd?.split('').map(c => c.charCodeAt(0)).join(',')}`);
+
       if (!saEmail || !saPwd) {
         this.logger.warn(
           `   ⚠️  SA_EMAIL or SA_PWD not configured - super admin not created`,
@@ -189,6 +194,10 @@ export class SystemBootstrapService implements OnModuleInit {
       // Validar y limpiar variables de entorno
       const cleanEmail = saEmail.trim();
       const cleanPwd = saPwd.trim();
+
+      this.logger.log(`[Bootstrap] Clean email: '${cleanEmail}'`);
+      this.logger.log(`[Bootstrap] Clean password: '${cleanPwd}'`);
+      this.logger.log(`[Bootstrap] Clean password length: ${cleanPwd.length}`);
 
       if (!cleanEmail || !cleanPwd) {
         this.logger.warn(
@@ -202,14 +211,17 @@ export class SystemBootstrapService implements OnModuleInit {
       );
 
       // Hash de la contraseña usando el servicio de usuarios
+      this.logger.log(`[Bootstrap] Starting password hash for: '${cleanPwd}'`);
       const passwordHash = await this.usersService.hashPassword(cleanPwd);
+      this.logger.log(`[Bootstrap] Password hash result: '${passwordHash}'`);
+      this.logger.log(`[Bootstrap] Password hash length: ${passwordHash.length}`);
 
       // Crear el usuario super admin
       const superAdminUser = await this.userModel.create({
         email: cleanEmail,
         fullname: 'System Administrator',
         idNumber: 'SA-SYSTEM-0001',
-        phone: '+1-000-0000', // Teléfono de sistema con formato
+        phone: '+1-000-0000',
         phoneConfirmed: true, // Confirmado automáticamente
         roleKey: 'super_admin',
         passwordHash,
@@ -220,6 +232,16 @@ export class SystemBootstrapService implements OnModuleInit {
           createdAt: new Date().toISOString(),
         },
       });
+
+      this.logger.log(
+        `[Bootstrap] User created in MongoDB with ID: ${superAdminUser.id}`,
+      );
+      
+      // Verificar que se guardó correctamente
+      const savedUser = await this.userModel.findById(superAdminUser.id).exec();
+      this.logger.log(`[Bootstrap] Verification - User from DB: ${savedUser?.email}`);
+      this.logger.log(`[Bootstrap] Verification - Password hash from DB: '${savedUser?.passwordHash}'`);
+      this.logger.log(`[Bootstrap] Verification - phoneConfirmed: ${savedUser?.phoneConfirmed}`);
 
       this.logger.log(
         `✅ PHASE 3 completed: Super admin user created successfully (email: ${cleanEmail}, id: ${superAdminUser.id})`,

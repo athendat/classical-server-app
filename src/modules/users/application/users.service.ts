@@ -785,7 +785,22 @@ export class UsersService implements IUsersService {
    * Hash de contraseña con Argon2.
    */
   async hashPassword(password: string): Promise<string> {
-    return argon2.hash(password);
+    try {
+      this.logger.log(`[HashPassword] Input password: '${password}' (length: ${password.length})`);
+      this.logger.log(`[HashPassword] Password charCodes: ${password.split('').map(c => c.charCodeAt(0)).join(',')}`);
+      
+      const hash = await argon2.hash(password);
+      
+      this.logger.log(`[HashPassword] Hash generated successfully`);
+      this.logger.log(`[HashPassword] Hash length: ${hash.length}`);
+      this.logger.log(`[HashPassword] Hash (first 50 chars): ${hash.substring(0, 50)}...`);
+      this.logger.log(`[HashPassword] Hash value: ${hash}`);
+      
+      return hash;
+    } catch (error: any) {
+      this.logger.error(`[HashPassword] Error hashing password:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -793,9 +808,17 @@ export class UsersService implements IUsersService {
    */
   async verifyPassword(password: string, hash: string): Promise<boolean> {
     try {
-      return await argon2.verify(hash, password);
+      this.logger.log(`[VerifyPassword] Input password: '${password}' (length: ${password.length})`);
+      this.logger.log(`[VerifyPassword] Password charCodes: ${password.split('').map(c => c.charCodeAt(0)).join(',')}`);
+      this.logger.log(`[VerifyPassword] Hash to verify: ${hash.substring(0, 50)}... (length: ${hash.length})`);
+      
+      const isValid = await argon2.verify(hash, password);
+      
+      this.logger.log(`[VerifyPassword] Verification result: ${isValid}`);
+      
+      return isValid;
     } catch (error: any) {
-      this.logger.error('Error verifying password:', error);
+      this.logger.error(`[VerifyPassword] Error verifying password:`, error);
       return false;
     }
   }
