@@ -1573,6 +1573,9 @@ export class AuthService {
       // Buscar usuario por email
       const result = await this.usersService.findByPhone(username);
 
+      console.log({result})
+
+
       if (!result.ok) {
         this.logger.warn(`Error finding user: ${username}`);
         return { valid: false };
@@ -1586,6 +1589,8 @@ export class AuthService {
 
       // Si el usuario no tiene contraseña, aceptar
       const userRaw = await this.usersService.findByIdRaw(user.id);
+      console.log({userRaw})
+      
       if (!userRaw || !userRaw.passwordHash) {
         // Verificar que el teléfono esté confirmado
         if (!userRaw?.phoneConfirmed) {
@@ -1599,6 +1604,8 @@ export class AuthService {
         password,
         userRaw.passwordHash,
       );
+
+      console.log({isPasswordValid})
 
       if (!isPasswordValid) {
         return { valid: false };
