@@ -10,10 +10,12 @@ export const getCookieConfig = (): CookieConfiguration => {
   const isProduction = process.env.NODE_ENV === 'production';
   const cookieDomain = process.env.COOKIE_DOMAIN;
 
+  // En desarrollo local (localhost), NO incluir domain para que funcione con diferentes puertos
+  // En producción, incluir domain si está configurado
   const baseConfig: CookieOptions = {
     secure: isProduction,
-    sameSite: 'lax',
-    domain: cookieDomain,
+    sameSite: isProduction ? 'none' : 'lax',
+    ...(isProduction && cookieDomain && { domain: cookieDomain }),
   };
 
   return {
