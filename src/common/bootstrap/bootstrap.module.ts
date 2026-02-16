@@ -5,6 +5,7 @@ import { SystemBootstrapService } from './system-bootstrap.service';
 import { ModuleSchema } from 'src/modules/modules/infrastructure/schemas/module.schema';
 import { RoleSchema } from 'src/modules/roles/infrastructure/schemas/role.schema';
 import { UserSchema } from 'src/modules/users/infrastructure/schemas/user.schema';
+import { UsersModule } from 'src/modules/users/users.module';
 
 /**
  * BootstrapModule - Módulo de inicialización del sistema
@@ -27,6 +28,7 @@ import { UserSchema } from 'src/modules/users/infrastructure/schemas/user.schema
       { name: 'Role', schema: RoleSchema },
       { name: 'User', schema: UserSchema },
     ]),
+    UsersModule,
   ],
   providers: [SystemBootstrapService],
   exports: [SystemBootstrapService],
