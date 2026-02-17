@@ -86,6 +86,8 @@ export class CsrfGuard implements CanActivate {
       throw new ForbiddenException('CSRF token mismatch');
     }
 
+    console.log({ csrfTokenHeader })
+
     // Validar token en cache
     const isValid = await this.csrfService.validateToken(
       csrfTokenHeader as string,

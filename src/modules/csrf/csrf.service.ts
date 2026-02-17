@@ -6,7 +6,7 @@ import { CacheService } from 'src/common/cache/cache.service';
 @Injectable()
 export class CsrfService {
   private readonly CSRF_PREFIX = 'csrf:';
-  private readonly CSRF_TTL = 86400; // 1 día en segundos
+  private readonly CSRF_TTL = 3600; // 1 día en segundos
 
   constructor(
     private readonly cacheService: CacheService,
@@ -17,7 +17,7 @@ export class CsrfService {
    */
   async generateToken(): Promise<string> {
     const token = randomUUID();
-    await this.cacheService.set(this.CSRF_PREFIX + token, true, this.CSRF_TTL);
+    await this.cacheService.set(this.CSRF_PREFIX + token, true, this.CSRF_TTL * 1000);
     return token;
   }
 
