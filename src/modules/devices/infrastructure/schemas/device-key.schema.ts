@@ -5,10 +5,11 @@
  */
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, HydratedDocument, Types } from 'mongoose';
 import { AbstractSchema } from 'src/common/schemas/abstract.schema';
 import { DeviceKeyStatus } from '../../domain/models/device-key.model';
 
+export type DeviceKeyDocument = HydratedDocument<DeviceKey>;
 @Schema({ timestamps: true, collection: 'device_keys' })
 export class DeviceKey extends AbstractSchema {
   @Prop({ required: true, unique: true, index: true })
@@ -67,4 +68,3 @@ DeviceKeySchema.index({ expiresAt: 1, status: 1 });
 // Comentado por defecto para evitar pérdidas inesperadas; descomenta si la política lo permite
 // DeviceKeySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 604800 }); // 7 días
 
-export type DeviceKeyDocument = DeviceKey & Document;

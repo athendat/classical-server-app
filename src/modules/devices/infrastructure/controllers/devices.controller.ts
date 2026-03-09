@@ -9,6 +9,8 @@
  * - Consulta de información y historial
  */
 
+import type { Response } from 'express';
+
 import {
   Controller,
   Post,
@@ -22,6 +24,7 @@ import {
   Logger,
   Query,
   UseInterceptors,
+  Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiBearerAuth, ApiTags, ApiHeader, ApiSecurity } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -98,14 +101,12 @@ export class DevicesController {
     description: 'Dispositivo duplicado - rotación requerida',
   })
   async exchangeKeys(
+    @Res() res: Response,
     @CurrentActor() actor: Actor,
     @Body() request: DeviceKeyExchangeRequestDto,
-  ): Promise<DeviceKeyExchangeResponseDto> {
-    this.logger.log(
-      `Key exchange request | userId: ${actor.actorId} | deviceId: ${request.device_id}`,
-    );
-
-    return this.keyExchangeService.exchangePublicKeyWithDevice(actor.actorId, request);
+  ): Promise<Response> {
+    const response = await this.keyExchangeService.exchangePublicKeyWithDevice(actor.actorId, request);
+    return res.status(response.statusCode).json(response);
   }
 
   /**

@@ -5,7 +5,7 @@
  * Orquesta la colaboración entre adapters criptográficos, repositorio y Vault.
  */
 
-import { Injectable, Logger, Inject, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, Inject, BadRequestException, ConflictException, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import type { IDeviceRepository } from '../domain/ports/device-repository.port';
@@ -18,13 +18,15 @@ import { DEVICE_INJECTION_TOKENS } from '../domain/constants/device-injection-to
 import { DeviceKeyExchangeRequestDto } from '../dto/device-key-exchange-request.dto';
 import { DeviceKeyExchangeResponseDto } from '../dto/device-key-exchange-response.dto';
 
-import { DeviceKeyStatus, DeviceKeyModel } from '../domain/models/device-key.model';
+import { DeviceKeyStatus } from '../domain/models/device-key.model';
 import { KeyRotationReason } from '../domain/models/key-rotation.model';
 
 import { DEVICE_KEY_CONSTANTS } from '../domain/constants/device-key.constants';
 
 import { DeviceRegisteredEvent } from '../domain/events/device-registered.event';
 import { KeyRotatedEvent } from '../domain/events/key-rotated.event';
+import { ApiResponse } from 'src/common/types';
+import { AsyncContextService } from '../../../common/context/async-context.service';
 
 @Injectable()
 export class DeviceKeyExchangeService {
@@ -40,7 +42,9 @@ export class DeviceKeyExchangeService {
     @Inject(DEVICE_INJECTION_TOKENS.KEY_ROTATION_PORT)
     private readonly rotationRepository: IKeyRotationPort,
     private readonly eventEmitter: EventEmitter2,
-  ) {}
+
+    private readonly asyncContextService: AsyncContextService,
+  ) { }
 
   /**
    * Flujo principal: Intercambio de claves públicas ECDH P-256
@@ -60,13 +64,21 @@ export class DeviceKeyExchangeService {
   async exchangePublicKeyWithDevice(
     userId: string,
     request: DeviceKeyExchangeRequestDto,
-  ): Promise<DeviceKeyExchangeResponseDto> {
+  ): Promise<ApiResponse<DeviceKeyExchangeResponseDto>> {
+
+    const requestId = this.asyncContextService.getRequestId();
+
     try {
       this.logger.log(`Starting key exchange | userId: ${userId} | deviceId: ${request.device_id}`);
 
       // 1. Validar usuario está autenticado
       if (!userId) {
-        throw new BadRequestException('User ID is required');
+        return ApiResponse.fail<DeviceKeyExchangeResponseDto>(
+          HttpStatus.BAD_REQUEST,
+          '',
+          'User ID is required',
+          { requestId }
+        );
       }
 
       // 2. Validar clave pública del dispositivo
@@ -75,8 +87,11 @@ export class DeviceKeyExchangeService {
       );
 
       if (!publicKeyValidation.isValid) {
-        throw new BadRequestException(
+        return ApiResponse.fail<DeviceKeyExchangeResponseDto>(
+          HttpStatus.BAD_REQUEST,
+          '',
           `Invalid device public key: ${publicKeyValidation.reason}`,
+          { requestId }
         );
       }
 
@@ -84,14 +99,20 @@ export class DeviceKeyExchangeService {
       const activeDeviceCount = await this.deviceRepository.countActiveDevicesByUserId(userId);
 
       if (activeDeviceCount >= DEVICE_KEY_CONSTANTS.MAX_DEVICES_PER_USER) {
-        throw new ConflictException(
+
+        return ApiResponse.fail<DeviceKeyExchangeResponseDto>(
+          HttpStatus.CONFLICT,
+          '',
           `Maximum number of active devices (${DEVICE_KEY_CONSTANTS.MAX_DEVICES_PER_USER}) reached`,
+          { requestId }
         );
       }
 
       // 4. Verificar si dispositivo ya existe
       let previousKeyHandle: string | undefined;
       const existingDevice = await this.deviceRepository.findByDeviceId(request.device_id);
+
+      console.log('Existing device:', existingDevice);
 
       if (existingDevice) {
         // Rotación de clave detectada
@@ -124,14 +145,19 @@ export class DeviceKeyExchangeService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + DEVICE_KEY_CONSTANTS.KEY_VALIDITY_DAYS);
 
-      // 11. Marcar clave anterior como ROTATED (si existía)
-      if (previousKeyHandle && existingDevice) {
-        await this.deviceRepository.updateStatus(
-          existingDevice.id,
-          DeviceKeyStatus.ROTATED,
-        );
+      // 11. Persistir en MongoDB (actualizar si existe, crear si es nuevo)
+      if (existingDevice) {
+        if (!previousKeyHandle) {
 
-        // Registrar en historial
+          return ApiResponse.fail<DeviceKeyExchangeResponseDto>(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            '',
+            `Cannot rotate key for device ${request.device_id}: previous key handle not found`,
+            { requestId }
+          );
+        }
+
+        // Registrar rotación en historial
         await this.rotationRepository.recordRotation({
           deviceId: request.device_id,
           userId,
@@ -141,36 +167,42 @@ export class DeviceKeyExchangeService {
           initiatedBy: userId,
           rotatedAt: new Date(),
         });
-      }
 
-      // 12. Persistir nueva clave en MongoDB
-      const newDeviceKey = await this.deviceRepository.create({
-        deviceId: request.device_id,
-        userId,
-        keyHandle,
-        devicePublicKey: request.device_public_key,
-        serverPublicKey: serverKeyPair.publicKeyBase64,
-        saltHex: salt.toString('base64'),
-        status: DeviceKeyStatus.ACTIVE,
-        issuedAt,
-        expiresAt,
-        platform: request.platform,
-        appVersion: request.app_version,
-        deviceName: request.device_name,
-      });
-
-      // 13. Emitir evento para auditoría
-      this.eventEmitter.emit(
-        'device.registered',
-        new DeviceRegisteredEvent(
-          request.device_id,
+        // Actualizar dispositivo existente con nuevas claves
+        await this.deviceRepository.update(
+          existingDevice.id,
+          {
+            keyHandle,
+            devicePublicKey: request.device_public_key,
+            serverPublicKey: serverKeyPair.publicKeyBase64,
+            saltHex: salt.toString('base64'),
+            status: DeviceKeyStatus.ACTIVE,
+            issuedAt,
+            expiresAt,
+            platform: request.platform,
+            appVersion: request.app_version,
+            deviceName: request.device_name,
+          },
+        );
+      } else {
+        // Crear nuevo dispositivo
+        await this.deviceRepository.create({
+          deviceId: request.device_id,
           userId,
           keyHandle,
-          request.platform,
+          devicePublicKey: request.device_public_key,
+          serverPublicKey: serverKeyPair.publicKeyBase64,
+          saltHex: salt.toString('base64'),
+          status: DeviceKeyStatus.ACTIVE,
           issuedAt,
-        ),
-      );
+          expiresAt,
+          platform: request.platform,
+          appVersion: request.app_version,
+          deviceName: request.device_name,
+        });
+      }
 
+      // 12. Emitir evento para auditoría
       if (previousKeyHandle) {
         this.eventEmitter.emit(
           'device.key.rotated',
@@ -183,9 +215,20 @@ export class DeviceKeyExchangeService {
             new Date(),
           ),
         );
+      } else {
+        this.eventEmitter.emit(
+          'device.registered',
+          new DeviceRegisteredEvent(
+            request.device_id,
+            userId,
+            keyHandle,
+            request.platform,
+            issuedAt,
+          ),
+        );
       }
 
-      // 14. Construir respuesta
+      // 13. Construir respuesta
       const daysUntilExpiration = Math.floor(
         (expiresAt.getTime() - issuedAt.getTime()) / (1000 * 60 * 60 * 24),
       );
@@ -204,10 +247,21 @@ export class DeviceKeyExchangeService {
         `Key exchange completed successfully | deviceId: ${request.device_id} | keyHandle: ${keyHandle} | ${previousKeyHandle ? 'ROTATED' : 'NEW'}`,
       );
 
-      return response;
+      return ApiResponse.ok(
+        HttpStatus.OK,
+        response,
+        'Key exchange successful',
+        { requestId }
+      );
     } catch (error: any) {
       this.logger.error(`Key exchange failed: ${error.message}`, error.stack);
-      throw error;
+      
+      return ApiResponse.fail<DeviceKeyExchangeResponseDto>(
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        error,
+        error.message || 'Key exchange failed',
+        { requestId }
+      );
     }
   }
 }

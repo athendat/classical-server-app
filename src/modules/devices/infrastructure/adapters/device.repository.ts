@@ -13,7 +13,6 @@ import type { IDeviceKey } from '../../domain/models/device-key.model';
 import { DeviceKeyStatus } from '../../domain/models/device-key.model';
 import { PaginationMeta } from 'src/common/types';
 import { createPaginationMeta } from 'src/common/helpers';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class DeviceRepository implements IDeviceRepository {
@@ -25,7 +24,7 @@ export class DeviceRepository implements IDeviceRepository {
     const document = await this.model
       .findOne({
         deviceId,
-        status: DeviceKeyStatus.ACTIVE,
+        // status: DeviceKeyStatus.ACTIVE,
       })
       .lean();
 
@@ -52,13 +51,8 @@ export class DeviceRepository implements IDeviceRepository {
   async create(
     deviceKey: Omit<IDeviceKey, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<IDeviceKey> {
-    const id = uuidv4();
-
     try {
-      const created = await this.model.create({
-        _id: id,
-        ...deviceKey,
-      });
+      const created = await this.model.create(deviceKey);
 
       this.logger.log(
         `Created device key | deviceId: ${deviceKey.deviceId} | keyHandle: ${deviceKey.keyHandle}`,
@@ -75,7 +69,7 @@ export class DeviceRepository implements IDeviceRepository {
     id: string,
     partial: Partial<Omit<IDeviceKey, 'id' | 'createdAt'>>,
   ): Promise<IDeviceKey> {
-    const updated = await this.model.findByIdAndUpdate(id, partial, {
+    const updated = await this.model.findOneAndUpdate({ id }, partial, {
       new: true,
       lean: true,
     });

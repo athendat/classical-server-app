@@ -12,7 +12,6 @@ import { IKeyRotationPort } from '../../domain/ports/key-rotation.port';
 import type { IKeyRotationRecord } from '../../domain/models/key-rotation.model';
 import { PaginationMeta } from 'src/common/types';
 import { createPaginationMeta } from 'src/common/helpers';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class KeyRotationRepository implements IKeyRotationPort {
@@ -26,13 +25,9 @@ export class KeyRotationRepository implements IKeyRotationPort {
   async recordRotation(
     record: Omit<IKeyRotationRecord, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<IKeyRotationRecord> {
-    const id = uuidv4();
 
     try {
-      const created = await this.model.create({
-        _id: id,
-        ...record,
-      });
+      const created = await this.model.create(record);
 
       this.logger.log(
         `Recorded key rotation | deviceId: ${record.deviceId} | reason: ${record.reason}`,

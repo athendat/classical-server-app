@@ -5,9 +5,11 @@
  */
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 import { AbstractSchema } from 'src/common/schemas/abstract.schema';
 import { KeyRotationReason } from '../../domain/models/key-rotation.model';
+
+export type KeyRotationHistoryDocument = HydratedDocument<KeyRotationHistory>;
 
 @Schema({ timestamps: true, collection: 'device_key_rotations' })
 export class KeyRotationHistory extends AbstractSchema {
@@ -41,4 +43,3 @@ KeyRotationHistorySchema.index({ deviceId: 1, rotatedAt: -1 });
 KeyRotationHistorySchema.index({ userId: 1, rotatedAt: -1 });
 KeyRotationHistorySchema.index({ rotatedAt: 1 }); // Para limpieza de registros antiguos
 
-export type KeyRotationHistoryDocument = KeyRotationHistory & Document;

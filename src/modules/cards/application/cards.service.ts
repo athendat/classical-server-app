@@ -1,26 +1,26 @@
-import { Injectable, Inject, Logger, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus, Inject } from '@nestjs/common';
 
 import { v4 as uuidv4 } from 'uuid';
 
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { Iso4PinblockService } from '../infrastructure/services/iso4-pinblock.service';
+import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 
 import { CardsRepository } from '../infrastructure/adapters/card.repository';
-
-import type { ICardVaultPort } from '../domain/ports/card-vault.port';
+import { CardVaultAdapter } from '../infrastructure/adapters';
+import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 
 import { Card } from '../infrastructure/schemas/card.schema';
 
 import { CreateCardDto } from '../dto/create-card.dto';
 import { CardResponseDto } from '../dto/card-response.dto';
+
 import { CardStatusEnum } from '../domain/enums/card-status.enum';
-import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { ApiResponse } from 'src/common/types/api-response.type';
-import { CardVaultAdapter } from '../infrastructure/adapters';
-import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { buildMongoQuery } from 'src/common/helpers';
+import type { ISgtCardPort } from '../domain/ports/sgt-card.port';
 
 /**
  * Card Service - Application layer for card operations
@@ -37,6 +37,8 @@ export class CardsService {
     private readonly cardVaultAdapter: CardVaultAdapter,
     private readonly iso4PinblockService: Iso4PinblockService,
     private readonly usersRepository: UsersRepository,
+    @Inject(INJECTION_TOKENS.CARD_SGT_PORT)
+    private readonly sgtCardPort: ISgtCardPort,
   ) { }
 
   /**
@@ -107,12 +109,12 @@ export class CardsService {
         );
       }
 
-      // Step 6: Create document in MongoDB using repository
+      // Step 6: Create document in MongoDB using repository (PENDING_VERIFICATION)
       const cardData: Partial<Card> = {
         id: cardId,
         userId,
         cardType: dto.cardType,
-        status: CardStatusEnum.ACTIVE,
+        status: CardStatusEnum.PENDING_VERIFICATION,
         lastFour,
         expiryMonth: dto.expiryMonth,
         expiryYear: dto.expiryYear,
@@ -121,7 +123,42 @@ export class CardsService {
 
       const savedCard = await this.cardsRepository.create(cardData);
 
-      // Step 7: Audit log
+      // Step 7: Verify card with SGT (módulo emisor)
+      this.logger.log(`[${requestId}] Calling SGT to verify cardId=${cardId}`);
+      const sgtResult = await this.sgtCardPort.activatePin(
+        cardId,
+        dto.pan,
+        pinblock,
+      );
+
+      // Step 8: Update status based on SGT response
+      let finalStatus: CardStatusEnum;
+      if (sgtResult.isSuccess) {
+        finalStatus = CardStatusEnum.ACTIVE;
+        this.logger.log(`[${requestId}] SGT validated card ${cardId} → ACTIVE`);
+      } else {
+        finalStatus = CardStatusEnum.VERIFICATION_FAILED;
+        const sgtError = sgtResult.getError();
+        this.logger.warn(
+          `[${requestId}] SGT rejected card ${cardId} → VERIFICATION_FAILED: ${sgtError.message}`,
+        );
+        this.auditService.logError(
+          'SGT_ACTIVATE_PIN_FAILED',
+          'card',
+          cardId,
+          sgtError,
+          {
+            module: 'cards',
+            severity: 'HIGH',
+            tags: ['card', 'sgt', 'verification', 'failed'],
+            actorId: userId,
+          },
+        );
+      }
+
+      const verifiedCard = await this.cardsRepository.updateStatus(cardId, finalStatus);
+
+      // Step 9: Audit log
       this.auditService.logAllow('CREATE_CARD', 'card', cardId, {
         module: 'cards',
         severity: 'LOW',
@@ -129,12 +166,12 @@ export class CardsService {
         actorId: userId,
         changes: {
           after: {
-            card: savedCard,
+            card: verifiedCard,
           },
         },
       });
 
-      const responseDto = this.mapCardToResponse(savedCard);
+      const responseDto = this.mapCardToResponse(verifiedCard);
 
       return ApiResponse.ok<CardResponseDto>(
         HttpStatus.CREATED,

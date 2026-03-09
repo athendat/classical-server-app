@@ -7,7 +7,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 
-import { createECDH, randomBytes, hkdfSync, createPrivateKey } from 'crypto';
+import { generateKeyPairSync, createPrivateKey, createPublicKey, diffieHellman, randomBytes, hkdfSync } from 'crypto';
 
 import { IEcdhCryptoPort, KeyPairResult, ValidatePublicKeyResult } from '../../domain/ports/ecdh-crypto.port';
 
@@ -23,27 +23,23 @@ export class EcdhCryptoAdapter implements IEcdhCryptoPort {
    */
   async generateKeyPair(): Promise<KeyPairResult> {
     try {
-      const ecdh = createECDH(DEVICE_KEY_CONSTANTS.ECDH_CURVE);
-      
-      // Generar material criptográfico
-      ecdh.generateKeys();
-      
-      // Obtener y exportar clave privada
-      const privateKey = ecdh.getPrivateKey();
-      const privateKeyObject = createPrivateKey({
-        key: privateKey,
-        format: 'der',
-        type: 'pkcs8',
+      // generateKeyPairSync produce KeyObjects válidos listos para exportar
+      const { privateKey: privKeyObj, publicKey: pubKeyObj } = generateKeyPairSync('ec', {
+        namedCurve: DEVICE_KEY_CONSTANTS.ECDH_CURVE,
       });
-      const privateKeyPem = privateKeyObject.export({ format: 'pem', type: 'pkcs8' }) as string;
-      
-      // Obtener clave pública en formato uncompressed (65 bytes)
-      // getPublicKey() sin argumentos retorna por defecto el formato uncompressed
-      const publicKeyBuffer = ecdh.getPublicKey('uncompressed' as any);
+
+      // Exportar clave privada como PEM/PKCS8 para almacenamiento seguro en Vault
+      const privateKeyPem = privKeyObj.export({ format: 'pem', type: 'pkcs8' }) as string;
+
+      // Extraer clave pública en formato uncompressed (65 bytes) desde la estructura SPKI DER.
+      // El encabezado SPKI de P-256 ocupa exactamente 26 bytes; a partir del byte 26
+      // se encuentran los 65 bytes del punto no comprimido (0x04 || X || Y).
+      const spkiDer = pubKeyObj.export({ format: 'der', type: 'spki' }) as Buffer;
+      const publicKeyBuffer = spkiDer.subarray(26); // 65 bytes: 0x04 + 32 bytes X + 32 bytes Y
       const publicKeyBase64 = publicKeyBuffer.toString('base64');
-      
+
       this.logger.debug(`Generated new key pair | public key length: ${publicKeyBase64.length} chars`);
-      
+
       return {
         privateKeyPem,
         publicKeyBase64,
@@ -63,26 +59,32 @@ export class EcdhCryptoAdapter implements IEcdhCryptoPort {
     serverPrivateKeyPem: string,
   ): Promise<Buffer> {
     try {
-      // Importar clave privada del servidor
+      // Importar clave privada del servidor desde PEM/PKCS8
       const privateKeyObject = createPrivateKey({
         key: serverPrivateKeyPem,
         format: 'pem',
       });
-      
-      // Reconstruir ECDH con la clave privada desde PEM
-      const ecdh = createECDH(DEVICE_KEY_CONSTANTS.ECDH_CURVE);
-      
-      // La clave privada en formato DER
-      const keyDer = privateKeyObject.export({ format: 'der', type: 'pkcs8' });
-      
-      // Convertir clave pública del dispositivo desde Base64
-      const devicePublicKeyBuffer = Buffer.from(devicePublicKeyBase64, 'base64');
-      
-      // Computar secreto compartido
-      const sharedSecret = ecdh.computeSecret(devicePublicKeyBuffer);
-      
+
+      // Reconstruir la clave pública del dispositivo como KeyObject.
+      // El dispositivo envía los 65 bytes crudos en Base64 (punto no comprimido P-256).
+      // Para que Node.js lo acepte como KeyObject, se construye una estructura SPKI DER
+      // anteponiendo el encabezado estándar de 26 bytes de P-256.
+      const P256_SPKI_HEADER = Buffer.from(
+        '3059301306072A8648CE3D020106082A8648CE3D030107034200',
+        'hex',
+      );
+      const rawDevicePublicKey = Buffer.from(devicePublicKeyBase64, 'base64');
+      const spkiDer = Buffer.concat([P256_SPKI_HEADER, rawDevicePublicKey]);
+      const devicePublicKeyObject = createPublicKey({ key: spkiDer, format: 'der', type: 'spki' });
+
+      // Computar secreto compartido ECDH usando ambos KeyObjects válidos
+      const sharedSecret = diffieHellman({
+        privateKey: privateKeyObject,
+        publicKey: devicePublicKeyObject,
+      });
+
       this.logger.debug(`Derived shared secret | length: ${sharedSecret.length} bytes`);
-      
+
       return sharedSecret;
     } catch (error: any) {
       this.logger.error(`Failed to derive shared secret: ${error.message}`);

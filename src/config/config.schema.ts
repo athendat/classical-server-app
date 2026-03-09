@@ -22,6 +22,9 @@ type EnvVars = {
   SA_PWD: string;
   SEED_ENABLED?: string;
   SEED_ENABLED_VAULT?: string;
+  SGT_URL: string;
+  SGT_HMAC_SECRET: string;
+  SGT_CLIENT_ID: string;
   SMS_API_URL: string;
   SMS_TOKEN: string;
   VAULT_ADDR: string;
@@ -55,6 +58,9 @@ export const configValidationSchema: joi.ObjectSchema = joi
     SA_PWD: joi.string().required(),
     SEED_ENABLED: joi.string().optional(),
     SEED_ENABLED_VAULT: joi.string().optional(),
+    SGT_URL: joi.string().required(),
+    SGT_HMAC_SECRET: joi.string().required(),
+    SGT_CLIENT_ID: joi.string().required(),
     SMS_API_URL: joi.string().required(),
     SMS_TOKEN: joi.string().required(),
     VAULT_ADDR: joi.string().required(),
@@ -103,6 +109,9 @@ export const envs = {
   SA_PWD: envVars.SA_PWD,
   SEED_ENABLED: envVars.SEED_ENABLED,
   SEED_ENABLED_VAULT: envVars.SEED_ENABLED_VAULT,
+  SGT_URL: envVars.SGT_URL,
+  SGT_HMAC_SECRET: envVars.SGT_HMAC_SECRET,
+  SGT_CLIENT_ID: envVars.SGT_CLIENT_ID,
   SMS_API_URL: envVars.SMS_API_URL,
   SMS_TOKEN: envVars.SMS_TOKEN,
   VAULT_ADDR: envVars.VAULT_ADDR,

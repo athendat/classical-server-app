@@ -73,13 +73,13 @@ export class CsrfGuard implements CanActivate {
     // Extraer token CSRF del header
     const csrfTokenHeader =
       request.headers['x-csrf-token'] || request.headers['x-xsrf-token'];
-    console.log({ csrfTokenHeader })
-
-    // Extraer token CSRF de la cookie
-    const csrfTokenCookie = request.cookies?.['XSRF-TOKEN'];
-    console.log({ csrfTokenCookie })
-
+      
+      // Extraer token CSRF de la cookie
+      const csrfTokenCookie = request.cookies?.['XSRF-TOKEN'];
+      
     if (!csrfTokenHeader || !csrfTokenCookie) {
+      console.log({ csrfTokenHeader })
+      console.log({ csrfTokenCookie })
       throw new ForbiddenException('CSRF token is missing');
     }
 
