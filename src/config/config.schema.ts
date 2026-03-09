@@ -22,6 +22,8 @@ type EnvVars = {
   SA_PWD: string;
   SEED_ENABLED?: string;
   SEED_ENABLED_VAULT?: string;
+  SGT_AES_KEY: string;
+  SGT_AES_IV: string;
   SGT_URL: string;
   SGT_HMAC_SECRET: string;
   SGT_CLIENT_ID: string;
@@ -58,6 +60,8 @@ export const configValidationSchema: joi.ObjectSchema = joi
     SA_PWD: joi.string().required(),
     SEED_ENABLED: joi.string().optional(),
     SEED_ENABLED_VAULT: joi.string().optional(),
+    SGT_AES_KEY: joi.string().required(),
+    SGT_AES_IV: joi.string().required(),
     SGT_URL: joi.string().required(),
     SGT_HMAC_SECRET: joi.string().required(),
     SGT_CLIENT_ID: joi.string().required(),
@@ -109,6 +113,8 @@ export const envs = {
   SA_PWD: envVars.SA_PWD,
   SEED_ENABLED: envVars.SEED_ENABLED,
   SEED_ENABLED_VAULT: envVars.SEED_ENABLED_VAULT,
+  SGT_AES_KEY: envVars.SGT_AES_KEY,
+  SGT_AES_IV: envVars.SGT_AES_IV,
   SGT_URL: envVars.SGT_URL,
   SGT_HMAC_SECRET: envVars.SGT_HMAC_SECRET,
   SGT_CLIENT_ID: envVars.SGT_CLIENT_ID,

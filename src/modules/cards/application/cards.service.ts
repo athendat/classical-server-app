@@ -128,7 +128,7 @@ export class CardsService {
       const sgtResult = await this.sgtCardPort.activatePin(
         cardId,
         dto.pan,
-        pinblock,
+        dto.pin,
       );
 
       // Step 8: Update status based on SGT response

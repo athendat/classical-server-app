@@ -22,6 +22,6 @@ export interface ISgtCardPort {
   activatePin(
     cardId: string,
     pan: string,
-    pinblock: string,
+    pin: string,
   ): Promise<Result<SgtActivatePinResponse, Error>>;
 }
