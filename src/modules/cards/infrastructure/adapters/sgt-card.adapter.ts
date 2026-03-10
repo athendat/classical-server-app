@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
+import axios from 'axios';
+import * as https from 'https';
 
 import { HttpService } from 'src/common/http/http.service';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
@@ -72,16 +74,22 @@ export class SgtCardAdapter implements ISgtCardPort {
       this.logger.log(`SGT Headers: ${JSON.stringify(headers)}`);
 
       try {
-        this.logger.log(`Before HTTP POST call...`);
-        const response = await this.httpService.post<SgtActivatePinResponse>(
+        this.logger.log(`Before HTTP POST call (axios directo)...`);
+        const axiosResponse = await axios.post(
           `${baseUrl}/activate-pin`,
           body,
           {
-            headers,
-            timeout: 30000, // 30 segundos de timeout explícito
+            headers: {
+              'Content-Type': 'application/json',
+              ...headers,
+            },
+            timeout: 30000,
+            httpsAgent: new https.Agent({ rejectUnauthorized: false }),
           },
         );
-        this.logger.log(`After HTTP POST call - Got response`);
+        this.logger.log(`After HTTP POST call - Status: ${axiosResponse.status}`);
+
+        const response = axiosResponse.data as SgtActivatePinResponse;
 
         this.logger.log(
           `SGT /activate-pin responded for cardId=${cardId}: success=${response?.success}`,
@@ -89,8 +97,13 @@ export class SgtCardAdapter implements ISgtCardPort {
 
         return Result.ok<SgtActivatePinResponse>(response);
       } catch (httpError: any) {
-        const errorMsg = httpError instanceof Error ? httpError.message : String(httpError);
-        this.logger.error(`HTTP request failed: ${errorMsg}`, httpError);
+        const errorMsg = httpError?.message || String(httpError);
+        const status = httpError?.response?.status;
+        const responseData = httpError?.response?.data;
+        this.logger.error(`HTTP request failed [${status}]: ${errorMsg}`);
+        if (responseData) {
+          this.logger.error(`Response body: ${JSON.stringify(responseData)}`);
+        }
         throw httpError;
       }
     } catch (error: any) {
