@@ -57,10 +57,8 @@ export class HttpService {
       const response: AxiosResponse<T> = await firstValueFrom(
         this._httpService.post<T>(url, data, config),
       );
-      console.log({ response });
       return response.data;
     } catch (error: any) {
-      console.log({ error });
       this.#handleError(error);
     }
   }

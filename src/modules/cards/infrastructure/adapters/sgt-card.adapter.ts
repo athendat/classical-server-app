@@ -68,20 +68,31 @@ export class SgtCardAdapter implements ISgtCardPort {
       };
 
       this.logger.log(`Calling SGT /activate-pin for cardId=${cardId}`);
+      this.logger.log(`SGT URL: ${baseUrl}/activate-pin`);
+      this.logger.log(`SGT Headers: ${JSON.stringify(headers)}`);
 
-      const response = await this.httpService.post<SgtActivatePinResponse>(
-        `${baseUrl}/activate-pin`,
-        body,
-        {
-          headers,
-        },
-      );
+      try {
+        this.logger.log(`Before HTTP POST call...`);
+        const response = await this.httpService.post<SgtActivatePinResponse>(
+          `${baseUrl}/activate-pin`,
+          body,
+          {
+            headers,
+            timeout: 30000, // 30 segundos de timeout explícito
+          },
+        );
+        this.logger.log(`After HTTP POST call - Got response`);
 
-      this.logger.log(
-        `SGT /activate-pin responded for cardId=${cardId}: success=${response?.success}`,
-      );
+        this.logger.log(
+          `SGT /activate-pin responded for cardId=${cardId}: success=${response?.success}`,
+        );
 
-      return Result.ok<SgtActivatePinResponse>(response);
+        return Result.ok<SgtActivatePinResponse>(response);
+      } catch (httpError: any) {
+        const errorMsg = httpError instanceof Error ? httpError.message : String(httpError);
+        this.logger.error(`HTTP request failed: ${errorMsg}`, httpError);
+        throw httpError;
+      }
     } catch (error: any) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`, error);

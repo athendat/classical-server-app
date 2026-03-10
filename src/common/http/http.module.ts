@@ -1,5 +1,6 @@
 // Node Modules
 import * as https from 'https';
+import * as http from 'http';
 
 // Nest Modules
 import { Module } from '@nestjs/common';
@@ -14,15 +15,17 @@ import { HttpService } from './http.service';
         AxiosModule.registerAsync({
             inject: [ConfigService],
             useFactory: async (configService: ConfigService) => ({
-                timeout: 65000,
+                timeout: 30000, // 30 segundos global timeout
                 maxRedirects: 5,
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                httpAgent: new http.Agent({
+                    keepAlive: true,
+                }),
                 httpsAgent: new https.Agent({
-                    rejectUnauthorized: false, // Opción para ignorar errores de certificados no válidos (no recomendado en producción)
-                    // key: fs.readFileSync('path/to/private-key.pem'), // Si necesitas un certificado cliente
-                    // cert: fs.readFileSync('path/to/certificate.pem'), // Si necesitas un certificado cliente
+                    keepAlive: true,
+                    rejectUnauthorized: false, // Para desarrollo/testing; usar true en producción
                 }),
             }),
         })
