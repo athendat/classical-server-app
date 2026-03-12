@@ -51,6 +51,8 @@ export class CardsService {
     // ⭐ OBTENER del contexto en lugar de generar
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
+    let cardId: string | null = null;
+    let vaultSaved = false;
     try {
       this.logger.log(`[${requestId}] Creating card: cardType=${dto.cardType}`);
 
@@ -74,7 +76,7 @@ export class CardsService {
       const lastFour = dto.pan.slice(-4);
 
       // Step 3: Generate card ID
-      const cardId = uuidv4();
+      cardId = uuidv4();
 
       // Step 4: Convert PIN to ISO-4 pinblock
       const pinblockResult = this.iso4PinblockService.convertToIso4Pinblock(
@@ -109,21 +111,9 @@ export class CardsService {
         );
       }
 
-      // Step 6: Create document in MongoDB using repository (PENDING_VERIFICATION)
-      const cardData: Partial<Card> = {
-        id: cardId,
-        userId,
-        cardType: dto.cardType,
-        status: CardStatusEnum.PENDING_VERIFICATION,
-        lastFour,
-        expiryMonth: dto.expiryMonth,
-        expiryYear: dto.expiryYear,
-        ticketReference: dto.ticketReference,
-      };
+      vaultSaved = true;
 
-      const savedCard = await this.cardsRepository.create(cardData);
-
-      // Step 7: Verify card with SGT (módulo emisor)
+      // Step 6: Verify card with SGT (módulo emisor)
       this.logger.log(`[${requestId}] Calling SGT to verify cardId=${cardId}`);
 
       const resolveUser = await this.usersRepository.findByIdRaw(userId);
@@ -135,17 +125,13 @@ export class CardsService {
         resolveUser!.idNumber,
       );
 
-      // Step 8: Update status based on SGT response
-      let finalStatus: CardStatusEnum;
-      if (sgtResult.isSuccess) {
-        finalStatus = CardStatusEnum.ACTIVE;
-        this.logger.log(`[${requestId}] SGT validated card ${cardId} → ACTIVE`);
-      } else {
-        finalStatus = CardStatusEnum.VERIFICATION_FAILED;
+      if (sgtResult.isFailure) {
         const sgtError = sgtResult.getError();
+
         this.logger.warn(
-          `[${requestId}] SGT rejected card ${cardId} → VERIFICATION_FAILED: ${sgtError.message}`,
+          `[${requestId}] SGT rejected card ${cardId}: ${sgtError.message}`,
         );
+
         this.auditService.logError(
           'SGT_ACTIVATE_PIN_FAILED',
           'card',
@@ -158,11 +144,33 @@ export class CardsService {
             actorId: userId,
           },
         );
+
+        await this.rollbackVaultSecrets(cardId, requestId, userId);
+
+        return ApiResponse.fail<CardResponseDto>(
+          HttpStatus.BAD_REQUEST,
+          sgtError.message,
+          'La tarjeta no pudo ser registrada',
+        );
       }
 
-      const verifiedCard = await this.cardsRepository.updateStatus(cardId, finalStatus);
+      this.logger.log(`[${requestId}] SGT validated card ${cardId} → ACTIVE`);
 
-      // Step 9: Audit log
+      // Step 7: Create document in MongoDB only after SGT validation
+      const cardData: Partial<Card> = {
+        id: cardId,
+        userId,
+        cardType: dto.cardType,
+        status: CardStatusEnum.ACTIVE,
+        lastFour,
+        expiryMonth: dto.expiryMonth,
+        expiryYear: dto.expiryYear,
+        ticketReference: dto.ticketReference,
+      };
+
+      const savedCard = await this.cardsRepository.create(cardData);
+
+      // Step 8: Audit log
       this.auditService.logAllow('CREATE_CARD', 'card', cardId, {
         module: 'cards',
         severity: 'LOW',
@@ -170,12 +178,12 @@ export class CardsService {
         actorId: userId,
         changes: {
           after: {
-            card: verifiedCard,
+            card: savedCard,
           },
         },
       });
 
-      const responseDto = this.mapCardToResponse(verifiedCard);
+      const responseDto = this.mapCardToResponse(savedCard);
 
       return ApiResponse.ok<CardResponseDto>(
         HttpStatus.CREATED,
@@ -184,6 +192,11 @@ export class CardsService {
       );
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+
+      if (vaultSaved && cardId) {
+        await this.rollbackVaultSecrets(cardId, requestId, userId);
+      }
+
       this.logger.error(
         `[${requestId}] Failed to create card: ${errorMsg}`,
         error,
@@ -484,5 +497,34 @@ export class CardsService {
       ...transaction,
       amount: transaction.amount * 0.01,
     }));
+  }
+
+  private async rollbackVaultSecrets(
+    cardId: string,
+    requestId: string,
+    userId: string,
+  ): Promise<void> {
+    const rollbackResult = await this.cardVaultAdapter.deletePanAndPinblock(cardId);
+
+    if (rollbackResult.isFailure) {
+      const rollbackError = rollbackResult.getError();
+
+      this.logger.error(
+        `[${requestId}] Failed to rollback Vault data for cardId=${cardId}: ${rollbackError.message}`,
+      );
+
+      this.auditService.logError(
+        'CARD_VAULT_ROLLBACK_FAILED',
+        'card',
+        cardId,
+        rollbackError,
+        {
+          module: 'cards',
+          severity: 'HIGH',
+          tags: ['card', 'vault', 'rollback', 'failed'],
+          actorId: userId,
+        },
+      );
+    }
   }
 }

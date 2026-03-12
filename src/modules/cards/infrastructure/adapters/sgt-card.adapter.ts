@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 
@@ -87,13 +87,71 @@ export class SgtCardAdapter implements ISgtCardPort {
         `SGT /activate-pin responded for cardId=${cardId}: success=${response?.success}`,
       );
 
+      if (!response?.success) {
+        const sgtMessage = this.extractSgtMessage(response);
+        this.logger.warn(
+          `SGT /activate-pin rejected cardId=${cardId}: ${sgtMessage}`,
+        );
+        return Result.fail<SgtActivatePinResponse>(new Error(sgtMessage));
+      }
+
       return Result.ok<SgtActivatePinResponse>(response);
     } catch (error: any) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = this.extractSgtMessage(error);
       this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`, error);
       return Result.fail<SgtActivatePinResponse>(
-        error instanceof Error ? error : new Error(msg),
+        error instanceof Error && error.message === msg ? error : new Error(msg),
       );
     }
+  }
+
+  private extractSgtMessage(source: unknown): string {
+    const message =
+      (source instanceof HttpException ? this.readMessage(source.getResponse()) : null) ??
+      this.readMessage((source as Record<string, unknown> | undefined)?.response) ??
+      this.readMessage(source) ??
+      (source instanceof Error ? source.message : null);
+
+    return message ?? 'No fue posible activar el PIN en SGT';
+  }
+
+  private readMessage(payload: unknown): string | null {
+    if (!payload) {
+      return null;
+    }
+
+    if (typeof payload === 'string') {
+      return payload;
+    }
+
+    if (Array.isArray(payload)) {
+      const messages = payload.filter(
+        (value): value is string => typeof value === 'string' && value.trim().length > 0,
+      );
+
+      return messages.length > 0 ? messages.join(', ') : null;
+    }
+
+    if (typeof payload !== 'object') {
+      return null;
+    }
+
+    const record = payload as Record<string, unknown>;
+
+    if (typeof record.message === 'string' && record.message.trim().length > 0) {
+      return record.message;
+    }
+
+    if (Array.isArray(record.message)) {
+      const nestedMessages = record.message.filter(
+        (value): value is string => typeof value === 'string' && value.trim().length > 0,
+      );
+
+      if (nestedMessages.length > 0) {
+        return nestedMessages.join(', ');
+      }
+    }
+
+    return this.readMessage(record.data) ?? this.readMessage(record.response);
   }
 }
