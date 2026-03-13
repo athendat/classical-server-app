@@ -37,8 +37,6 @@ export class Card extends AbstractSchema {
   @Prop({ required: true, type: Number })
   expiryYear: number;
 
-  @Prop({ type: String })
-  ticketReference: string;
 
   @Prop({ required: true, type: String })
   tml: string;

@@ -126,7 +126,6 @@ export class CardsService {
         resolveUser!.idNumber,
         dto.tml,
         dto.aut,
-        dto.token,
       );
 
       if (sgtResult.isFailure) {
@@ -213,7 +212,6 @@ export class CardsService {
         lastFour,
         expiryMonth: dto.expiryMonth,
         expiryYear: dto.expiryYear,
-        ticketReference: dto.ticketReference,
         tml: dto.tml,
         aut: dto.aut,
         token: sgtResponse.data?.token,

@@ -69,18 +69,6 @@ export class CreateCardDto {
   cardType: CardTypeEnum;
 
   @ApiProperty({
-    description: 'Referencia de ticket asociada a la creación de la tarjeta.',
-    example: 'TICKET-123456',
-    required: true,
-    type: String,
-  })
-  @IsNotEmpty({ message: 'La referencia de ticket no debe estar vacía.' })
-  @IsString({
-    message: 'La referencia de ticket debe ser una cadena de texto.',
-  })
-  ticketReference: string;
-
-  @ApiProperty({
     description: 'Código de terminal (TML). Debe ser una cadena numérica de 8 dígitos.',
     example: '00012345',
     required: true,
@@ -100,14 +88,5 @@ export class CreateCardDto {
   @Length(6, 6, { message: 'El AUT debe tener exactamente 6 dígitos.' })
   aut: string;
 
-  @ApiProperty({
-    description: 'Token del PAN recibido del emisor en un registro previo (AP002). Cadena numérica de 16 caracteres. Solo requerido para reintento de activación.',
-    example: '0400000000701851',
-    required: false,
-    type: String,
-  })
-  @IsOptional()
-  @IsNumberString({}, { message: 'El token debe contener solo caracteres numéricos.' })
-  @Length(16, 16, { message: 'El token debe tener exactamente 16 caracteres.' })
-  token?: string;
+
 }
