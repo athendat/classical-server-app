@@ -161,7 +161,7 @@ export class CardsService {
       const activationCode = sgtResponse.data?.activationCode;
 
       this.logger.log(
-        `[${requestId}] SGT responded for card ${cardId}: activationCode=${activationCode}`,
+        `[${requestId}] SGT response for card ${cardId}: ${JSON.stringify(sgtResponse)}`,
       );
 
       // AP001: Registro rechazado por el emisor
@@ -420,7 +420,6 @@ export class CardsService {
         'cardType',
         'status',
         'lastFour',
-        'ticketReference',
       ];
 
       // Construir query de MongoDB
@@ -539,7 +538,6 @@ export class CardsService {
       lastTransactions: card.lastTransactions
         ? this.convertTransactionsAmounts(card.lastTransactions)
         : undefined,
-      ticketReference: card.ticketReference,
       customer: card.customer,
     };
   }

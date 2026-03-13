@@ -58,14 +58,6 @@ export class CardResponseDto {
   expiration: string;
 
   @ApiProperty({
-    description: 'Referencia del ticket asociada a la tarjeta.',
-    example: 'TC-5698',
-    type: String,
-    required: true,
-  })
-  ticketReference: string;
-
-  @ApiProperty({
     description:
       'Tipo de tarjeta según la enumeración del dominio (por ejemplo: DEBIT, CREDIT, VIRTUAL).',
     example: 'DEBIT',

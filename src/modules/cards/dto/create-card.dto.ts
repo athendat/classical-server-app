@@ -1,14 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsString,
   Min,
   Max,
   IsEnum,
   Length,
   IsInt,
-  IsNotEmpty,
+  IsString,
   IsNumberString,
-  IsOptional,
 } from 'class-validator';
 import { IsLuhnCard } from 'src/common/validators/luhn.validator';
 import { CardTypeEnum } from '../domain/enums/card-type.enum';
@@ -87,6 +85,4 @@ export class CreateCardDto {
   @IsNumberString({}, { message: 'El AUT debe contener solo caracteres numéricos.' })
   @Length(6, 6, { message: 'El AUT debe tener exactamente 6 dígitos.' })
   aut: string;
-
-
 }

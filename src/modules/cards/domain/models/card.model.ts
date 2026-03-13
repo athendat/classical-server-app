@@ -15,7 +15,6 @@ import { CardStatusEnum, CardTypeEnum } from "../enums";
  * @property {string} lastFour - Últimos cuatro dígitos del número de la tarjeta (para visualización/identificación).
  * @property {number} expiryMonth - Mes de expiración (1-12).
  * @property {number} expiryYear - Año de expiración (formato de cuatro dígitos, p. ej. 2028).
- * @property {string} ticketReference - Referencia o token asociado al registro/provisión de la tarjeta.
  * @property {number} balance - Saldo asociado a la tarjeta (unidad monetaria según contexto del sistema).
  * @property {Date} createdAt - Fecha y hora en que se creó o registró la tarjeta en el sistema.
  */
@@ -27,7 +26,6 @@ export class Card {
     lastFour: string;
     expiryMonth: number;
     expiryYear: number;
-    ticketReference: string;
     tml: string;
     aut: string;
     token?: string;
