@@ -10,6 +10,7 @@ import {
   SgtActivatePinResponse,
 } from '../../domain/ports/sgt-card.port';
 import type { ISgtPinblockPort } from '../../domain/ports/sgt-pinblock.port';
+import { Iso4PinblockService } from '../services/iso4-pinblock.service';
 
 /**
  * Adaptador para comunicación con el servidor SGT (Switch / Módulo Emisor).
@@ -29,6 +30,7 @@ export class SgtCardAdapter implements ISgtCardPort {
     private readonly configService: ConfigService,
     @Inject(INJECTION_TOKENS.SGT_PINBLOCK_PORT)
     private readonly sgtPinblockPort: ISgtPinblockPort,
+    private readonly iso4PinblockService: Iso4PinblockService,
   ) { }
 
   /**
@@ -38,15 +40,24 @@ export class SgtCardAdapter implements ISgtCardPort {
   async activatePin(
     cardId: string,
     pan: string,
-    pin: string,
+    pinblock: string,
     idNumber: string,
   ): Promise<Result<SgtActivatePinResponse, Error>> {
     try {
-      const pinblockResult = this.sgtPinblockPort.encodeAndEncrypt(pin);
-      if (pinblockResult.isFailure) {
-        return Result.fail<SgtActivatePinResponse>(pinblockResult.getError());
+      // Step 1: Decode ISO-4 pinblock to extract the plain PIN
+      const decodeResult = this.iso4PinblockService.decodeIso4Pinblock(pinblock, pan);
+      if (decodeResult.isFailure) {
+        this.logger.error(`Failed to decode ISO-4 pinblock for cardId=${cardId}: ${decodeResult.getError().message}`);
+        return Result.fail<SgtActivatePinResponse>(decodeResult.getError());
       }
-      const encryptedPinblock = pinblockResult.getValue();
+      const plainPin = decodeResult.getValue();
+
+      // Step 2: Encode and encrypt the plain PIN in SGT proprietary format
+      const sgtPinblockResult = this.sgtPinblockPort.encodeAndEncrypt(plainPin);
+      if (sgtPinblockResult.isFailure) {
+        return Result.fail<SgtActivatePinResponse>(sgtPinblockResult.getError());
+      }
+      const encryptedPinblock = sgtPinblockResult.getValue();
 
       const baseUrl = this.configService.getOrThrow<string>('SGT_URL');
       const hmacSecret = this.configService.getOrThrow<string>('SGT_HMAC_SECRET');

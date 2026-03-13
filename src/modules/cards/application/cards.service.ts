@@ -121,7 +121,7 @@ export class CardsService {
       const sgtResult = await this.sgtCardPort.activatePin(
         cardId,
         dto.pan,
-        dto.pin,
+        pinblock,
         resolveUser!.idNumber,
       );
 

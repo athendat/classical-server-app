@@ -66,4 +66,62 @@ export class Iso4PinblockService implements IPinblockService {
       );
     }
   }
+
+  /**
+   * Decode an ISO-4 pinblock back to the plain PIN using the PAN
+   * Reverses: PIN_Block = ISO4_Pinblock XOR PAN_Block
+   * @param pinblock - ISO-4 pinblock (16 hex characters)
+   * @param pan - 16 digit PAN
+   * @returns Result<string, Error> - Plain PIN (4-6 digits)
+   */
+  decodeIso4Pinblock(pinblock: string, pan: string): Result<string, Error> {
+    try {
+      if (!pinblock || pinblock.length !== 16 || !/^[0-9A-Fa-f]+$/.test(pinblock)) {
+        return Result.fail(new Error('Pinblock must be 16 hex characters'));
+      }
+
+      if (!pan || pan.length !== 16 || !/^\d+$/.test(pan)) {
+        return Result.fail(new Error('PAN must be 16 digits'));
+      }
+
+      // Rebuild PAN block (same as encode)
+      const panSuffix = pan.slice(-12);
+      const panBlock = '0000' + panSuffix;
+
+      // XOR to recover original PIN block
+      const pinblockBytes = Buffer.from(pinblock, 'hex');
+      const panBlockBytes = Buffer.from(panBlock, 'hex');
+
+      const xorResult = Buffer.alloc(8);
+      for (let i = 0; i < 8; i++) {
+        xorResult[i] = pinblockBytes[i] ^ panBlockBytes[i];
+      }
+
+      const pinBlockHex = xorResult.toString('hex').toUpperCase();
+
+      // Format: '0' + pinLength(hex) + paddedPin + 'F' padding
+      const pinLength = parseInt(pinBlockHex[1], 16);
+
+      if (pinLength < 4 || pinLength > 6) {
+        return Result.fail(new Error(`Invalid PIN length in pinblock: ${pinLength}`));
+      }
+
+      // Extract PIN digits after the 2-char prefix
+      // If pinLength is odd, there's a leading '0' padding char
+      const offset = pinLength % 2 === 1 ? 3 : 2;
+      const pin = pinBlockHex.substring(offset, offset + pinLength);
+
+      if (!/^\d+$/.test(pin)) {
+        return Result.fail(new Error('Decoded PIN contains invalid characters'));
+      }
+
+      return Result.ok(pin);
+    } catch (error: any) {
+      return Result.fail(
+        new Error(
+          `Failed to decode ISO-4 pinblock: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  }
 }
