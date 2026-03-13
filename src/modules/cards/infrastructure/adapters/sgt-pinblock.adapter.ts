@@ -96,10 +96,11 @@ export class SgtPinblockAdapter implements ISgtPinblockPort {
       this.logger.log(`[encrypt] Step 3 - Input buffer (pinblock en bytes): ${input.toString('hex').toUpperCase()} (length: ${input.length} bytes)`);
 
       const cipher = createCipheriv('aes-128-cbc', key, iv);
-      const encrypted = Buffer.concat([cipher.update(input), cipher.final()]);
+      cipher.setAutoPadding(false);
+      const encrypted = cipher.update(input);
 
       const encryptedHex = encrypted.toString('hex').toUpperCase();
-      this.logger.log(`[encrypt] Step 4 - Resultado cifrado AES-128-CBC (hex): "${encryptedHex}" (length: ${encrypted.length} bytes)`);
+      this.logger.log(`[encrypt] Step 4 - Resultado cifrado AES-128-CBC sin padding (hex): "${encryptedHex}" (length: ${encrypted.length} bytes)`);
 
       return Result.ok(encryptedHex);
     } catch (error: any) {
