@@ -1,5 +1,4 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
@@ -17,19 +16,31 @@ import { TenantVaultService } from 'src/modules/tenants/infrastructure/services/
 import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 
 import { TransactionsRepository } from '../../infrastructure/adapters/transactions.repository';
-import { TransactionConfirmedEvent, TransactionProcessedEvent } from '../../domain/events/transaction.events';
-import { TransactionStatus } from '../../domain/entities/transaction.entity';
+import { TransactionProcessedEvent } from '../../domain/events/transaction.events';
+import { Transaction, TransactionStatus } from '../../domain/entities/transaction.entity';
+
+export interface PaymentResult {
+  success: boolean;
+  status: TransactionStatus;
+  transferCode?: string;
+  isoResponseCode?: string;
+  error?: string;
+  updatedTransaction: Transaction | null;
+}
 
 /**
- * Procesador de pagos para transacciones confirmadas
- * Escucha el evento transaction.confirmed y ejecuta la transferencia contra el SGT
+ * Procesador síncrono de pagos.
+ * Llamado directamente desde TransactionService.confirm() — NO es event-driven.
  *
  * Flujo:
- * 1. Obtener datos de la transacción, tarjeta, usuario y tenant
- * 2. Recuperar secretos de Vault (PAN de tarjeta, PAN del tenant)
- * 3. Llamar al SGT /transfer
- * 4. Actualizar estado de la transacción según respuesta
- * 5. Emitir evento transaction.processed
+ * 1. Validar tarjeta (activa + token)
+ * 2. Recuperar pinblock de Vault
+ * 3. Obtener idNumber del usuario
+ * 4. Obtener PAN del tenant (cuenta beneficiaria) desde Vault
+ * 5. Calcular comisión (2.5%) y formatear montos
+ * 6. Llamar SGT /transfer
+ * 7. Actualizar transacción a SUCCESS o FAILED según respuesta
+ * 8. Emitir evento transaction.processed
  */
 @Injectable()
 export class TransactionPaymentProcessor {
@@ -49,74 +60,64 @@ export class TransactionPaymentProcessor {
   ) {}
 
   /**
-   * Procesa el pago cuando una transacción es confirmada por el usuario
+   * Procesa el pago de una transacción contra el SGT.
+   * Retorna el resultado para que confirm() lo use en su respuesta HTTP.
    */
-  @OnEvent('transaction.confirmed')
-  async handleTransactionConfirmed(event: TransactionConfirmedEvent): Promise<void> {
-    const { transactionId, tenantId, customerId, cardId } = event;
-
+  async processPayment(
+    transactionId: string,
+    tenantId: string,
+    customerId: string,
+    cardId: string,
+    amount: number,
+  ): Promise<PaymentResult> {
     this.logger.log(
       `Procesando pago para transacción=${transactionId}, card=${cardId}, tenant=${tenantId}`,
     );
 
     try {
-      // Step 1: Obtener la transacción
-      const transaction = await this.transactionsRepository.findById(transactionId);
-      if (!transaction) {
-        this.logger.error(`Transacción no encontrada: ${transactionId}`);
-        return;
-      }
-
-      // Step 2: Obtener la tarjeta y validar que esté activa
+      // Step 1: Obtener la tarjeta y validar que esté activa
       const card = await this.cardsRepository.findById(cardId);
       if (!card) {
-        await this.failTransaction(transactionId, tenantId, 'Tarjeta no encontrada');
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, 'Tarjeta no encontrada');
       }
 
       if (card.status !== CardStatusEnum.ACTIVE) {
-        await this.failTransaction(transactionId, tenantId, `Tarjeta no activa: ${card.status}`);
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, `Tarjeta no activa: ${card.status}`);
       }
 
       if (!card.token) {
-        await this.failTransaction(transactionId, tenantId, 'Tarjeta sin token SGT');
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, 'Tarjeta sin token SGT');
       }
 
-      // Step 3: Obtener pinblock de la tarjeta desde Vault
+      // Step 2: Obtener pinblock de la tarjeta desde Vault
       const pinblockResult = await this.cardVaultAdapter.getPinblock(cardId);
       if (pinblockResult.isFailure) {
-        await this.failTransaction(transactionId, tenantId, 'Error al recuperar pinblock de Vault');
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, 'Error al recuperar pinblock de Vault');
       }
 
-      // Step 4: Obtener datos del usuario (idNumber)
+      // Step 3: Obtener datos del usuario (idNumber)
       const user = await this.usersRepository.findByIdRaw(customerId);
       if (!user) {
-        await this.failTransaction(transactionId, tenantId, 'Usuario no encontrado');
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, 'Usuario no encontrado');
       }
 
-      // Step 5: Obtener datos del tenant y su PAN (cuenta beneficiaria)
+      // Step 4: Obtener datos del tenant y su PAN (cuenta beneficiaria)
       const tenant = await this.tenantsRepository.findById(tenantId);
       if (!tenant) {
-        await this.failTransaction(transactionId, tenantId, 'Tenant no encontrado');
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, 'Tenant no encontrado');
       }
 
       const tenantPanResult = await this.tenantVaultService.getPan(tenantId);
       if (tenantPanResult.isFailure) {
-        await this.failTransaction(transactionId, tenantId, 'Error al recuperar PAN del tenant');
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, 'Error al recuperar PAN del tenant');
       }
 
       const beneficiaryAccount = tenantPanResult.getValue();
 
-      // Step 6: Formatear datos para SGT
-      // El amount en la entidad viene en dólares (mapToDomain hace * 0.01)
+      // Step 5: Formatear datos para SGT
+      // amount viene en dólares (mapToDomain hace * 0.01)
       // SGT espera 12 dígitos donde los últimos 2 son decimales (centavos)
-      const amountCents = Math.round(transaction.amount * 100);
+      const amountCents = Math.round(amount * 100);
 
       // cardholderAmount = 2.5% del amount (comisión de la pasarela, en centavos)
       const cardholderAmountCents = Math.round(amountCents * 0.025);
@@ -130,14 +131,14 @@ export class TransactionPaymentProcessor {
       // merchantId: código del tenant padded a 15 caracteres
       const merchantId = (tenant.code || tenant.nit).padStart(15, '0');
 
-      // clientReference: usar el ID de la transacción como referencia anti-replay
-      const clientReference = `TXN-${transaction.id}`;
+      // clientReference: ID de la transacción como referencia anti-replay
+      const clientReference = `TXN-${transactionId}`;
 
       this.logger.log(
         `Llamando SGT /transfer: amount=${formattedAmount}, settlement=${formattedSettlementAmount}, commission=${formattedCardholderAmount}, merchant=${merchantId}, ref=${clientReference}`,
       );
 
-      // Step 7: Llamar al SGT /transfer (se usa el token para decodificar el pinblock ISO-4)
+      // Step 6: Llamar al SGT /transfer
       const transferResult = await this.sgtCardPort.transfer({
         token: card.token,
         pin: pinblockResult.getValue(),
@@ -156,9 +157,7 @@ export class TransactionPaymentProcessor {
         this.logger.error(
           `SGT /transfer falló para transacción=${transactionId}: ${error.message}`,
         );
-
-        await this.failTransaction(transactionId, tenantId, error.message);
-        return;
+        return this.failAndReturn(transactionId, tenantId, customerId, error.message);
       }
 
       const sgtResponse = transferResult.getValue();
@@ -168,14 +167,13 @@ export class TransactionPaymentProcessor {
         `SGT /transfer respondió para transacción=${transactionId}: transferCode=${transferCode}`,
       );
 
-      // Step 8: Evaluar código de transferencia
+      // Step 7: Evaluar código de transferencia
       const isSuccess =
         transferCode === TRANSFER_CODES.TR000.code ||
         transferCode === TRANSFER_CODES.TR002.code;
 
       if (isSuccess) {
-        // Actualizar transacción a SUCCESS
-        await this.transactionsRepository.updateStatus(
+        const updatedTransaction = await this.transactionsRepository.updateStatus(
           transactionId,
           TransactionStatus.SUCCESS,
           {
@@ -193,7 +191,6 @@ export class TransactionPaymentProcessor {
 
         this.logger.log(`Transacción ${transactionId} procesada exitosamente`);
 
-        // Auditar
         this.auditService.logAllow('TRANSACTION_PAYMENT_SUCCESS', 'transaction', transactionId, {
           module: 'transactions',
           severity: 'MEDIUM',
@@ -208,17 +205,24 @@ export class TransactionPaymentProcessor {
           },
         });
 
-        // Emitir evento de transacción procesada
         this.eventEmitter.emit(
           'transaction.processed',
           new TransactionProcessedEvent(transactionId, tenantId, 'success'),
         );
+
+        return {
+          success: true,
+          status: TransactionStatus.SUCCESS,
+          transferCode,
+          isoResponseCode: sgtResponse.data?.isoResponseCode,
+          updatedTransaction,
+        };
       } else {
         // Transferencia rechazada o error de comunicación
         const transferCodeInfo = TRANSFER_CODES[transferCode as keyof typeof TRANSFER_CODES];
         const errorMsg = transferCodeInfo?.message || `Código SGT desconocido: ${transferCode}`;
 
-        await this.transactionsRepository.updateStatus(
+        const updatedTransaction = await this.transactionsRepository.updateStatus(
           transactionId,
           TransactionStatus.FAILED,
           {
@@ -249,6 +253,15 @@ export class TransactionPaymentProcessor {
           'transaction.processed',
           new TransactionProcessedEvent(transactionId, tenantId, 'failed', errorMsg),
         );
+
+        return {
+          success: false,
+          status: TransactionStatus.FAILED,
+          transferCode,
+          isoResponseCode: sgtResponse.data?.isoResponseCode,
+          error: errorMsg,
+          updatedTransaction,
+        };
       }
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -257,21 +270,20 @@ export class TransactionPaymentProcessor {
         error,
       );
 
-      await this.failTransaction(transactionId, tenantId, errorMsg).catch((e) => {
-        this.logger.error(`Error actualizando transacción fallida: ${e.message}`);
-      });
+      return this.failAndReturn(transactionId, tenantId, customerId, errorMsg);
     }
   }
 
   /**
-   * Marca una transacción como fallida y emite el evento correspondiente
+   * Marca transacción como FAILED, audita, emite evento y retorna el resultado
    */
-  private async failTransaction(
+  private async failAndReturn(
     transactionId: string,
     tenantId: string,
+    customerId: string,
     errorMsg: string,
-  ): Promise<void> {
-    await this.transactionsRepository.updateStatus(
+  ): Promise<PaymentResult> {
+    const updatedTransaction = await this.transactionsRepository.updateStatus(
       transactionId,
       TransactionStatus.FAILED,
       { processedAt: new Date() },
@@ -286,6 +298,7 @@ export class TransactionPaymentProcessor {
         module: 'transactions',
         severity: 'HIGH',
         tags: ['transactions', 'payment', 'error'],
+        actorId: customerId,
       },
     );
 
@@ -293,5 +306,12 @@ export class TransactionPaymentProcessor {
       'transaction.processed',
       new TransactionProcessedEvent(transactionId, tenantId, 'failed', errorMsg),
     );
+
+    return {
+      success: false,
+      status: TransactionStatus.FAILED,
+      error: errorMsg,
+      updatedTransaction,
+    };
   }
 }

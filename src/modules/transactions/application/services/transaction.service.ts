@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { Transaction, TransactionStatus } from '../../domain/entities/transaction.entity';
@@ -6,10 +6,10 @@ import { Transaction, TransactionStatus } from '../../domain/entities/transactio
 import { isValidTransition } from '../../domain/state-machines/transaction.state-machine';
 import {
   TransactionCreatedEvent,
-  TransactionConfirmedEvent,
   TransactionCancelledEvent,
   TransactionExpiredEvent,
 } from '../../domain/events/transaction.events';
+import { TransactionPaymentProcessor } from './transaction-payment.processor';
 import { CreateTransactionDto, ConfirmTransactionDto, CreateTransactionResponseDto } from '../../dto/transactions.dto';
 import { TransactionsRepository } from '../../infrastructure/adapters/transactions.repository';
 import { MongoDbSequenceAdapter } from '../../infrastructure/adapters/sequence.adapter';
@@ -35,6 +35,7 @@ export class TransactionService {
     private readonly emvcoService: EmvcoService,
     private readonly eventEmitter: EventEmitter2,
     private readonly sequencePort: MongoDbSequenceAdapter,
+    private readonly paymentProcessor: TransactionPaymentProcessor,
     private readonly tenantsRepository: TenantsRepository,
     private readonly transactionsRepository: TransactionsRepository,
   ) { }
@@ -215,14 +216,13 @@ export class TransactionService {
   }
 
   /**
-   * Confirma una transacción con el cardId y valida la firma
-   * Transiciona de 'new' a 'processing'
+   * Confirma una transacción con el cardId y ejecuta el pago contra el SGT.
+   * Flujo síncrono: el cliente espera el resultado final (SUCCESS/FAILED).
    */
   async confirm(
     dto: ConfirmTransactionDto,
   ): Promise<ApiResponse<Transaction>> {
 
-    // ⭐ OBTENER del contexto en lugar de generar
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
 
@@ -232,13 +232,16 @@ export class TransactionService {
       // Buscar transacción
       const transaction = await this.transactionsRepository.findById(dto.transactionId);
       if (!transaction) {
-        throw new NotFoundException('Transacción no encontrada');
+        return ApiResponse.fail<Transaction>(
+          HttpStatus.NOT_FOUND,
+          'Transacción no encontrada',
+          'Not found',
+        );
       }
 
       // Validar que esté en estado 'new'
       if (transaction.status !== TransactionStatus.NEW) {
-        const errorMsg = `No se puede confirmar una transacción en estado ${transaction.status}`;
-        this.logger.warn(`[${requestId}] ${errorMsg}`);
+        this.logger.warn(`[${requestId}] Estado inválido: ${transaction.status}`);
         return ApiResponse.fail<Transaction>(
           HttpStatus.NOT_ACCEPTABLE,
           'No se puede confirmar una transacción en este estado',
@@ -246,67 +249,68 @@ export class TransactionService {
         );
       }
 
-      // Validar que la firma coincida
-      // TODO: Implementar validación de firma cuando se tenga el sistema de secrets del tenant
-      // const isValid = this.cryptoService.verifySignature(payload, dto.signature, secret);
-      // if (!isValid) {
-      //   throw new BadRequestException('Firma del QR inválida o manipulada');
-      // }
-
-      // Transicionar a processing
-      transaction.markAsProcessing(dto.cardId);
-
-      // Persistir cambios
-      const updated = await this.transactionsRepository.updateStatus(
+      // Transicionar a PROCESSING
+      const processing = await this.transactionsRepository.updateStatus(
         dto.transactionId,
         TransactionStatus.PROCESSING,
         { cardId: dto.cardId, customerId: userId },
       );
 
-      if (!updated) {
-        const errorMsg = `No se pudo confirmar una transacción`;
-        this.logger.warn(`[${requestId}] ${errorMsg}`);
+      if (!processing) {
         return ApiResponse.fail<Transaction>(
           HttpStatus.NOT_MODIFIED,
-          'No se pudo confirmar una transacción',
+          'No se pudo confirmar la transacción',
           'Error al confirmar',
         );
       }
 
-      // Auditar
+      // Auditar confirmación
       this.auditService.logAllow('TRANSACTION_CONFIRMED', 'transaction', dto.transactionId, {
         module: 'transactions',
         severity: 'MEDIUM',
         tags: ['transactions', 'confirmation', 'success'],
         actorId: userId,
         changes: {
-          before: { ...transaction },
-          after: { ...updated },
+          before: { status: transaction.status },
+          after: { status: TransactionStatus.PROCESSING },
         },
       });
 
-      // Emitir evento
-      this.eventEmitter.emit(
-        'transaction.confirmed',
-        new TransactionConfirmedEvent(
-          dto.transactionId,
-          transaction.tenantId,
-          transaction.customerId,
-          dto.cardId,
-        ),
+      // Ejecutar pago contra SGT (síncrono — el cliente espera)
+      const paymentResult = await this.paymentProcessor.processPayment(
+        dto.transactionId,
+        transaction.tenantId,
+        userId,
+        dto.cardId,
+        transaction.amount,
       );
 
-      return ApiResponse.ok<Transaction>(
-        HttpStatus.ACCEPTED,
-        updated,
-        'Transacción confirmada exitosamente',
-        {
-          requestId,
-          tenantId: transaction.tenantId,
-          customerId: transaction.customerId,
-          transactionId: transaction.id
-        }
-      );
+      if (paymentResult.success) {
+        return ApiResponse.ok<Transaction>(
+          HttpStatus.OK,
+          paymentResult.updatedTransaction!,
+          'Transacción procesada exitosamente',
+          {
+            requestId,
+            tenantId: transaction.tenantId,
+            transactionId: transaction.id,
+            transferCode: paymentResult.transferCode,
+          },
+        );
+      } else {
+        return ApiResponse.fail<Transaction>(
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          paymentResult.error || 'Error al procesar el pago',
+          'Pago rechazado',
+          {
+            requestId,
+            tenantId: transaction.tenantId,
+            transactionId: transaction.id,
+            transferCode: paymentResult.transferCode,
+            isoResponseCode: paymentResult.isoResponseCode,
+          },
+        );
+      }
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -317,7 +321,7 @@ export class TransactionService {
       this.auditService.logError(
         'TRANSACTION_CONFIRMED',
         'transaction',
-        'unknown',
+        dto.transactionId,
         error instanceof Error ? error : new Error(String(error)),
         {
           module: 'transactions',
