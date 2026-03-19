@@ -256,6 +256,9 @@ export class TransactionService {
         { cardId: dto.cardId, customerId: userId },
       );
 
+      // Log
+      this.logger.log(`[${requestId}] Transacción ${dto.transactionId} en estado PROCESSING`);
+
       if (!processing) {
         return ApiResponse.fail<Transaction>(
           HttpStatus.NOT_MODIFIED,
@@ -275,6 +278,8 @@ export class TransactionService {
           after: { status: TransactionStatus.PROCESSING },
         },
       });
+
+      
 
       // Ejecutar pago contra SGT (síncrono — el cliente espera)
       const paymentResult = await this.paymentProcessor.processPayment(

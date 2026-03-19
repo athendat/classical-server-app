@@ -77,6 +77,7 @@ export class TransactionPaymentProcessor {
     try {
       // Step 1: Obtener la tarjeta y validar que esté activa
       const card = await this.cardsRepository.findById(cardId);
+      this.logger.log(`Tarjeta encontrada: ${cardId}`);
       if (!card) {
         return this.failAndReturn(transactionId, tenantId, customerId, 'Tarjeta no encontrada');
       }
@@ -91,28 +92,33 @@ export class TransactionPaymentProcessor {
 
       // Step 2: Obtener pinblock de la tarjeta desde Vault
       const pinblockResult = await this.cardVaultAdapter.getPinblock(cardId);
+      this.logger.log(`Pinblock obtenido para tarjeta: ${cardId}`);
       if (pinblockResult.isFailure) {
         return this.failAndReturn(transactionId, tenantId, customerId, 'Error al recuperar pinblock de Vault');
       }
 
       // Step 3: Obtener datos del usuario (idNumber)
       const user = await this.usersRepository.findByIdRaw(customerId);
+      this.logger.log(`Usuario encontrado: ${customerId}`);
       if (!user) {
         return this.failAndReturn(transactionId, tenantId, customerId, 'Usuario no encontrado');
       }
 
       // Step 4: Obtener datos del tenant y su PAN (cuenta beneficiaria)
       const tenant = await this.tenantsRepository.findById(tenantId);
+      this.logger.log(`Tenant encontrado: ${tenantId}`);
       if (!tenant) {
         return this.failAndReturn(transactionId, tenantId, customerId, 'Tenant no encontrado');
       }
 
       const tenantPanResult = await this.tenantVaultService.getPan(tenantId);
+      this.logger.log(`PAN del tenant obtenido: ${tenantId}`);
       if (tenantPanResult.isFailure) {
         return this.failAndReturn(transactionId, tenantId, customerId, 'Error al recuperar PAN del tenant');
       }
 
       const beneficiaryAccount = tenantPanResult.getValue();
+      this.logger.log(`Cuenta beneficiaria del tenant obtenida: ${beneficiaryAccount}`);
 
       // Step 5: Formatear datos para SGT
       // amount viene en dólares (mapToDomain hace * 0.01)
