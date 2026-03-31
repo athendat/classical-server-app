@@ -63,11 +63,22 @@ export class NfcEnrollmentService {
 
     // 7. Store root seed in Vault
     const vaultKeyPath = `nfc-enrollments/${cardId}/root-seed`;
-    await this.vaultClient.writeKV(vaultKeyPath, {
+    const vaultWriteResult = await this.vaultClient.writeKV(vaultKeyPath, {
       rootSeed: rootSeed.toString('base64'),
       createdAt: new Date().toISOString(),
     });
 
+    // Fail fast if Vault write failed or returned an unexpected result
+    if (!vaultWriteResult) {
+      this.logger.error(`Failed to store root seed in Vault for card ${cardId}: empty or undefined response`);
+      throw new ForbiddenException('Failed to securely store NFC enrollment data');
+    }
+    if ((vaultWriteResult as any).success === false) {
+      this.logger.error(
+        `Failed to store root seed in Vault for card ${cardId}: ${(vaultWriteResult as any).error ?? 'unknown error'}`,
+      );
+      throw new ForbiddenException('Failed to securely store NFC enrollment data');
+    }
     // 8. Create enrollment record in MongoDB
     await this.enrollmentRepository.create({
       cardId,
