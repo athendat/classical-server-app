@@ -22,29 +22,39 @@ export class TerminalService {
     // 2. Create OAuth client via oauthService
     const oauthResult = await this.oauthService.createClient(tenantId, dto.name, scopes);
 
-    // 3. Create terminal record
-    const terminal = await this.terminalRepository.create({
-      tenantId,
-      name: dto.name,
-      type: dto.type,
-      capabilities: dto.capabilities,
-      status: TerminalStatus.ACTIVE,
-      location: dto.location,
-      deviceSerial: dto.deviceSerial,
-      deviceModel: dto.deviceModel,
-      deviceManufacturer: dto.deviceManufacturer,
-      oauthClientId: oauthResult.clientId,
-      createdBy,
-    });
+    try {
+      // 3. Create terminal record
+      const terminal = await this.terminalRepository.create({
+        tenantId,
+        name: dto.name,
+        type: dto.type,
+        capabilities: dto.capabilities,
+        status: TerminalStatus.ACTIVE,
+        location: dto.location,
+        deviceSerial: dto.deviceSerial,
+        deviceModel: dto.deviceModel,
+        deviceManufacturer: dto.deviceManufacturer,
+        oauthClientId: oauthResult.clientId,
+        createdBy,
+      });
 
-    // 4. Return terminal + credentials (secret shown once)
-    return {
-      terminal,
-      credentials: {
-        clientId: oauthResult.clientId,
-        clientSecret: oauthResult.clientSecret,
-      },
-    };
+      // 4. Return terminal + credentials (secret shown once)
+      return {
+        terminal,
+        credentials: {
+          clientId: oauthResult.clientId,
+          clientSecret: oauthResult.clientSecret,
+        },
+      };
+    } catch (error) {
+      // Compensating action: clean up OAuth client if terminal creation fails
+      try {
+        await this.oauthService.deleteClient(oauthResult.clientId);
+      } catch {
+        // Intentionally ignore cleanup errors to preserve original failure
+      }
+      throw error;
+    }
   }
 
   async getTerminal(tenantId: string, terminalId: string): Promise<TerminalEntity | null> {
