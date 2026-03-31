@@ -20,8 +20,18 @@ export class AdminTerminalController {
 
   @Get()
   @Permissions('terminals.admin.read')
-  async listAll(@Query() filters: AdminTerminalFiltersDto) {
-    return this.terminalService.listAllTerminals(filters);
+  async listAll(
+    @Query() filters: AdminTerminalFiltersDto,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    const filtersWithPagination = {
+      ...filters,
+      limit,
+      offset,
+    } as AdminTerminalFiltersDto;
+
+    return this.terminalService.listAllTerminals(filtersWithPagination);
   }
 
   @Get(':terminalId')
