@@ -212,11 +212,63 @@ export class NfcAuthorizationService {
     cardId: string,
     newCounter: number,
   ): Promise<void> {
-    // Update through enrollment service — delegates to repository
-    // For now, uses getCounterAndIncrement as a placeholder
-    this.logger.debug(
-      `Updating counter for card ${cardId} to ${newCounter}`,
-    );
+    // Atomically enforce a monotonic enrollment counter using Redis.
+    // The counter is only updated if `newCounter` is strictly greater than
+    // the currently stored value. This provides replay protection across
+    // sessions.
+    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
+    const counterKey = rootKey
+      ? `${rootKey}:nfc:enrollment:counter:${cardId}`
+      : `nfc:enrollment:counter:${cardId}`;
+
+    // Lua script:
+    //  - KEYS[1]: counter key
+    //  - ARGV[1]: proposed new counter value (as string)
+    // Behavior:
+    //  * If no current value exists, set to ARGV[1] and return 1.
+    //  * If current < ARGV[1], set to ARGV[1] and return 1.
+    //  * Otherwise, do nothing and return 0.
+    const UPDATE_COUNTER_LUA = `
+      local current = redis.call("GET", KEYS[1])
+      if not current then
+        redis.call("SET", KEYS[1], ARGV[1])
+        return 1
+      end
+      if tonumber(ARGV[1]) > tonumber(current) then
+        redis.call("SET", KEYS[1], ARGV[1])
+        return 1
+      end
+      return 0
+    `;
+
+    try {
+      const result = await this.redis.eval(
+        UPDATE_COUNTER_LUA,
+        1,
+        counterKey,
+        String(newCounter),
+      );
+
+      if (result !== 1) {
+        // The stored counter is already >= newCounter; this indicates a
+        // potential replay or out-of-order token.
+        this.logger.warn(
+          `Enrollment counter not updated for card ${cardId}: stored value is already >= ${newCounter}`,
+        );
+        throw new Error('ENROLLMENT_COUNTER_NOT_MONOTONIC');
+      }
+
+      this.logger.debug(
+        `Enrollment counter for card ${cardId} updated to ${newCounter}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to update enrollment counter for card ${cardId} to ${newCounter}: ${
+          (err as Error).message
+        }`,
+      );
+      throw err;
+    }
   }
 
   private extractTokenFields(fields: TlvField[]): TokenData {
