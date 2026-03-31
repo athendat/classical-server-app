@@ -22,6 +22,8 @@ import { NfcEnrollmentService } from './nfc-enrollment.service';
 import { NfcPrepareService } from './nfc-prepare.service';
 import { VaultHttpAdapter } from '../../vault/infrastructure/adapters/vault-http.adapter';
 import { AuthorizePaymentRequestDto } from '../dto/authorize-payment-request.dto';
+import { TerminalService } from '../../terminals/application/terminal.service';
+import { TerminalStatus, TerminalCapability } from '../../terminals/domain/constants/terminal.constants';
 
 export interface TokenData {
   cardId: string;
@@ -41,6 +43,8 @@ export interface AuthorizationResult {
   amount?: number;
   currency?: string;
   reason?: string;
+  tenantId?: string;
+  terminalId?: string;
 }
 
 /** Lua script for atomic nonce consumption */
@@ -79,12 +83,14 @@ export class NfcAuthorizationService {
     private readonly enrollmentService: NfcEnrollmentService,
     private readonly prepareService: NfcPrepareService,
     private readonly vaultClient: VaultHttpAdapter,
+    private readonly terminalService: TerminalService,
     @InjectRedis() private readonly redis: Redis,
     private readonly configService: ConfigService,
   ) {}
 
   async authorizePayment(
     dto: AuthorizePaymentRequestDto,
+    clientId?: string,
   ): Promise<AuthorizationResult> {
     // Step 1: Decode TLV payload from hex string
     const payloadBuffer = Buffer.from(dto.signedPayload, 'hex');
@@ -98,6 +104,26 @@ export class NfcAuthorizationService {
     }
     if (session.used) {
       return this.getIdempotentResult(tokenData.sessionId);
+    }
+
+    // Step 2b: Terminal lookup (when clientId is provided from OAuth token)
+    let terminal: Awaited<ReturnType<TerminalService['findByOAuthClientId']>> = null;
+    if (clientId) {
+      terminal = await this.terminalService.findByOAuthClientId(clientId);
+      if (!terminal) {
+        return { approved: false, reason: 'TERMINAL_NOT_FOUND' };
+      }
+      if (terminal.status === TerminalStatus.SUSPENDED) {
+        return { approved: false, reason: 'TERMINAL_SUSPENDED' };
+      }
+      if (terminal.status === TerminalStatus.REVOKED) {
+        return { approved: false, reason: 'TERMINAL_REVOKED' };
+      }
+
+      // Step 2c: Capability check
+      if (!terminal.capabilities.includes(TerminalCapability.NFC)) {
+        return { approved: false, reason: 'TERMINAL_MISSING_CAPABILITY' };
+      }
     }
 
     // Step 3: Get enrollment and root seed from Vault
@@ -189,6 +215,7 @@ export class NfcAuthorizationService {
       txId,
       amount: tokenData.amount,
       currency: tokenData.currency,
+      ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
     };
   }
 

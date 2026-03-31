@@ -14,8 +14,9 @@ import {
   HttpCode,
   HttpStatus,
   Res,
+  Req,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { ApiOperation } from '@nestjs/swagger';
 
 import { OAuthScopeGuard, RequiredScopes } from 'src/modules/oauth/infrastructure/guards/oauth-scope.guard';
@@ -35,9 +36,11 @@ export class NfcAuthorizationController {
   @ApiOperation({ summary: 'Authorize an NFC payment' })
   async authorize(
     @Body() dto: AuthorizePaymentRequestDto,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<Response> {
-    const result = await this.authorizationService.authorizePayment(dto);
+    const clientId = (req as any).user?.sub;
+    const result = await this.authorizationService.authorizePayment(dto, clientId);
     return res.status(HttpStatus.OK).json({
       ok: result.approved,
       statusCode: HttpStatus.OK,

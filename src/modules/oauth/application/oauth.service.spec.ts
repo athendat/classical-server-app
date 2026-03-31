@@ -163,6 +163,64 @@ describe('OAuthService', () => {
     );
   });
 
+  it('reactivateClient should set isActive=true when client was deactivated', async () => {
+    const mockClient: OAuthClientEntity = {
+      clientId: 'test-client-id',
+      clientSecretHash: 'some-hash',
+      merchantId: 'merchant-123',
+      terminalName: 'Terminal A',
+      scopes: ['payments:authorize'],
+      isActive: false,
+    };
+
+    repository.findByClientId.mockResolvedValue(mockClient);
+    repository.update.mockResolvedValue({ ...mockClient, isActive: true });
+
+    await service.reactivateClient('test-client-id');
+
+    expect(repository.update).toHaveBeenCalledWith('test-client-id', {
+      isActive: true,
+    });
+  });
+
+  it('reactivateClient should throw BadRequestException if client has revokedAt set', async () => {
+    const mockClient: OAuthClientEntity = {
+      clientId: 'test-client-id',
+      clientSecretHash: 'some-hash',
+      merchantId: 'merchant-123',
+      terminalName: 'Terminal A',
+      scopes: ['payments:authorize'],
+      isActive: false,
+      revokedAt: new Date(),
+    };
+
+    repository.findByClientId.mockResolvedValue(mockClient);
+
+    await expect(
+      service.reactivateClient('test-client-id'),
+    ).rejects.toThrow('Cannot reactivate a permanently revoked client');
+  });
+
+  it('deactivateClient should set isActive=false without setting revokedAt', async () => {
+    const mockClient: OAuthClientEntity = {
+      clientId: 'test-client-id',
+      clientSecretHash: 'some-hash',
+      merchantId: 'merchant-123',
+      terminalName: 'Terminal A',
+      scopes: ['payments:authorize'],
+      isActive: true,
+    };
+
+    repository.findByClientId.mockResolvedValue(mockClient);
+    repository.update.mockResolvedValue({ ...mockClient, isActive: false });
+
+    await service.deactivateClient('test-client-id');
+
+    expect(repository.update).toHaveBeenCalledWith('test-client-id', {
+      isActive: false,
+    });
+  });
+
   it('listClients should return only specified merchant clients without secret hashes', async () => {
     const mockClients: OAuthClientEntity[] = [
       {
