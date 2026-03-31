@@ -25,6 +25,7 @@ import { SharedContextModule } from './shared/shared-context.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
+import { TerminalsModule } from './modules/terminals/terminals.module';
 import { VaultModule } from './modules/vault/vault.module';
 
 // Controller
@@ -76,7 +77,7 @@ import { DevicesModule } from './modules/devices/devices.module';
     RolesModule,
     TenantsModule,
     TransactionsModule,
-    // TerminalsModule,
+    TerminalsModule,
     UsersModule,
     VaultModule,
 

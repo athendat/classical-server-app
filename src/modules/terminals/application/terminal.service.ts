@@ -49,7 +49,7 @@ export class TerminalService {
     } catch (error) {
       // Compensating action: clean up OAuth client if terminal creation fails
       try {
-        await this.oauthService.deleteClient(oauthResult.clientId);
+        await this.oauthService.revokeClient(oauthResult.clientId, tenantId);
       } catch {
         // Intentionally ignore cleanup errors to preserve original failure
       }
@@ -92,7 +92,9 @@ export class TerminalService {
 
     await this.oauthService.deactivateClient(terminal.oauthClientId);
 
-    return this.terminalRepository.update(terminalId, { status: TerminalStatus.SUSPENDED });
+    const updated = await this.terminalRepository.update(terminalId, { status: TerminalStatus.SUSPENDED });
+    if (!updated) throw new NotFoundException('Terminal not found');
+    return updated;
   }
 
   async reactivateTerminal(tenantId: string, terminalId: string): Promise<TerminalEntity> {
@@ -107,7 +109,9 @@ export class TerminalService {
 
     await this.oauthService.reactivateClient(terminal.oauthClientId);
 
-    return this.terminalRepository.update(terminalId, { status: TerminalStatus.ACTIVE });
+    const updated = await this.terminalRepository.update(terminalId, { status: TerminalStatus.ACTIVE });
+    if (!updated) throw new NotFoundException('Terminal not found');
+    return updated;
   }
 
   async revokeTerminal(tenantId: string, terminalId: string): Promise<TerminalEntity> {
@@ -119,10 +123,12 @@ export class TerminalService {
 
     await this.oauthService.revokeClient(terminal.oauthClientId, tenantId);
 
-    return this.terminalRepository.update(terminalId, {
+    const updated = await this.terminalRepository.update(terminalId, {
       status: TerminalStatus.REVOKED,
       revokedAt: new Date(),
     });
+    if (!updated) throw new NotFoundException('Terminal not found');
+    return updated;
   }
 
   async rotateCredentials(tenantId: string, terminalId: string): Promise<RotateCredentialsResult> {
@@ -172,7 +178,9 @@ export class TerminalService {
       throw new BadRequestException(`Cannot suspend terminal with status '${terminal.status}'`);
     }
     await this.oauthService.deactivateClient(terminal.oauthClientId);
-    return this.terminalRepository.update(terminalId, { status: TerminalStatus.SUSPENDED });
+    const updated = await this.terminalRepository.update(terminalId, { status: TerminalStatus.SUSPENDED });
+    if (!updated) throw new NotFoundException('Terminal not found');
+    return updated;
   }
 
   async adminRevokeTerminal(terminalId: string): Promise<TerminalEntity> {
@@ -182,7 +190,9 @@ export class TerminalService {
       throw new BadRequestException('Terminal is already revoked');
     }
     await this.oauthService.revokeClient(terminal.oauthClientId, terminal.tenantId);
-    return this.terminalRepository.update(terminalId, { status: TerminalStatus.REVOKED, revokedAt: new Date() });
+    const updated = await this.terminalRepository.update(terminalId, { status: TerminalStatus.REVOKED, revokedAt: new Date() });
+    if (!updated) throw new NotFoundException('Terminal not found');
+    return updated;
   }
 
   async findByOAuthClientId(clientId: string): Promise<TerminalEntity | null> {
