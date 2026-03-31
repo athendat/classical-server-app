@@ -105,13 +105,20 @@ export class NfcAuthorizationService {
     if (!enrollment || enrollment.status !== 'active') {
       return { approved: false, reason: 'CARD_NOT_ENROLLED' };
     }
-    const rootSeedResult = await this.vaultClient.readKV(
-      `nfc-enrollments/${tokenData.cardId}/root-seed`,
-    );
+    const vaultKeyPath =
+      (enrollment as any).vaultKeyPath ??
+      `nfc-enrollments/${tokenData.cardId}/root-seed`;
+    const rootSeedResult = await this.vaultClient.readKV(vaultKeyPath);
     if (rootSeedResult.isFailure) {
       return { approved: false, reason: 'VAULT_ERROR' };
     }
-    const rootSeed = Buffer.from(rootSeedResult.getValue().data.value, 'hex');
+    const vaultData = rootSeedResult.getValue();
+    const rootSeedBase64 =
+      vaultData?.data?.data?.rootSeed ?? vaultData?.data?.rootSeed;
+    if (!rootSeedBase64 || typeof rootSeedBase64 !== 'string') {
+      return { approved: false, reason: 'VAULT_ERROR' };
+    }
+    const rootSeed = Buffer.from(rootSeedBase64, 'base64');
 
     // Step 4: Derive ephemeral public key from HKDF(root_seed, counter)
     const { publicKey } = this.hkdfService.deriveEphemeralKeyPair(
