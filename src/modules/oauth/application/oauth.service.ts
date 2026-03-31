@@ -1,4 +1,4 @@
-import { Injectable, Inject, UnauthorizedException, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, UnauthorizedException, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID, randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
@@ -105,6 +105,25 @@ export class OAuthService {
     await this.oauthClientRepository.update(clientId, {
       isActive: false,
       revokedAt: new Date(),
+    });
+  }
+
+  async deactivateClient(clientId: string): Promise<void> {
+    const client = await this.oauthClientRepository.findByClientId(clientId);
+    if (!client) throw new NotFoundException('OAuth client not found');
+
+    await this.oauthClientRepository.update(clientId, {
+      isActive: false,
+    });
+  }
+
+  async reactivateClient(clientId: string): Promise<void> {
+    const client = await this.oauthClientRepository.findByClientId(clientId);
+    if (!client) throw new NotFoundException('OAuth client not found');
+    if (client.revokedAt) throw new BadRequestException('Cannot reactivate a permanently revoked client');
+
+    await this.oauthClientRepository.update(clientId, {
+      isActive: true,
     });
   }
 

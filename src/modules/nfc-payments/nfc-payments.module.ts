@@ -39,6 +39,7 @@ import { VaultModule } from '../vault/vault.module';
 import { CachingModule } from 'src/common/cache/cache.module';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { VaultHttpAdapter } from '../vault/infrastructure/adapters/vault-http.adapter';
+import { TerminalsModule } from '../terminals/terminals.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { VaultHttpAdapter } from '../vault/infrastructure/adapters/vault-http.ad
     ]),
     VaultModule,
     CachingModule,
+    TerminalsModule,
   ],
   controllers: [NfcEnrollmentController, NfcPrepareController, NfcAuthorizationController],
   providers: [

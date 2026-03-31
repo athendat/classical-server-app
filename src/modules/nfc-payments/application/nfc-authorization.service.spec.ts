@@ -15,6 +15,9 @@ import { NfcAuthorizationService, TokenData } from './nfc-authorization.service'
 import { NfcEnrollmentService } from './nfc-enrollment.service';
 import { NfcPrepareService, SessionData } from './nfc-prepare.service';
 import { VaultHttpAdapter } from '../../vault/infrastructure/adapters/vault-http.adapter';
+import { TerminalService } from '../../terminals/application/terminal.service';
+import { TerminalStatus, TerminalCapability } from '../../terminals/domain/constants/terminal.constants';
+import type { TerminalEntity } from '../../terminals/domain/ports/terminal-repository.port';
 import {
   NFC_PAYMENT_INJECTION_TOKENS,
   NFC_TLV_TAGS,
@@ -112,6 +115,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
   let mockPrepareService: Partial<jest.Mocked<NfcPrepareService>>;
   let mockVaultClient: Partial<jest.Mocked<VaultHttpAdapter>>;
   let mockRedis: { eval: jest.Mock };
+  let mockTerminalService: Partial<jest.Mocked<TerminalService>>;
   let mockConfigService: Partial<jest.Mocked<ConfigService>>;
 
   // Use the real TLV codec for building test payloads
@@ -136,6 +140,17 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
     serverTimestamp: Date.now(),
     sessionId: 'session-uuid-1',
     used: false,
+  };
+
+  const activeTerminal: TerminalEntity = {
+    terminalId: 'term-001',
+    tenantId: 'tenant-001',
+    name: 'POS Terminal 1',
+    type: 'physical_pos',
+    capabilities: [TerminalCapability.NFC, TerminalCapability.CHIP],
+    status: TerminalStatus.ACTIVE,
+    oauthClientId: 'oauth-client-1',
+    createdBy: 'admin',
   };
 
   // A dummy KeyObject for mocking
@@ -187,15 +202,19 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       markSessionUsed: jest.fn().mockResolvedValue(undefined),
     };
 
-    const rootSeedHex = crypto.randomBytes(32).toString('hex');
+    const rootSeedBase64 = crypto.randomBytes(32).toString('base64');
     mockVaultClient = {
       readKV: jest.fn().mockResolvedValue(
-        Result.ok({ data: { value: rootSeedHex } } as any),
+        Result.ok({ data: { data: { rootSeed: rootSeedBase64 } } } as any),
       ),
     };
 
     mockRedis = {
       eval: jest.fn().mockResolvedValue(1),
+    };
+
+    mockTerminalService = {
+      findByOAuthClientId: jest.fn().mockResolvedValue(activeTerminal),
     };
 
     mockConfigService = {
@@ -232,6 +251,10 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         {
           provide: REDIS_TOKEN,
           useValue: mockRedis,
+        },
+        {
+          provide: TerminalService,
+          useValue: mockTerminalService,
         },
         {
           provide: ConfigService,
@@ -377,6 +400,87 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('CARD_NOT_ENROLLED');
+    });
+
+    // ── Terminal validation tests (Slice 5) ──────────────────────────
+
+    it('should reject with TERMINAL_NOT_FOUND when clientId has no terminal', async () => {
+      mockTerminalService.findByOAuthClientId!.mockResolvedValueOnce(null);
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+
+      const result = await service.authorizePayment(
+        { signedPayload, amount: tokenData.amount, currency: tokenData.currency },
+        'unknown-client',
+      );
+
+      expect(result.approved).toBe(false);
+      expect(result.reason).toBe('TERMINAL_NOT_FOUND');
+    });
+
+    it('should reject with TERMINAL_SUSPENDED when terminal is suspended', async () => {
+      mockTerminalService.findByOAuthClientId!.mockResolvedValueOnce({
+        ...activeTerminal,
+        status: TerminalStatus.SUSPENDED,
+      });
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+
+      const result = await service.authorizePayment(
+        { signedPayload, amount: tokenData.amount, currency: tokenData.currency },
+        'oauth-client-1',
+      );
+
+      expect(result.approved).toBe(false);
+      expect(result.reason).toBe('TERMINAL_SUSPENDED');
+    });
+
+    it('should reject with TERMINAL_REVOKED when terminal is revoked', async () => {
+      mockTerminalService.findByOAuthClientId!.mockResolvedValueOnce({
+        ...activeTerminal,
+        status: TerminalStatus.REVOKED,
+      });
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+
+      const result = await service.authorizePayment(
+        { signedPayload, amount: tokenData.amount, currency: tokenData.currency },
+        'oauth-client-1',
+      );
+
+      expect(result.approved).toBe(false);
+      expect(result.reason).toBe('TERMINAL_REVOKED');
+    });
+
+    it('should reject with TERMINAL_MISSING_CAPABILITY when terminal lacks nfc', async () => {
+      mockTerminalService.findByOAuthClientId!.mockResolvedValueOnce({
+        ...activeTerminal,
+        capabilities: [TerminalCapability.MAGNETIC_STRIPE],
+      });
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+
+      const result = await service.authorizePayment(
+        { signedPayload, amount: tokenData.amount, currency: tokenData.currency },
+        'oauth-client-1',
+      );
+
+      expect(result.approved).toBe(false);
+      expect(result.reason).toBe('TERMINAL_MISSING_CAPABILITY');
+    });
+
+    it('should include tenantId and terminalId in approved response', async () => {
+      mockTerminalService.findByOAuthClientId!.mockResolvedValueOnce({
+        ...activeTerminal,
+        tenantId: 't1',
+        terminalId: 'term1',
+      });
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+
+      const result = await service.authorizePayment(
+        { signedPayload, amount: tokenData.amount, currency: tokenData.currency },
+        'oauth-client-1',
+      );
+
+      expect(result.approved).toBe(true);
+      expect(result.tenantId).toBe('t1');
+      expect(result.terminalId).toBe('term1');
     });
 
     it('should return idempotent result for already-used session', async () => {
