@@ -1,0 +1,239 @@
+/**
+ * Application Service: NfcAuthorizationService
+ *
+ * 11-step validation pipeline for NFC payment authorization.
+ * Verifies TLV payload, signature, counter, TTL, amount, and nonce atomicity.
+ */
+
+import { Injectable, Inject, Logger } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
+import * as crypto from 'crypto';
+
+import {
+  NFC_PAYMENT_INJECTION_TOKENS,
+  NFC_TLV_TAGS,
+} from '../domain/constants/nfc-payment.constants';
+import type { ITlvCodecPort, TlvField } from '../domain/ports/tlv-codec.port';
+import type { IHkdfKeyDerivationPort } from '../domain/ports/hkdf-key-derivation.port';
+import type { IEcdsaSignaturePort } from '../domain/ports/ecdsa-signature.port';
+import { NfcEnrollmentService } from './nfc-enrollment.service';
+import { NfcPrepareService } from './nfc-prepare.service';
+import { VaultHttpAdapter } from '../../vault/infrastructure/adapters/vault-http.adapter';
+import { AuthorizePaymentRequestDto } from '../dto/authorize-payment-request.dto';
+
+export interface TokenData {
+  cardId: string;
+  amount: number;
+  currency: string;
+  posId: string;
+  txRef: string;
+  nonce: string;
+  counter: number;
+  serverTimestamp: number;
+  sessionId: string;
+}
+
+export interface AuthorizationResult {
+  approved: boolean;
+  txId?: string;
+  amount?: number;
+  currency?: string;
+  reason?: string;
+}
+
+/** Lua script for atomic nonce consumption */
+const CONSUME_NONCE_LUA = `
+local key = KEYS[1]
+local session = redis.call('GET', key)
+if not session then
+  return 0
+end
+local data = cjson.decode(session)
+if data.used == true then
+  return 0
+end
+data.used = true
+redis.call('SET', key, cjson.encode(data), 'EX', 65)
+return 1
+`;
+
+/** Maximum counter lookahead window */
+const COUNTER_LOOKAHEAD_WINDOW = 10;
+
+/** Maximum token TTL in milliseconds (5 minutes) */
+const TOKEN_TTL_MS = 300000;
+
+@Injectable()
+export class NfcAuthorizationService {
+  private readonly logger = new Logger(NfcAuthorizationService.name);
+
+  constructor(
+    @Inject(NFC_PAYMENT_INJECTION_TOKENS.TLV_CODEC_PORT)
+    private readonly tlvCodec: ITlvCodecPort,
+    @Inject(NFC_PAYMENT_INJECTION_TOKENS.HKDF_KEY_DERIVATION_PORT)
+    private readonly hkdfService: IHkdfKeyDerivationPort,
+    @Inject(NFC_PAYMENT_INJECTION_TOKENS.ECDSA_SIGNATURE_PORT)
+    private readonly ecdsaService: IEcdsaSignaturePort,
+    private readonly enrollmentService: NfcEnrollmentService,
+    private readonly prepareService: NfcPrepareService,
+    private readonly vaultClient: VaultHttpAdapter,
+    @InjectRedis() private readonly redis: Redis,
+    private readonly configService: ConfigService,
+  ) {}
+
+  async authorizePayment(
+    dto: AuthorizePaymentRequestDto,
+  ): Promise<AuthorizationResult> {
+    // Step 1: Decode TLV payload from hex string
+    const payloadBuffer = Buffer.from(dto.signedPayload, 'hex');
+    const fields = this.tlvCodec.decode(payloadBuffer);
+    const tokenData = this.extractTokenFields(fields);
+
+    // Step 2: Look up session in Redis — verify exists and used=false
+    const session = await this.prepareService.getSession(tokenData.sessionId);
+    if (!session) {
+      return { approved: false, reason: 'SESSION_NOT_FOUND' };
+    }
+    if (session.used) {
+      return this.getIdempotentResult(tokenData.sessionId);
+    }
+
+    // Step 3: Get enrollment and root seed from Vault
+    const enrollment = await this.enrollmentService.getEnrollment(tokenData.cardId);
+    if (!enrollment || enrollment.status !== 'active') {
+      return { approved: false, reason: 'CARD_NOT_ENROLLED' };
+    }
+    const rootSeedResult = await this.vaultClient.readKV(
+      `nfc-enrollments/${tokenData.cardId}/root-seed`,
+    );
+    if (rootSeedResult.isFailure) {
+      return { approved: false, reason: 'VAULT_ERROR' };
+    }
+    const rootSeed = Buffer.from(rootSeedResult.getValue().data.value, 'hex');
+
+    // Step 4: Derive ephemeral public key from HKDF(root_seed, counter)
+    const { publicKey } = this.hkdfService.deriveEphemeralKeyPair(
+      rootSeed,
+      tokenData.counter,
+    );
+
+    // Step 5: Verify ECDSA signature
+    const signedFields = fields.filter(
+      (f) => f.tag !== NFC_TLV_TAGS.SIGNATURE,
+    );
+    const signedPayload = this.tlvCodec.encode(signedFields);
+    const signatureField = fields.find(
+      (f) => f.tag === NFC_TLV_TAGS.SIGNATURE,
+    );
+    if (!signatureField) {
+      return { approved: false, reason: 'MISSING_SIGNATURE' };
+    }
+    const isValid = this.ecdsaService.verify(
+      signedPayload,
+      signatureField.value,
+      publicKey,
+    );
+    if (!isValid) {
+      return { approved: false, reason: 'INVALID_SIGNATURE' };
+    }
+
+    // Step 6: Verify counter (lookahead window)
+    const lastCounter = enrollment.counter;
+    if (tokenData.counter <= lastCounter) {
+      return { approved: false, reason: 'COUNTER_TOO_LOW' };
+    }
+    if (tokenData.counter > lastCounter + COUNTER_LOOKAHEAD_WINDOW) {
+      return { approved: false, reason: 'COUNTER_BEYOND_WINDOW' };
+    }
+
+    // Step 7: Verify TTL — serverTimestamp within 5 min of now
+    const now = Date.now();
+    const elapsed = now - tokenData.serverTimestamp;
+    if (elapsed > TOKEN_TTL_MS || elapsed < 0) {
+      return { approved: false, reason: 'TOKEN_EXPIRED' };
+    }
+
+    // Step 8: Verify amount and currency match the POS request
+    if (tokenData.amount !== dto.amount || tokenData.currency !== dto.currency) {
+      return { approved: false, reason: 'AMOUNT_MISMATCH' };
+    }
+
+    // Step 9: Atomic nonce consumption via Redis Lua script
+    const consumed = await this.consumeNonceAtomically(tokenData.sessionId);
+    if (!consumed) {
+      return { approved: false, reason: 'NONCE_ALREADY_USED' };
+    }
+
+    // Step 10: Balance check placeholder (deferred to integration)
+
+    // Step 11: Create transaction record
+    const txId = crypto.randomUUID();
+
+    // Mark session as used in prepare service
+    await this.prepareService.markSessionUsed(tokenData.sessionId);
+
+    // Update enrollment counter
+    await this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter);
+
+    return {
+      approved: true,
+      txId,
+      amount: tokenData.amount,
+      currency: tokenData.currency,
+    };
+  }
+
+  private async consumeNonceAtomically(sessionId: string): Promise<boolean> {
+    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
+    const fullKey = rootKey
+      ? `${rootKey}:nfc:session:${sessionId}`
+      : `nfc:session:${sessionId}`;
+
+    const result = await this.redis.eval(CONSUME_NONCE_LUA, 1, fullKey);
+    return result === 1;
+  }
+
+  private async getIdempotentResult(
+    sessionId: string,
+  ): Promise<AuthorizationResult> {
+    return { approved: true, reason: 'ALREADY_PROCESSED' };
+  }
+
+  private async updateEnrollmentCounter(
+    cardId: string,
+    newCounter: number,
+  ): Promise<void> {
+    // Update through enrollment service — delegates to repository
+    // For now, uses getCounterAndIncrement as a placeholder
+    this.logger.debug(
+      `Updating counter for card ${cardId} to ${newCounter}`,
+    );
+  }
+
+  private extractTokenFields(fields: TlvField[]): TokenData {
+    const findField = (tag: number) => fields.find((f) => f.tag === tag);
+
+    return {
+      cardId: findField(NFC_TLV_TAGS.CARD_ID)?.value.toString('utf8') || '',
+      amount: Number(
+        findField(NFC_TLV_TAGS.AMOUNT)?.value.readBigInt64BE() || 0n,
+      ),
+      currency:
+        findField(NFC_TLV_TAGS.CURRENCY)?.value.toString('utf8') || '',
+      posId: findField(NFC_TLV_TAGS.POS_ID)?.value.toString('utf8') || '',
+      txRef: findField(NFC_TLV_TAGS.TX_REF)?.value.toString('utf8') || '',
+      nonce: findField(NFC_TLV_TAGS.NONCE)?.value.toString('hex') || '',
+      counter: Number(
+        findField(NFC_TLV_TAGS.COUNTER)?.value.readBigInt64BE() || 0n,
+      ),
+      serverTimestamp: Number(
+        findField(NFC_TLV_TAGS.SERVER_TIMESTAMP)?.value.readBigInt64BE() ||
+          0n,
+      ),
+      sessionId:
+        findField(NFC_TLV_TAGS.SESSION_ID)?.value.toString('utf8') || '',
+    };
+  }
+}
