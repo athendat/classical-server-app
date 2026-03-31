@@ -15,9 +15,6 @@ export class NfcEnrollment extends AbstractSchema {
   @Prop({ required: true, unique: true, index: true })
   cardId: string;
 
-  @Prop({ required: true, index: true })
-  userId: string;
-
   @Prop({ required: true })
   devicePublicKey: string; // Base64 of 65-byte uncompressed P-256
 

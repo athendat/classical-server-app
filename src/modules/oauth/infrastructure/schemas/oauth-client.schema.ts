@@ -1,10 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { AbstractSchema } from '../../../../common/schemas/abstract.schema';
 
 export type OAuthClientDocument = HydratedDocument<OAuthClient>;
 
 @Schema({ collection: 'oauth_clients', timestamps: true })
-export class OAuthClient {
+export class OAuthClient extends AbstractSchema {
   @Prop({ required: true, unique: true, index: true })
   clientId: string;
 

@@ -35,7 +35,6 @@ export class Tenant extends AbstractSchema {
   @Prop({
     type: String,
     required: true,
-    unique: true,
     length: 8,
     match: /^[0-9]{8}$/,
   })

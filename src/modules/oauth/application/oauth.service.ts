@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomUUID, randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
 
-import { IOAuthClientRepository } from '../domain/ports/oauth-client-repository.port';
+import type { IOAuthClientRepository } from '../domain/ports/oauth-client-repository.port';
 import { OAUTH_CONSTANTS, OAUTH_INJECTION_TOKENS } from '../domain/constants/oauth.constants';
 
 @Injectable()
