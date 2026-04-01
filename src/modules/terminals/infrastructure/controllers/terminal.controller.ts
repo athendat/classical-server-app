@@ -28,7 +28,7 @@ export class TerminalController {
     @Body() dto: CreateTerminalDto,
     @Request() req: any,
   ) {
-    return this.terminalService.createTerminal(tenantId, req.user.userId, dto);
+    return this.terminalService.createTerminal(tenantId, req.user.actorId, dto);
   }
 
   @Get()
