@@ -138,23 +138,47 @@ export class TerminalService {
       throw new BadRequestException('Can only rotate credentials for active terminals');
     }
 
+    const oldClientId = terminal.oauthClientId;
+
     // 1. Get old client's scopes (to carry over)
     const oldClients = await this.oauthService.listClients(tenantId);
-    const oldClient = oldClients.find(c => c.clientId === terminal.oauthClientId);
+    const oldClient = oldClients.find(c => c.clientId === oldClientId);
     const scopes = oldClient?.scopes || [];
 
-    // 2. Revoke old OAuth client
-    await this.oauthService.revokeClient(terminal.oauthClientId, tenantId);
+    let newOauth: { clientId: string; clientSecret: string } | null = null;
 
-    // 3. Create new OAuth client with same scopes
-    const newOauth = await this.oauthService.createClient(tenantId, terminal.name, scopes);
+    try {
+      // 2. Create new OAuth client with same scopes
+      newOauth = await this.oauthService.createClient(tenantId, terminal.name, scopes);
 
-    // 4. Update terminal's oauthClientId
-    await this.terminalRepository.update(terminalId, { oauthClientId: newOauth.clientId });
+      // 3. Update terminal's oauthClientId to point to the new client
+      await this.terminalRepository.update(terminalId, { oauthClientId: newOauth.clientId });
 
+      // 4. Revoke old OAuth client now that terminal points to the new one
+      await this.oauthService.revokeClient(oldClientId, tenantId);
+    } catch (error) {
+      // Best-effort compensating rollback to avoid leaving the terminal without working credentials
+      if (newOauth?.clientId) {
+        try {
+          // Try to restore the terminal to the old client
+          await this.terminalRepository.update(terminalId, { oauthClientId: oldClientId });
+        } catch {
+          // Ignore rollback failure; original error will be rethrown
+        }
+        try {
+          // Revoke the newly created client to avoid leaving it orphaned
+          await this.oauthService.revokeClient(newOauth.clientId, tenantId);
+        } catch {
+          // Ignore cleanup failure; original error will be rethrown
+        }
+      }
+      throw error;
+    }
+
+    // At this point rotation has succeeded: terminal points to the new client and the old one is revoked
     return {
-      clientId: newOauth.clientId,
-      clientSecret: newOauth.clientSecret,
+      clientId: newOauth!.clientId,
+      clientSecret: newOauth!.clientSecret,
     };
   }
 
