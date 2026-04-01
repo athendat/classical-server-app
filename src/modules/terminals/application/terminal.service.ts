@@ -145,7 +145,7 @@ export class TerminalService {
     const oldClient = oldClients.find(c => c.clientId === oldClientId);
     const scopes = oldClient?.scopes || [];
 
-    let newOauth: { clientId: string; clientSecret: string } | null = null;
+    let newOauth: { clientId: string; clientSecret: string } | undefined;
 
     try {
       // 2. Create new OAuth client with same scopes
@@ -177,8 +177,8 @@ export class TerminalService {
 
     // At this point rotation has succeeded: terminal points to the new client and the old one is revoked
     return {
-      clientId: newOauth!.clientId,
-      clientSecret: newOauth!.clientSecret,
+      clientId: newOauth.clientId,
+      clientSecret: newOauth.clientSecret,
     };
   }
 
