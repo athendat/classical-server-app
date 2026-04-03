@@ -147,16 +147,19 @@ export class AuthService {
 
       // Generar token de acceso
       const userId = validation.user?.id || username;
+
+      // Buscar tenant asociado al usuario (puede no tener)
+      const userTenant = await this.tenantsRepository.findByUserId(userId);
+
       const jwtPayload = {
         sub: `user:${userId}`,
         iss: this.jwtIssuer,
         aud: this.jwtAudience,
         scope: 'read write',
         expiresIn: 3600, // 1 hora
-        // ⭐ NUEVO: Incluir información de roles en JWT
         roleKey: validation.user?.roleKey,
         additionalRoleKeys: validation.user?.additionalRoleKeys || [],
-        // tenantId se incluirá aquí en el futuro cuando esté implementado
+        ...(userTenant?.id ? { tenantId: userTenant.id } : {}),
       };
 
       const accessResult = await this.jwtTokenPort.sign(jwtPayload);
@@ -410,12 +413,16 @@ export class AuthService {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const userId = typeof sub === 'string' ? sub.split(':')[1] : sub;
 
+      // Buscar tenant actual del usuario en BD (puede haber cambiado desde el último token)
+      const userTenant = await this.tenantsRepository.findByUserId(userId);
+
       const newPayload = {
         sub,
         iss: this.jwtIssuer,
         aud: this.jwtAudience,
         scope: 'read write',
         expiresIn: 3600,
+        ...(userTenant?.id ? { tenantId: userTenant.id } : {}),
       };
 
       const newTokenResult = await this.jwtTokenPort.sign(newPayload);

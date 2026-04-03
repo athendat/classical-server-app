@@ -56,6 +56,7 @@ export const SYSTEM_ROLES = [
       `${MODULES.CARDS}.read`,
       `${MODULES.USERS}.read`,
       `${MODULES.TRANSACTIONS}.read`,
+      `${MODULES.TERMINALS}.read`,
       `${MODULES.VAULT}.read`,
       `${MODULES.KEYS}.read`,
       `${MODULES.AUDIT}.read`,
@@ -97,12 +98,12 @@ export const SYSTEM_ROLES = [
       // Dashboard
       `${MODULES.DASHBOARD}.read`,
 
-
-      // Merchants
-      // `${MODULES.MERCHANTS}.view`,
-      // `${MODULES.MERCHANTS}.create`,
-      // `${MODULES.MERCHANTS}.edit`,
-      // `${MODULES.MERCHANTS}.delete`,
+      // Terminals
+      `${MODULES.TERMINALS}.read`,
+      `${MODULES.TERMINALS}.create`,
+      `${MODULES.TERMINALS}.update`,
+      `${MODULES.TERMINALS}.disable`,
+      `${MODULES.TERMINALS}.enable`,
 
       // Transactions
       `${MODULES.TRANSACTIONS}.create`,
@@ -154,6 +155,8 @@ export const SYSTEM_ROLES = [
       `${MODULES.USERS}.export`,
       // `${MODULES.MERCHANTS}.read`,
       // `${MODULES.MERCHANTS}.export`,
+      `${MODULES.TERMINALS}.read`,
+      `${MODULES.TERMINALS}.export`,
       `${MODULES.TRANSACTIONS}.read`,
       `${MODULES.TRANSACTIONS}.export`,
       `${MODULES.CARDS}.read`,
@@ -207,6 +210,14 @@ export const SYSTEM_ROLES = [
       `${MODULES.CARDS}.update`,
       `${MODULES.CARDS}.delete`,
 
+      // Terminales propias del tenant
+      `${MODULES.TERMINALS}.create`,
+      `${MODULES.TERMINALS}.read`,
+      `${MODULES.TERMINALS}.update`,
+      `${MODULES.TERMINALS}.delete`,
+      `${MODULES.TERMINALS}.enable`,
+      `${MODULES.TERMINALS}.disable`,
+
       // Transacciones (iniciar y consultar propias)
       `${MODULES.TRANSACTIONS}.create`,
       `${MODULES.TRANSACTIONS}.read`,
@@ -247,6 +258,14 @@ export const SYSTEM_ROLES = [
 
       // Usuarios del comercio
       `${MODULES.USERS}.view`,
+
+      // Terminales del comercio
+      `${MODULES.TERMINALS}.create`,
+      `${MODULES.TERMINALS}.read`,
+      `${MODULES.TERMINALS}.update`,
+      `${MODULES.TERMINALS}.delete`,
+      `${MODULES.TERMINALS}.enable`,
+      `${MODULES.TERMINALS}.disable`,
 
       // Transacciones del comercio
       `${MODULES.TRANSACTIONS}.create`,

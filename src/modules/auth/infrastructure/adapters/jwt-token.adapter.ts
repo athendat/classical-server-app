@@ -118,7 +118,7 @@ export class JwtTokenAdapter implements IJwtTokenPort {
       const expiresAt = (now + expiresIn) * 1000; // ms para asyncContext
 
       // Construir payload JWT
-      const jwtPayload = {
+      const jwtPayload: Record<string, any> = {
         sub: payload.sub,
         iss: this.jwtIssuer,
         aud: payload.aud,
@@ -127,6 +127,14 @@ export class JwtTokenAdapter implements IJwtTokenPort {
         iat: now,
         exp: now + expiresIn,
       };
+
+      // Propagar claims adicionales (tenantId, actorType, etc.)
+      const standardClaims = new Set(['sub', 'iss', 'aud', 'scope', 'expiresIn', 'jti', 'iat', 'exp']);
+      for (const [key, value] of Object.entries(payload)) {
+        if (!standardClaims.has(key) && value !== undefined) {
+          jwtPayload[key] = value;
+        }
+      }
 
       // Firmar token con kid en header
       const token = jwt.sign(jwtPayload, privateKey, {

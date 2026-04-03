@@ -17,14 +17,16 @@ import { BootstrapModule } from './common/bootstrap/bootstrap.module';
 import { CardsModule } from './modules/cards/cards.module';
 import { CommonModule } from './common/common.module';
 import { CsrfModule } from './modules/csrf/csrf.module';
-// import { DevicesModule } from './modules/devices/devices.module';
+import { DevicesModule } from './modules/devices/devices.module';
 import { ModulesModule } from './modules/modules';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SharedContextModule } from './shared/shared-context.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
+import { TerminalsModule } from './modules/terminals/terminals.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
+import { NfcPaymentsModule } from './modules/nfc-payments/nfc-payments.module';
 import { VaultModule } from './modules/vault/vault.module';
 
 // Controller
@@ -52,7 +54,6 @@ import { configValidationSchema } from './config/config.schema';
 
 // Constants
 import { INJECTION_TOKENS } from './common/constants/injection-tokens';
-import { DevicesModule } from './modules/devices/devices.module';
 
 @Module({
   imports: [
@@ -64,19 +65,20 @@ import { DevicesModule } from './modules/devices/devices.module';
     BootstrapModule,
 
     // Modules
+    // KeysModule,
     AuditModule,
     AuthModule,
     CardsModule,
     CommonModule,
     CsrfModule,
     DevicesModule,
-    // KeysModule,
     ModulesModule,
+    NfcPaymentsModule,
     PermissionsModule,
     RolesModule,
     TenantsModule,
+    TerminalsModule,
     TransactionsModule,
-    // TerminalsModule,
     UsersModule,
     VaultModule,
 

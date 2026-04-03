@@ -87,18 +87,18 @@ export class AuthController {
     @Res() res: Response,
   ): Promise<Response> {
     const response = await this.authService.login(loginDto, res);
-    
-    // Generar nuevo CSRF token después del login
-    // if (response.statusCode === HttpStatus.OK) {
-    //   try {
-    //     const newCsrfToken = await this.csrfService.generateToken();
-    //     const cookieConfig = getCookieConfig();
-    //     res.cookie('XSRF-TOKEN', newCsrfToken, cookieConfig.csrf_token);
-    //   } catch (error) {
-    //     console.error('Error generating CSRF token after login:', error);
-    //   }
-    // }
-    
+
+    // Generar nuevo CSRF token después del login exitoso
+    if (response.statusCode === HttpStatus.OK) {
+      try {
+        const newCsrfToken = await this.csrfService.generateToken();
+        const cookieConfig = getCookieConfig();
+        res.cookie('XSRF-TOKEN', newCsrfToken, cookieConfig.csrf_token);
+      } catch (error) {
+        console.error('Error generating CSRF token after login:', error);
+      }
+    }
+
     return res.status(response.statusCode).json(response);
   }
 
@@ -139,11 +139,23 @@ export class AuthController {
   ): Promise<Response> {
     // Priorizar refresh_token de cookie sobre body (para web clients)
     const token = res.req.cookies?.refresh_token || refreshToken;
-    
+
     if (!token) {
       throw new BadRequestException('refresh_token is required');
     }
     const response = await this.authService.refreshToken(token, res);
+
+    // Generar nuevo CSRF token después del refresh exitoso
+    if (response.statusCode === HttpStatus.OK) {
+      try {
+        const newCsrfToken = await this.csrfService.generateToken();
+        const cookieConfig = getCookieConfig();
+        res.cookie('XSRF-TOKEN', newCsrfToken, cookieConfig.csrf_token);
+      } catch (error) {
+        console.error('Error generating CSRF token after refresh:', error);
+      }
+    }
+
     return res.status(response.statusCode).json(response);
   }
 

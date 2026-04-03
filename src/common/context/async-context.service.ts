@@ -87,6 +87,13 @@ export class AsyncContextService {
   }
 
   /**
+   * Obtener el tenantId del actor actual
+   */
+  getTenantId(): string | undefined {
+    return this.cls.get<Actor>('actor')?.tenantId;
+  }
+
+  /**
    * Obtener la metadata HTTP
    */
   getHttpMetadata(): HttpAuditMetadata | undefined {

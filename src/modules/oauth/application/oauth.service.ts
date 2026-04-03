@@ -1,20 +1,28 @@
 import { Injectable, Inject, UnauthorizedException, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { randomUUID, randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
+import { ConfigService } from '@nestjs/config';
 
 import type { IOAuthClientRepository } from '../domain/ports/oauth-client-repository.port';
+import type { IJwtTokenPort } from '../../auth/domain/ports/jwt-token.port';
 import { OAUTH_CONSTANTS, OAUTH_INJECTION_TOKENS } from '../domain/constants/oauth.constants';
 
 @Injectable()
 export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
+  private readonly jwtIssuer: string;
+  private readonly jwtAudience: string;
 
   constructor(
     @Inject(OAUTH_INJECTION_TOKENS.OAUTH_CLIENT_REPOSITORY)
     private readonly oauthClientRepository: IOAuthClientRepository,
-    private readonly jwtService: JwtService,
-  ) {}
+    @Inject('IJwtTokenPort')
+    private readonly jwtTokenPort: IJwtTokenPort,
+    private readonly configService: ConfigService,
+  ) {
+    this.jwtIssuer = configService.get<string>('JWT_ISSUER') || 'classical-api';
+    this.jwtAudience = configService.get<string>('JWT_AUDIENCE') || 'classical-service';
+  }
 
   async createClient(
     merchantId: string,
@@ -71,20 +79,26 @@ export class OAuthService {
       scopes = requestedScopes;
     }
 
-    const accessToken = this.jwtService.sign(
-      {
-        sub: clientId,
-        merchantId: client.merchantId,
-        scopes,
-        type: 'oauth_client_credentials',
-      },
-      {
-        expiresIn: OAUTH_CONSTANTS.TOKEN_TTL_SECONDS,
-      },
-    );
+    // Sign with RS256/JWKS via IJwtTokenPort (same as auth service)
+    // sub must use "svc:" prefix for parseSubject() in JwtStrategy
+    const tokenResult = await this.jwtTokenPort.sign({
+      sub: `svc:${client.merchantId}`,
+      iss: this.jwtIssuer,
+      aud: this.jwtAudience,
+      scope: scopes.join(' '),
+      expiresIn: OAUTH_CONSTANTS.TOKEN_TTL_SECONDS,
+      actorType: 'service',
+      merchantId: client.merchantId,
+      tenantId: client.merchantId,
+    });
+
+    if (!tokenResult.isSuccess) {
+      this.logger.error('Failed to sign OAuth token');
+      throw new UnauthorizedException('Failed to generate access token');
+    }
 
     return {
-      access_token: accessToken,
+      access_token: tokenResult.getValue(),
       token_type: OAUTH_CONSTANTS.TOKEN_TYPE,
       expires_in: OAUTH_CONSTANTS.TOKEN_TTL_SECONDS,
       scope: scopes.join(' '),

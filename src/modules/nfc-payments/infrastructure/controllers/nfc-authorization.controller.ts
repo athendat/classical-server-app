@@ -17,13 +17,26 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiInternalServerErrorResponse,
+  ApiSecurity,
+} from '@nestjs/swagger';
 
 import { OAuthScopeGuard, RequiredScopes } from 'src/modules/oauth/infrastructure/guards/oauth-scope.guard';
 import { NfcAuthorizationService } from '../../application/nfc-authorization.service';
 import { AuthorizePaymentRequestDto } from '../../dto/authorize-payment-request.dto';
+import { AuthorizePaymentResponseDto } from '../../dto/authorize-payment-response.dto';
 
 @Controller('payments')
+@ApiTags('NFC Payments')
+@ApiSecurity('oauth2', ['payments:authorize'])
 export class NfcAuthorizationController {
   constructor(
     private readonly authorizationService: NfcAuthorizationService,
@@ -33,7 +46,20 @@ export class NfcAuthorizationController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(OAuthScopeGuard)
   @RequiredScopes('payments:authorize')
-  @ApiOperation({ summary: 'Authorize an NFC payment' })
+  @ApiOperation({
+    summary: 'Authorize an NFC payment',
+    description:
+      'Validates a signed NFC payment token from the POS terminal and authorizes the transaction. Requires OAuth scope payments:authorize.',
+  })
+  @ApiBody({ type: AuthorizePaymentRequestDto })
+  @ApiOkResponse({
+    description: 'Payment authorization result',
+    type: AuthorizePaymentResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid signed payload, amount, or currency' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid OAuth token' })
+  @ApiForbiddenResponse({ description: 'OAuth token lacks payments:authorize scope' })
+  @ApiInternalServerErrorResponse({ description: 'Error during payment authorization' })
   async authorize(
     @Body() dto: AuthorizePaymentRequestDto,
     @Req() req: Request,

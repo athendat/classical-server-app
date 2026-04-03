@@ -27,7 +27,9 @@ export class CsrfGuard implements CanActivate {
     '/auth/logout',
     '/auth/forgot-password',
     '/auth/reset-password',
+    '/auth/service-login',
     '/csrf-token',
+    '/oauth/token',
   ];
 
   constructor(
@@ -70,16 +72,22 @@ export class CsrfGuard implements CanActivate {
       return true;
     }
 
+    // Skip CSRF for service/API clients that authenticate via Bearer token
+    // without browser session cookies. CSRF only protects browser-based sessions.
+    const authHeader = request.headers['authorization'] as string | undefined;
+    const hasSessionCookie = !!request.cookies?.['access_token'];
+    if (authHeader?.startsWith('Bearer ') && !hasSessionCookie) {
+      return true;
+    }
+
     // Extraer token CSRF del header
     const csrfTokenHeader =
       request.headers['x-csrf-token'] || request.headers['x-xsrf-token'];
-      
-      // Extraer token CSRF de la cookie
-      const csrfTokenCookie = request.cookies?.['XSRF-TOKEN'];
-      
+
+    // Extraer token CSRF de la cookie
+    const csrfTokenCookie = request.cookies?.['XSRF-TOKEN'];
+
     if (!csrfTokenHeader || !csrfTokenCookie) {
-      console.log({ csrfTokenHeader })
-      console.log({ csrfTokenCookie })
       throw new ForbiddenException('CSRF token is missing');
     }
 
@@ -88,7 +96,7 @@ export class CsrfGuard implements CanActivate {
       throw new ForbiddenException('CSRF token mismatch');
     }
 
-    // Validar token en cache
+    // Validar token en cache (Redis)
     const isValid = await this.csrfService.validateToken(
       csrfTokenHeader as string,
     );

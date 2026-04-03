@@ -219,6 +219,56 @@ const TRANSACTIONS_MODULE = new ModuleEntity({
 // MÓDULOS DE NEGOCIO
 // ============================================================================
 
+const TERMINALS_MODULE = new ModuleEntity({
+  order: 4,
+  indicator: 'terminals',
+  name: 'Terminals',
+  description:
+    'Gestión de terminales de pago (POS físico, virtual, móvil) y sus credenciales OAuth.',
+  icon: 'point_of_sale',
+  actions: ['view', 'create', 'edit', 'delete', 'export'],
+  permissions: createPermissionsFromActions('terminals', 'Terminals', [
+    {
+      action: 'view',
+      id: 'tm_v',
+      name: 'Ver Terminales',
+      description: 'Listar y visualizar detalles de terminales del propio tenant.',
+      enabled: true,
+    },
+    {
+      action: 'create',
+      id: 'tm_c',
+      name: 'Crear Terminales',
+      description: 'Registrar nuevas terminales de pago.',
+      enabled: true,
+    },
+    {
+      action: 'edit',
+      id: 'tm_e',
+      name: 'Editar Terminales',
+      description: 'Actualizar información de terminales (nombre, ubicación, capacidades).',
+      enabled: true,
+    },
+    {
+      action: 'delete',
+      id: 'tm_d',
+      name: 'Revocar Terminales',
+      description: 'Revocar permanentemente terminales y sus credenciales OAuth.',
+      enabled: true,
+    },
+    {
+      action: 'export',
+      id: 'tm_ex',
+      name: 'Exportar Terminales',
+      description: 'Descargar reporte de terminales registradas.',
+      enabled: false,
+    },
+  ]),
+  status: 'active',
+  isSystem: true,
+  type: ModuleType.basic,
+});
+
 // const MANAGEMENT_MODULE = new ModuleEntity({
 //   order: 2,
 //   indicator: 'management',
@@ -279,7 +329,7 @@ const TRANSACTIONS_MODULE = new ModuleEntity({
 // MÓDULOS DEL SISTEMA KMS
 // ============================================================================
 const SYSTEM_MODULE = new ModuleEntity({
-  order: 4,
+  order: 5,
   indicator: 'system',
   name: 'System',
   description:
@@ -639,6 +689,7 @@ export const SYSTEM_MODULES: ModuleEntity[] = [
   TRANSACTIONS_MODULE,
 
   // Módulos de negocio
+  TERMINALS_MODULE,
   // MANAGEMENT_MODULE,
   // MERCHANTS_MODULE,
 

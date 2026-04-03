@@ -57,18 +57,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         try {
           const decoded = jwt.decode(rawJwtToken, { complete: true }) as any;
           const kid: string | undefined = decoded?.header?.kid;
+          console.log('[JWT Strategy] decoded header:', JSON.stringify(decoded?.header));
+          console.log('[JWT Strategy] kid:', kid);
           if (!kid) {
+            console.log('[JWT Strategy] REJECTED: Missing kid in token header');
             return done(new Error('Missing kid in token header'));
           }
 
           // Solo obtener la clave pública; no validar anti-replay aquí
           const jwksKey = await this.jwksPort.getKey(kid);
           if (!jwksKey || !jwksKey.publicKey) {
+            console.log('[JWT Strategy] REJECTED: JWKS key not found for kid', kid);
             return done(new Error(`JWKS key not found for kid ${kid}`));
           }
 
+          console.log('[JWT Strategy] Key found, validating signature...');
           return done(null, jwksKey.publicKey);
-        } catch (err) {
+        } catch (err: any) {
+          console.log('[JWT Strategy] ERROR:', err?.message);
           return done(err as Error);
         }
       },
@@ -76,6 +82,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(req: any, payload: unknown): Actor {
+    console.log('[JWT Strategy] validate() called with payload:', JSON.stringify(payload));
     // Validar claims mínimos (fail-closed)
     if (typeof payload !== 'object' || payload === null) {
       throw new UnauthorizedException('Invalid token payload');
@@ -102,8 +109,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       const actor: Actor = {
         actorType,
         actorId,
-        // ⭐ NUEVO: Si es servicio (svc:), el actorId ES el tenantId
-        tenantId: actorType === 'service' ? actorId : undefined,
+        // Si es servicio (svc:), el actorId ES el tenantId
+        // Si es usuario, leer tenantId del payload del token (si existe)
+        tenantId: actorType === 'service'
+          ? actorId
+          : (typeof p.tenantId === 'string' ? p.tenantId : undefined),
         sub,
         iss: typeof p.iss === 'string' ? p.iss : undefined,
         aud:

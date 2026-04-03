@@ -434,6 +434,50 @@ export const SYSTEM_PERMISSIONS = [
     action: ACTIONS.EXPORT,
   },
 
+  // ===== TERMINALS =====
+  {
+    key: `${MODULES.TERMINALS}.${ACTIONS.CREATE}`,
+    description: 'Crear terminales de pago',
+    resource: MODULES.TERMINALS,
+    action: ACTIONS.CREATE,
+  },
+  {
+    key: `${MODULES.TERMINALS}.${ACTIONS.READ}`,
+    description: 'Leer metadata de terminales',
+    resource: MODULES.TERMINALS,
+    action: ACTIONS.READ,
+  },
+  {
+    key: `${MODULES.TERMINALS}.${ACTIONS.UPDATE}`,
+    description: 'Actualizar metadata de terminales',
+    resource: MODULES.TERMINALS,
+    action: ACTIONS.UPDATE,
+  },
+  {
+    key: `${MODULES.TERMINALS}.${ACTIONS.DELETE}`,
+    description: 'Revocar terminales del sistema',
+    resource: MODULES.TERMINALS,
+    action: ACTIONS.DELETE,
+  },
+  {
+    key: `${MODULES.TERMINALS}.${ACTIONS.EXPORT}`,
+    description: 'Exportar metadata de terminales',
+    resource: MODULES.TERMINALS,
+    action: ACTIONS.EXPORT,
+  },
+  {
+    key: `${MODULES.TERMINALS}.${ACTIONS.ENABLE}`,
+    description: 'Reactivar terminales suspendidas',
+    resource: MODULES.TERMINALS,
+    action: ACTIONS.ENABLE,
+  },
+  {
+    key: `${MODULES.TERMINALS}.${ACTIONS.DISABLE}`,
+    description: 'Suspender terminales activas',
+    resource: MODULES.TERMINALS,
+    action: ACTIONS.DISABLE,
+  },
+
   // ===== TENANTS =====
   {
     key: `${MODULES.TENANTS}.${ACTIONS.READ}`,
