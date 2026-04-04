@@ -35,7 +35,7 @@ export class TransactionSchema extends AbstractSchema {
   @Prop({ required: true })
   amount: number; // Monto en centavos
 
-  @Prop({ enum: Object.values(TransactionStatus), default: TransactionStatus.NEW, index: true })
+  @Prop({ type: String, enum: Object.values(TransactionStatus), default: TransactionStatus.NEW, index: true })
   status: TransactionStatus; // Estado actual
 
   @Prop({ sparse: true, type: String, ref: 'Card' })

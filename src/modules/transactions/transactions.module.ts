@@ -29,6 +29,8 @@ import { Tenant, TenantSchema } from '../tenants/infrastructure/schemas/tenant.s
 import { TenantsModule } from '../tenants';
 import { UsersModule } from '../users/users.module';
 import { CardsModule } from '../cards/cards.module';
+import { AuthModule } from '../auth/auth.module';
+import { PaymentsGateway } from './infrastructure/gateways/payments.gateway';
 
 @Module({
     imports: [
@@ -55,6 +57,7 @@ import { CardsModule } from '../cards/cards.module';
         CardsModule,
         TenantsModule,
         UsersModule,
+        AuthModule,
     ],
     controllers: [TransactionsController, TestTransactionsController],
     providers: [
@@ -75,6 +78,9 @@ import { CardsModule } from '../cards/cards.module';
 
         // Tasks
         TransactionExpirationTask,
+
+        // Gateways
+        PaymentsGateway,
     ],
     exports: [TransactionService, TransactionQueryService, DashboardService],
 })
