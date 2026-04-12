@@ -55,11 +55,8 @@ export class NfcEnrollmentService {
       serverKeyPair.privateKeyPem,
     );
 
-    // 5. Generate random salt (32 bytes)
-    const salt = crypto.randomBytes(32);
-
-    // 6. Derive root seed
-    const rootSeed = this.hkdfService.deriveRootSeed(sharedSecret, salt);
+    // 5. Derive root seed (empty salt — must match device-side HkdfKeyDerivation.deriveRootSeed)
+    const rootSeed = this.hkdfService.deriveRootSeed(sharedSecret, Buffer.alloc(0));
 
     // 7. Store root seed in Vault
     const vaultKeyPath = `nfc-enrollments/${cardId}/root-seed`;
