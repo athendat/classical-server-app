@@ -34,7 +34,7 @@ import { NfcAuthorizationService } from '../../application/nfc-authorization.ser
 import { AuthorizePaymentRequestDto } from '../../dto/authorize-payment-request.dto';
 import { AuthorizePaymentResponseDto } from '../../dto/authorize-payment-response.dto';
 
-@Controller('payments')
+@Controller('nfc-payments')
 @ApiTags('NFC Payments')
 @ApiSecurity('oauth2', ['payments:authorize'])
 export class NfcAuthorizationController {

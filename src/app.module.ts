@@ -146,7 +146,7 @@ export class AppModule {
     // Luego aplicar AuthMiddleware a TODAS las rutas
     consumer
       .apply(AuthMiddleware)
-      .exclude('/auth/*path', '/oauth/*path', '/payments/*path')
+      .exclude('/auth/*path', '/oauth/*path', '/nfc-payments/*path')
       .forRoutes('*');
   }
   static port: number | string;
