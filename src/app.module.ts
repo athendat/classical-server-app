@@ -144,7 +144,10 @@ export class AppModule {
     consumer.apply(RequestIdMiddleware).forRoutes('*');
 
     // Luego aplicar AuthMiddleware a TODAS las rutas
-    consumer.apply(AuthMiddleware).exclude('/auth/*path').forRoutes('*');
+    consumer
+      .apply(AuthMiddleware)
+      .exclude('/auth/*path', '/oauth/*path', '/payments/*path')
+      .forRoutes('*');
   }
   static port: number | string;
 

@@ -76,6 +76,15 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
           await this.saveKeysToVault();
           this.logger.log(`Activated key ${firstKey.kid}`);
         }
+      } else {
+        // Hay una clave activa, pero puede estar expirada — verificar y rotar si es necesario
+        const activeKey = this.keysCache.get(this.activeKidCache);
+        if (activeKey && activeKey.expiresAt < Date.now()) {
+          this.logger.warn(
+            `Active key ${this.activeKidCache} is expired at startup. Rotating immediately...`,
+          );
+          await this.rotateKey();
+        }
       }
 
       // Programar rotación automática cada N horas
@@ -295,7 +304,10 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
         const newKey = await this.rotateKey();
         return newKey;
       } catch (error: any) {
-        this.logger.error('Failed to auto-rotate expired key', error);
+        this.logger.error(
+          `Failed to auto-rotate expired key: ${error?.message}`,
+          error?.stack,
+        );
         return null;
       }
     }
@@ -417,7 +429,10 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
         const newKey = await this.rotateKey();
         return this.getPrivateKey(newKey.kid);
       } catch (error: any) {
-        this.logger.error('Failed to auto-rotate expired key', error);
+        this.logger.error(
+          `Failed to auto-rotate expired key: ${error?.message}`,
+          error?.stack,
+        );
         throw new Error('No active JWKS key available for signing');
       }
     }
