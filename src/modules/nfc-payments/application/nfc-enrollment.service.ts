@@ -83,13 +83,14 @@ export class NfcEnrollmentService {
       throw new ForbiddenException('Failed to securely store NFC enrollment data');
     }
     // 8. Create enrollment record in MongoDB
+    // counter starts at -1 so the first payment (counter=0) passes the "strictly greater" check
     await this.enrollmentRepository.create({
       cardId,
       userId,
       devicePublicKey,
       serverPublicKey: serverKeyPair.publicKeyBase64,
       vaultKeyPath,
-      counter: 0,
+      counter: -1,
       status: 'active',
     });
 
