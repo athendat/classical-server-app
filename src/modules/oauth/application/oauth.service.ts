@@ -88,6 +88,7 @@ export class OAuthService {
       scope: scopes.join(' '),
       expiresIn: OAUTH_CONSTANTS.TOKEN_TTL_SECONDS,
       actorType: 'service',
+      clientId: client.clientId,
       merchantId: client.merchantId,
       tenantId: client.merchantId,
     });

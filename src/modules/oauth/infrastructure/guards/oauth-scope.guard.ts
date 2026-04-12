@@ -95,6 +95,7 @@ export class OAuthScopeGuard implements CanActivate {
       // Populate request.user for downstream use
       request.user = {
         sub: payload.sub,
+        clientId: payload.clientId,
         scopes: tokenScopes,
         actorType: payload.actorType,
         merchantId: payload.merchantId,

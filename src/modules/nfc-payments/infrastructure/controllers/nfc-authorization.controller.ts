@@ -65,7 +65,7 @@ export class NfcAuthorizationController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<Response> {
-    const clientId = (req as any).user?.sub;
+    const clientId = (req as any).user?.clientId;
     const result = await this.authorizationService.authorizePayment(dto, clientId);
     return res.status(HttpStatus.OK).json({
       ok: result.approved,
