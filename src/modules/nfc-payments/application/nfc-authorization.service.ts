@@ -14,6 +14,7 @@ import * as crypto from 'crypto';
 import {
   NFC_PAYMENT_INJECTION_TOKENS,
   NFC_TLV_TAGS,
+  NFC_REDIS_KEYS,
 } from '../domain/constants/nfc-payment.constants';
 import type { ITlvCodecPort, TlvField } from '../domain/ports/tlv-codec.port';
 import type { IHkdfKeyDerivationPort } from '../domain/ports/hkdf-key-derivation.port';
@@ -181,10 +182,7 @@ export class NfcAuthorizationService {
     }
 
     // Step 6: Verify counter (lookahead window) — read from Redis first, fallback to MongoDB
-    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
-    const counterKey = rootKey
-      ? `${rootKey}:nfc:enrollment:counter:${tokenData.cardId}`
-      : `nfc:enrollment:counter:${tokenData.cardId}`;
+    const counterKey = NFC_REDIS_KEYS.counterKey(this.configService.get<string>('REDIS_ROOT_KEY') || '', tokenData.cardId);
     const redisCounter = await this.redis.get(counterKey);
     const lastCounter = redisCounter !== null ? parseInt(redisCounter, 10) : enrollment.counter;
     if (tokenData.counter <= lastCounter) {
@@ -256,10 +254,7 @@ export class NfcAuthorizationService {
     // The counter is only updated if `newCounter` is strictly greater than
     // the currently stored value. This provides replay protection across
     // sessions.
-    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
-    const counterKey = rootKey
-      ? `${rootKey}:nfc:enrollment:counter:${cardId}`
-      : `nfc:enrollment:counter:${cardId}`;
+    const counterKey = NFC_REDIS_KEYS.counterKey(this.configService.get<string>('REDIS_ROOT_KEY') || '', cardId);
 
     // Lua script:
     //  - KEYS[1]: counter key

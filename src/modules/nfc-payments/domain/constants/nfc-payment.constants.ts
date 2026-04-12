@@ -27,6 +27,12 @@ export const NFC_TLV_TAGS = {
   SIGNATURE: 0x0a,
 };
 
+/** Redis key helpers for NFC enrollment counters */
+export const NFC_REDIS_KEYS = {
+  counterKey: (rootKey: string, cardId: string) =>
+    rootKey ? `${rootKey}:nfc:enrollment:counter:${cardId}` : `nfc:enrollment:counter:${cardId}`,
+};
+
 export const NFC_PAYMENT_INJECTION_TOKENS = {
   HKDF_KEY_DERIVATION_PORT: Symbol('IHkdfKeyDerivationPort'),
   ECDSA_SIGNATURE_PORT: Symbol('IEcdsaSignaturePort'),

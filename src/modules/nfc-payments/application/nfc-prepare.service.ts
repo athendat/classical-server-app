@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
 
+import { NFC_REDIS_KEYS } from '../domain/constants/nfc-payment.constants';
 import { NfcEnrollmentService } from './nfc-enrollment.service';
 import { CacheService } from 'src/common/cache/cache.service';
 
@@ -62,10 +63,7 @@ export class NfcPrepareService {
     const serverTimestamp = Date.now();
 
     // 6. Next counter — read from Redis (source of truth), fallback to MongoDB
-    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
-    const counterKey = rootKey
-      ? `${rootKey}:nfc:enrollment:counter:${cardId}`
-      : `nfc:enrollment:counter:${cardId}`;
+    const counterKey = NFC_REDIS_KEYS.counterKey(this.configService.get<string>('REDIS_ROOT_KEY') || '', cardId);
     const redisCounter = await this.redis.get(counterKey);
     const lastCounter = redisCounter !== null ? parseInt(redisCounter, 10) : enrollment.counter;
     const counter = lastCounter + 1;

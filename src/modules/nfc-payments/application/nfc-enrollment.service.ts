@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
 
-import { NFC_ENROLLMENT_INJECTION_TOKENS, NFC_PAYMENT_INJECTION_TOKENS } from '../domain/constants/nfc-payment.constants';
+import { NFC_ENROLLMENT_INJECTION_TOKENS, NFC_PAYMENT_INJECTION_TOKENS, NFC_REDIS_KEYS } from '../domain/constants/nfc-payment.constants';
 import type { INfcEnrollmentRepository, NfcEnrollmentEntity } from '../domain/ports/nfc-enrollment-repository.port';
 import type { IHkdfKeyDerivationPort } from '../domain/ports/hkdf-key-derivation.port';
 import { EcdhCryptoAdapter } from '../../devices/infrastructure/adapters/ecdh-crypto.adapter';
@@ -131,20 +131,17 @@ export class NfcEnrollmentService {
     await this.resetRedisCounter(cardId);
   }
 
-  private getCounterKey(cardId: string): string {
-    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
-    return rootKey
-      ? `${rootKey}:nfc:enrollment:counter:${cardId}`
-      : `nfc:enrollment:counter:${cardId}`;
+  private counterKey(cardId: string): string {
+    return NFC_REDIS_KEYS.counterKey(this.configService.get<string>('REDIS_ROOT_KEY') || '', cardId);
   }
 
   private async resetRedisCounter(cardId: string): Promise<void> {
-    await this.redis.del(this.getCounterKey(cardId));
+    await this.redis.del(this.counterKey(cardId));
     this.logger.log(`Redis counter reset for card ${cardId}`);
   }
 
   private async initRedisCounter(cardId: string, value: number): Promise<void> {
-    await this.redis.set(this.getCounterKey(cardId), String(value));
+    await this.redis.set(this.counterKey(cardId), String(value));
     this.logger.log(`Redis counter initialized for card ${cardId} = ${value}`);
   }
 
