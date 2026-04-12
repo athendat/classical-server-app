@@ -36,6 +36,7 @@ import { NfcAuthorizationController } from './infrastructure/controllers/nfc-aut
 // Reused adapters from other modules
 import { EcdhCryptoAdapter } from '../devices/infrastructure/adapters/ecdh-crypto.adapter';
 import { VaultModule } from '../vault/vault.module';
+import { AuthModule } from '../auth/auth.module';
 import { CachingModule } from 'src/common/cache/cache.module';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { VaultHttpAdapter } from '../vault/infrastructure/adapters/vault-http.adapter';
@@ -47,6 +48,7 @@ import { TerminalsModule } from '../terminals/terminals.module';
       { name: NfcEnrollment.name, schema: NfcEnrollmentSchema },
     ]),
     VaultModule,
+    AuthModule,
     CachingModule,
     TerminalsModule,
   ],
