@@ -147,8 +147,8 @@ export class NfcAuthorizationService {
     const rootSeed = Buffer.from(rootSeedBase64, 'base64');
 
     // Step 4: Derive ephemeral public key from HKDF(root_seed, counter)
-    this.logger.debug(`[SIG-DEBUG] rootSeed (first 8 bytes): ${rootSeed.subarray(0, 8).toString('hex')}`);
-    this.logger.debug(`[SIG-DEBUG] counter: ${tokenData.counter}`);
+    this.logger.warn(`[SIG-DEBUG] rootSeed (first 8 bytes): ${rootSeed.subarray(0, 8).toString('hex')}`);
+    this.logger.warn(`[SIG-DEBUG] counter: ${tokenData.counter}`);
     const { publicKey } = this.hkdfService.deriveEphemeralKeyPair(
       rootSeed,
       tokenData.counter,
@@ -165,17 +165,17 @@ export class NfcAuthorizationService {
     if (!signatureField) {
       return { approved: false, reason: 'MISSING_SIGNATURE' };
     }
-    this.logger.debug(`[SIG-DEBUG] signedPayload hex (first 32 bytes): ${signedPayload.subarray(0, 32).toString('hex')}`);
-    this.logger.debug(`[SIG-DEBUG] signedPayload length: ${signedPayload.length}`);
-    this.logger.debug(`[SIG-DEBUG] signature hex: ${signatureField.value.toString('hex')}`);
-    this.logger.debug(`[SIG-DEBUG] signature length: ${signatureField.value.length}`);
-    this.logger.debug(`[SIG-DEBUG] original payload hex (first 32): ${Buffer.from(dto.signedPayload.substring(0, 64), 'hex').toString('hex')}`);
+    this.logger.warn(`[SIG-DEBUG] signedPayload hex (first 32 bytes): ${signedPayload.subarray(0, 32).toString('hex')}`);
+    this.logger.warn(`[SIG-DEBUG] signedPayload length: ${signedPayload.length}`);
+    this.logger.warn(`[SIG-DEBUG] signature hex: ${signatureField.value.toString('hex')}`);
+    this.logger.warn(`[SIG-DEBUG] signature length: ${signatureField.value.length}`);
+    this.logger.warn(`[SIG-DEBUG] original payload hex (first 32): ${Buffer.from(dto.signedPayload.substring(0, 64), 'hex').toString('hex')}`);
     const isValid = this.ecdsaService.verify(
       signedPayload,
       signatureField.value,
       publicKey,
     );
-    this.logger.debug(`[SIG-DEBUG] verification result: ${isValid}`);
+    this.logger.warn(`[SIG-DEBUG] verification result: ${isValid}`);
     if (!isValid) {
       return { approved: false, reason: 'INVALID_SIGNATURE' };
     }
