@@ -6,6 +6,9 @@
  */
 
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import * as crypto from 'crypto';
 
 import { NfcEnrollmentService } from './nfc-enrollment.service';
@@ -33,6 +36,8 @@ export class NfcPrepareService {
   constructor(
     private readonly enrollmentService: NfcEnrollmentService,
     private readonly cacheService: CacheService,
+    @InjectRedis() private readonly redis: Redis,
+    private readonly configService: ConfigService,
   ) {}
 
   async preparePaymentSession(userId: string, cardId: string): Promise<PrepareResult> {
@@ -56,8 +61,14 @@ export class NfcPrepareService {
     // 5. Get server timestamp
     const serverTimestamp = Date.now();
 
-    // 6. Get current counter from enrollment
-    const counter = enrollment.counter;
+    // 6. Next counter — read from Redis (source of truth), fallback to MongoDB
+    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
+    const counterKey = rootKey
+      ? `${rootKey}:nfc:enrollment:counter:${cardId}`
+      : `nfc:enrollment:counter:${cardId}`;
+    const redisCounter = await this.redis.get(counterKey);
+    const lastCounter = redisCounter !== null ? parseInt(redisCounter, 10) : enrollment.counter;
+    const counter = lastCounter + 1;
 
     // 7. Invalidate any existing session for this card
     const existingSessionId = await this.cacheService.getByKey<string>(`nfc:session:card:${cardId}`);
