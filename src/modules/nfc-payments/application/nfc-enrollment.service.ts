@@ -94,7 +94,10 @@ export class NfcEnrollmentService {
       status: 'active',
     });
 
-    // 9. Return server public key + counter = 0
+    // 9. Initialize counter in Redis (source of truth for authorization)
+    await this.initRedisCounter(cardId, -1);
+
+    // 10. Return server public key + counter = 0
     return {
       serverPublicKey: serverKeyPair.publicKeyBase64,
       counter: 0,
@@ -128,13 +131,21 @@ export class NfcEnrollmentService {
     await this.resetRedisCounter(cardId);
   }
 
-  private async resetRedisCounter(cardId: string): Promise<void> {
+  private getCounterKey(cardId: string): string {
     const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
-    const counterKey = rootKey
+    return rootKey
       ? `${rootKey}:nfc:enrollment:counter:${cardId}`
       : `nfc:enrollment:counter:${cardId}`;
-    await this.redis.del(counterKey);
+  }
+
+  private async resetRedisCounter(cardId: string): Promise<void> {
+    await this.redis.del(this.getCounterKey(cardId));
     this.logger.log(`Redis counter reset for card ${cardId}`);
+  }
+
+  private async initRedisCounter(cardId: string, value: number): Promise<void> {
+    await this.redis.set(this.getCounterKey(cardId), String(value));
+    this.logger.log(`Redis counter initialized for card ${cardId} = ${value}`);
   }
 
   async getCounterAndIncrement(cardId: string): Promise<number> {
