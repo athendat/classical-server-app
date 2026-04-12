@@ -180,8 +180,13 @@ export class NfcAuthorizationService {
       return { approved: false, reason: 'INVALID_SIGNATURE' };
     }
 
-    // Step 6: Verify counter (lookahead window)
-    const lastCounter = enrollment.counter;
+    // Step 6: Verify counter (lookahead window) — read from Redis first, fallback to MongoDB
+    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
+    const counterKey = rootKey
+      ? `${rootKey}:nfc:enrollment:counter:${tokenData.cardId}`
+      : `nfc:enrollment:counter:${tokenData.cardId}`;
+    const redisCounter = await this.redis.get(counterKey);
+    const lastCounter = redisCounter !== null ? parseInt(redisCounter, 10) : enrollment.counter;
     if (tokenData.counter <= lastCounter) {
       return { approved: false, reason: 'COUNTER_TOO_LOW' };
     }

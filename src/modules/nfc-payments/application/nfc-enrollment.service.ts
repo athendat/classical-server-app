@@ -6,6 +6,9 @@
  */
 
 import { Injectable, Inject, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import * as crypto from 'crypto';
 
 import { NFC_ENROLLMENT_INJECTION_TOKENS, NFC_PAYMENT_INJECTION_TOKENS } from '../domain/constants/nfc-payment.constants';
@@ -26,6 +29,8 @@ export class NfcEnrollmentService {
     private readonly hkdfService: IHkdfKeyDerivationPort,
     private readonly ecdhCrypto: EcdhCryptoAdapter,
     private readonly vaultClient: VaultHttpAdapter,
+    @InjectRedis() private readonly redis: Redis,
+    private readonly configService: ConfigService,
   ) {}
 
   async enrollCard(userId: string, cardId: string, devicePublicKey: string): Promise<NfcEnrollmentResponseDto> {
@@ -44,6 +49,7 @@ export class NfcEnrollmentService {
         status: 'revoked',
         revokedAt: new Date(),
       });
+      await this.resetRedisCounter(cardId);
     }
 
     // 3. Generate server ECDH P-256 key pair
@@ -116,6 +122,18 @@ export class NfcEnrollmentService {
       status: 'revoked',
       revokedAt: new Date(),
     });
+
+    // 4. Reset counter in Redis
+    await this.resetRedisCounter(cardId);
+  }
+
+  private async resetRedisCounter(cardId: string): Promise<void> {
+    const rootKey = this.configService.get<string>('REDIS_ROOT_KEY') || '';
+    const counterKey = rootKey
+      ? `${rootKey}:nfc:enrollment:counter:${cardId}`
+      : `nfc:enrollment:counter:${cardId}`;
+    await this.redis.del(counterKey);
+    this.logger.log(`Redis counter reset for card ${cardId}`);
   }
 
   async getCounterAndIncrement(cardId: string): Promise<number> {
