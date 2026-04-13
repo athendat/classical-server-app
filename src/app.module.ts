@@ -19,14 +19,15 @@ import { CommonModule } from './common/common.module';
 import { CsrfModule } from './modules/csrf/csrf.module';
 import { DevicesModule } from './modules/devices/devices.module';
 import { ModulesModule } from './modules/modules';
+import { NfcPaymentsModule } from './modules/nfc-payments/nfc-payments.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SharedContextModule } from './shared/shared-context.module';
+import { SocketsModule } from './sockets/sockets.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { TerminalsModule } from './modules/terminals/terminals.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
-import { NfcPaymentsModule } from './modules/nfc-payments/nfc-payments.module';
 import { VaultModule } from './modules/vault/vault.module';
 
 // Controller
@@ -76,6 +77,7 @@ import { INJECTION_TOKENS } from './common/constants/injection-tokens';
     NfcPaymentsModule,
     PermissionsModule,
     RolesModule,
+    SocketsModule,
     TenantsModule,
     TerminalsModule,
     TransactionsModule,
