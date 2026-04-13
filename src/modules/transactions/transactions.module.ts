@@ -30,7 +30,8 @@ import { TenantsModule } from '../tenants';
 import { UsersModule } from '../users/users.module';
 import { CardsModule } from '../cards/cards.module';
 import { AuthModule } from '../auth/auth.module';
-import { PaymentsGateway } from './infrastructure/gateways/payments.gateway';
+import { SocketsModule } from 'src/sockets/sockets.module';
+import { PaymentSocketNotifier } from './application/services/payment-socket-notifier';
 
 @Module({
     imports: [
@@ -58,6 +59,7 @@ import { PaymentsGateway } from './infrastructure/gateways/payments.gateway';
         TenantsModule,
         UsersModule,
         AuthModule,
+        SocketsModule,
     ],
     controllers: [TransactionsController, TestTransactionsController],
     providers: [
@@ -79,8 +81,8 @@ import { PaymentsGateway } from './infrastructure/gateways/payments.gateway';
         // Tasks
         TransactionExpirationTask,
 
-        // Gateways
-        PaymentsGateway,
+        // Socket notifier
+        PaymentSocketNotifier,
     ],
     exports: [TransactionService, TransactionQueryService, DashboardService],
 })
