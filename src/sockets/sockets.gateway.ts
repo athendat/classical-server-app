@@ -15,7 +15,7 @@ import type { IJwtTokenPort } from 'src/modules/auth/domain/ports/jwt-token.port
   cors: {
     origin: '*',
   },
-  path: '/api_053/payments',
+  path: '/api_053/socket',
   transports: ['websocket'],
 })
 export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
