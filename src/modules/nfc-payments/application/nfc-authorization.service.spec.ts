@@ -8,6 +8,7 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -210,6 +211,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
     };
 
     mockRedis = {
+      get: jest.fn().mockResolvedValue(null),
       eval: jest.fn().mockResolvedValue(1),
     };
 
@@ -481,6 +483,24 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       expect(result.approved).toBe(true);
       expect(result.tenantId).toBe('t1');
       expect(result.terminalId).toBe('term1');
+    });
+
+    it('should not log sensitive cryptographic data (SIG-DEBUG)', async () => {
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn');
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+
+      await service.authorizePayment({
+        signedPayload,
+        amount: tokenData.amount,
+        currency: tokenData.currency,
+      });
+
+      const sigDebugCalls = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === 'string' && args[0].includes('SIG-DEBUG'),
+      );
+      expect(sigDebugCalls).toHaveLength(0);
+
+      warnSpy.mockRestore();
     });
 
     it('should return idempotent result for already-used session', async () => {

@@ -19,8 +19,6 @@ import {
 } from 'src/modules/transactions/domain/events/transaction.events';
 
 @WebSocketGateway({
-  path: '/api_053/payments',
-  namespace: 'payments',
   cors: {
     origin: '*',
     credentials: true,
