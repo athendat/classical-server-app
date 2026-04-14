@@ -2,12 +2,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SocketGateway } from './sockets.gateway';
 import { Result } from 'src/common/types/result.type';
 
+/** Helper: builds the shape returned by IJwtTokenPort.decode() */
+function decodedJwt(sub: string) {
+  return Result.ok({
+    token: 'mock-token',
+    payload: { sub },
+    kid: 'kid-1',
+    header: { alg: 'RS256', typ: 'JWT', kid: 'kid-1' },
+  });
+}
+
 describe('SocketGateway', () => {
   let gateway: SocketGateway;
-  let jwtTokenPort: { verify: jest.Mock };
+  let jwtTokenPort: { decode: jest.Mock };
 
   beforeEach(async () => {
-    jwtTokenPort = { verify: jest.fn() };
+    jwtTokenPort = { decode: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -36,7 +46,7 @@ describe('SocketGateway', () => {
     });
 
     it('should disconnect client with invalid token', async () => {
-      jwtTokenPort.verify.mockResolvedValue(Result.fail(new Error('invalid token')));
+      jwtTokenPort.decode.mockResolvedValue(Result.fail(new Error('invalid token')));
 
       const client = {
         id: 'c2',
@@ -47,12 +57,12 @@ describe('SocketGateway', () => {
 
       await gateway.handleConnection(client);
 
-      expect(jwtTokenPort.verify).toHaveBeenCalledWith('bad-token');
+      expect(jwtTokenPort.decode).toHaveBeenCalledWith('bad-token');
       expect(client.disconnect).toHaveBeenCalled();
     });
 
     it('should accept valid token, emit connected, and track client by userId', async () => {
-      jwtTokenPort.verify.mockResolvedValue(Result.ok({ sub: 'user-123' }));
+      jwtTokenPort.decode.mockResolvedValue(decodedJwt('user-123'));
 
       const client = {
         id: 'c3',
@@ -74,7 +84,7 @@ describe('SocketGateway', () => {
 
   describe('handleDisconnect', () => {
     it('should remove client from tracking on disconnect', async () => {
-      jwtTokenPort.verify.mockResolvedValue(Result.ok({ sub: 'user-456' }));
+      jwtTokenPort.decode.mockResolvedValue(decodedJwt('user-456'));
 
       const client = {
         id: 'c4',
@@ -91,7 +101,7 @@ describe('SocketGateway', () => {
     });
 
     it('should keep other clients when one disconnects', async () => {
-      jwtTokenPort.verify.mockResolvedValue(Result.ok({ sub: 'user-789' }));
+      jwtTokenPort.decode.mockResolvedValue(decodedJwt('user-789'));
 
       const client1 = { id: 'c5', handshake: { auth: { token: 't1' }, headers: {} }, disconnect: jest.fn(), emit: jest.fn() } as any;
       const client2 = { id: 'c6', handshake: { auth: { token: 't2' }, headers: {} }, disconnect: jest.fn(), emit: jest.fn() } as any;
@@ -107,7 +117,7 @@ describe('SocketGateway', () => {
 
   describe('sendMessage', () => {
     it('should emit to specific users by userId', async () => {
-      jwtTokenPort.verify.mockResolvedValue(Result.ok({ sub: 'user-A' }));
+      jwtTokenPort.decode.mockResolvedValue(decodedJwt('user-A'));
       const mockTo = jest.fn().mockReturnValue({ emit: jest.fn() });
       gateway.server = { to: mockTo, sockets: { sockets: new Map() } } as any;
 

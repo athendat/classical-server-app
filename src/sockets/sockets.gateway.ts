@@ -28,7 +28,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   constructor(
     @Inject('IJwtTokenPort')
     private readonly jwtTokenPort: IJwtTokenPort,
-  ) {}
+  ) { }
 
   afterInit(server: Server): void {
     this.logger.log('Socket.IO server initialized');
@@ -44,15 +44,18 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     }
 
     try {
-      const verifyResult = await this.jwtTokenPort.verify(token);
-      if (verifyResult.isFailure) {
-        this.logger.warn(`Client ${client.id} invalid token: ${verifyResult.getError().message}`);
+      // Use decode() instead of verify() to avoid anti-replay (JTI) rejection.
+      // The token was already verified during the HTTP call that preceded
+      // the socket connection. Here we only need the sub claim for tracking.
+      const decodeResult = await this.jwtTokenPort.decode(token);
+      if (decodeResult.isFailure) {
+        this.logger.warn(`Client ${client.id} invalid token: ${decodeResult.getError().message}`);
         client.disconnect();
         return;
       }
 
-      const payload = verifyResult.getValue();
-      const userId = payload.sub as string;
+      const decoded = decodeResult.getValue();
+      const userId = decoded.payload?.sub as string;
       const clientIds = this.connectedClients.get(userId) || [];
       clientIds.push(client.id);
       this.connectedClients.set(userId, clientIds);
