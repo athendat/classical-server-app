@@ -46,6 +46,7 @@ export interface AuthorizationResult {
   reason?: string;
   tenantId?: string;
   terminalId?: string;
+  sessionId?: string;
 }
 
 /** Lua script for atomic nonce consumption */
@@ -218,6 +219,7 @@ export class NfcAuthorizationService {
       txId,
       amount: tokenData.amount,
       currency: tokenData.currency,
+      sessionId: tokenData.sessionId,
       ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
     };
   }
