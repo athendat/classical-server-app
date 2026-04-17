@@ -25,6 +25,10 @@ import { VaultHttpAdapter } from '../../vault/infrastructure/adapters/vault-http
 import { AuthorizePaymentRequestDto } from '../dto/authorize-payment-request.dto';
 import { TerminalService } from '../../terminals/application/terminal.service';
 import { TerminalStatus, TerminalCapability } from '../../terminals/domain/constants/terminal.constants';
+import { TransactionsRepository } from '../../transactions/infrastructure/adapters/transactions.repository';
+import { TransactionPaymentProcessor } from '../../transactions/application/services/transaction-payment.processor';
+import { TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
+import { NfcTransactionBuilder } from './nfc-transaction.builder';
 
 export interface TokenData {
   cardId: string;
@@ -47,6 +51,9 @@ export interface AuthorizationResult {
   tenantId?: string;
   terminalId?: string;
   sessionId?: string;
+  transferCode?: string;
+  isoResponseCode?: string;
+  status?: TransactionStatus;
 }
 
 /** Lua script for atomic nonce consumption */
@@ -88,6 +95,9 @@ export class NfcAuthorizationService {
     private readonly terminalService: TerminalService,
     @InjectRedis() private readonly redis: Redis,
     private readonly configService: ConfigService,
+    private readonly transactionsRepository: TransactionsRepository,
+    private readonly paymentProcessor: TransactionPaymentProcessor,
+    private readonly transactionBuilder: NfcTransactionBuilder,
   ) {}
 
   async authorizePayment(
@@ -205,8 +215,33 @@ export class NfcAuthorizationService {
 
     // Step 10: Balance check placeholder (deferred to integration)
 
-    // Step 11: Create transaction record
-    const txId = crypto.randomUUID();
+    // Step 11: Persist Transaction and dispatch to SGT (reuses QR settlement pipeline)
+    const { transaction, processPaymentArgs } = this.transactionBuilder.build({
+      tokenData,
+      enrollment,
+      terminal,
+    });
+    const persisted = await this.transactionsRepository.create(transaction);
+    let paymentResult;
+    try {
+      paymentResult = await this.paymentProcessor.processPayment(...processPaymentArgs);
+    } catch (err) {
+      this.logger.error(
+        `SGT dispatch failed for txId=${persisted.id}: ${(err as Error).message}`,
+      );
+      await this.prepareService.markSessionUsed(tokenData.sessionId);
+      await this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter);
+      return {
+        approved: false,
+        txId: persisted.id,
+        reason: 'SGT_UNREACHABLE',
+        amount: tokenData.amount,
+        currency: tokenData.currency,
+        sessionId: tokenData.sessionId,
+        status: TransactionStatus.FAILED,
+        ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
+      };
+    }
 
     // Mark session as used in prepare service
     await this.prepareService.markSessionUsed(tokenData.sessionId);
@@ -215,11 +250,14 @@ export class NfcAuthorizationService {
     await this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter);
 
     return {
-      approved: true,
-      txId,
+      approved: paymentResult.success,
+      txId: persisted.id,
       amount: tokenData.amount,
       currency: tokenData.currency,
       sessionId: tokenData.sessionId,
+      transferCode: paymentResult.transferCode,
+      isoResponseCode: paymentResult.isoResponseCode,
+      status: paymentResult.status,
       ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
     };
   }

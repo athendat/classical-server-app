@@ -33,7 +33,6 @@ import { OAuthScopeGuard, RequiredScopes } from 'src/modules/oauth/infrastructur
 import { NfcAuthorizationService } from '../../application/nfc-authorization.service';
 import { AuthorizePaymentRequestDto } from '../../dto/authorize-payment-request.dto';
 import { AuthorizePaymentResponseDto } from '../../dto/authorize-payment-response.dto';
-import { SocketGateway } from 'src/sockets/sockets.gateway';
 
 @Controller('nfc-payments')
 @ApiTags('NFC Payments')
@@ -41,7 +40,6 @@ import { SocketGateway } from 'src/sockets/sockets.gateway';
 export class NfcAuthorizationController {
   constructor(
     private readonly authorizationService: NfcAuthorizationService,
-    private readonly socketGateway: SocketGateway,
   ) {}
 
   @Post('authorize')
@@ -69,17 +67,6 @@ export class NfcAuthorizationController {
   ): Promise<Response> {
     const clientId = (req as any).user?.clientId;
     const result = await this.authorizationService.authorizePayment(dto, clientId);
-
-    // Notify the phone app via WebSocket (room = NFC sessionId)
-    if (result.approved && result.sessionId) {
-      this.socketGateway.sendToRoom(result.sessionId, 'payment.result', {
-        status: 'success',
-        transactionId: result.txId,
-        amount: result.amount,
-        currency: result.currency,
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     return res.status(HttpStatus.OK).json({
       ok: result.approved,

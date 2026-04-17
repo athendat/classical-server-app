@@ -84,7 +84,7 @@ import { PaymentSocketNotifier } from './application/services/payment-socket-not
         // Socket notifier
         PaymentSocketNotifier,
     ],
-    exports: [TransactionService, TransactionQueryService, DashboardService],
+    exports: [TransactionService, TransactionQueryService, DashboardService, TransactionsRepository, TransactionPaymentProcessor],
 })
 export class TransactionsModule { }
 
