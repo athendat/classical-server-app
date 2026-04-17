@@ -232,10 +232,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
     let storedTransaction: Transaction | null = null;
     mockTransactionsRepository = {
       create: jest.fn().mockImplementation(async (tx: Transaction) => {
-        storedTransaction = new Transaction({
-          ...tx,
-          amount: tx.amount * 0.01,
-        });
+        storedTransaction = new Transaction(tx);
         return storedTransaction;
       }),
       updateStatus: jest.fn().mockImplementation(
@@ -413,7 +410,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       expect(mockRedis.eval).toHaveBeenCalled();
     });
 
-    it('should keep TR002 aligned with QR semantics (approved=true)', async () => {
+    it('should approve transaction when SGT returns TR002', async () => {
       mockPaymentProcessor.processPayment.mockImplementationOnce(
         async (transactionId: string) => ({
           success: true,

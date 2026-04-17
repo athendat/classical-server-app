@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { createHash } from 'crypto';
 
 import { TokenData } from './nfc-authorization.service';
 import { Transaction, TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
@@ -27,6 +26,7 @@ export interface NfcTransactionBuildResult {
 
 @Injectable()
 export class NfcTransactionBuilder {
+  private static readonly DOMAIN_AMOUNT_FACTOR = 0.01;
   private static lastTransactionNo = 0;
   private static readonly TRANSACTION_TTL_MINUTES = 15;
 
@@ -51,9 +51,7 @@ export class NfcTransactionBuilder {
     }
 
     const ttlMinutes = NfcTransactionBuilder.TRANSACTION_TTL_MINUTES;
-    const signature = createHash('sha256')
-      .update(`${tokenData.sessionId}:${tokenData.txRef}:${tokenData.amount}`)
-      .digest('hex');
+    const signature = `${tokenData.sessionId}:${tokenData.nonce}`;
 
     const transaction = new Transaction({
       no: this.nextTransactionNo(),
@@ -75,7 +73,8 @@ export class NfcTransactionBuilder {
       transaction.tenantId,
       enrollment.userId,
       tokenData.cardId,
-      tokenData.amount * 0.01,
+      // Convert request amount (cents) to domain amount (dollars) expected by processPayment.
+      tokenData.amount * NfcTransactionBuilder.DOMAIN_AMOUNT_FACTOR,
     ];
 
     return { transaction, processPaymentArgs };

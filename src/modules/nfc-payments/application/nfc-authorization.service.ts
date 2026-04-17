@@ -224,6 +224,8 @@ export class NfcAuthorizationService {
     });
 
     let persisted: Awaited<ReturnType<TransactionsRepository['create']>>;
+    let authorizationResult: AuthorizationResult | null = null;
+    let processingError: unknown;
 
     try {
       persisted = await this.transactionsRepository.create(transaction);
@@ -246,7 +248,7 @@ export class NfcAuthorizationService {
           processPaymentArgs[4],
         );
 
-        return {
+        authorizationResult = {
           approved: paymentResult.success,
           txId: persisted.id,
           amount: tokenData.amount,
@@ -268,7 +270,7 @@ export class NfcAuthorizationService {
           { processedAt: new Date(), sgtTransferCode: 'SGT_UNREACHABLE' },
         );
 
-        return {
+        authorizationResult = {
           approved: false,
           txId: persisted.id,
           reason: 'SGT_UNREACHABLE',
@@ -279,19 +281,49 @@ export class NfcAuthorizationService {
           ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
         };
       }
+    } catch (err) {
+      processingError = err;
     } finally {
       const [sessionMarkedResult, enrollmentCounterResult] = await Promise.allSettled([
         this.prepareService.markSessionUsed(tokenData.sessionId),
         this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter),
       ]);
 
-      if (sessionMarkedResult.status === 'rejected') {
-        throw sessionMarkedResult.reason;
-      }
-      if (enrollmentCounterResult.status === 'rejected') {
-        throw enrollmentCounterResult.reason;
+      const finalizationError =
+        sessionMarkedResult.status === 'rejected'
+          ? {
+              stage: 'markSessionUsed',
+              reason: sessionMarkedResult.reason,
+            }
+          : enrollmentCounterResult.status === 'rejected'
+            ? {
+                stage: 'updateEnrollmentCounter',
+                reason: enrollmentCounterResult.reason,
+              }
+            : null;
+
+      if (finalizationError) {
+        if (processingError) {
+          this.logger.error(
+            `NFC finalization failed at ${finalizationError.stage} after processing error: ${
+              (finalizationError.reason as Error).message
+            }`,
+          );
+          throw processingError;
+        }
+        throw finalizationError.reason;
       }
     }
+
+    if (processingError) {
+      throw processingError;
+    }
+
+    if (!authorizationResult) {
+      throw new Error('NFC authorization finished without a result');
+    }
+
+    return authorizationResult;
   }
 
   private async consumeNonceAtomically(sessionId: string): Promise<boolean> {
