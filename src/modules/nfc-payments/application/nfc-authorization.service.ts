@@ -9,7 +9,6 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import * as crypto from 'crypto';
 
 import {
   NFC_PAYMENT_INJECTION_TOKENS,
@@ -25,6 +24,10 @@ import { VaultHttpAdapter } from '../../vault/infrastructure/adapters/vault-http
 import { AuthorizePaymentRequestDto } from '../dto/authorize-payment-request.dto';
 import { TerminalService } from '../../terminals/application/terminal.service';
 import { TerminalStatus, TerminalCapability } from '../../terminals/domain/constants/terminal.constants';
+import { TransactionsRepository } from '../../transactions/infrastructure/adapters/transactions.repository';
+import { TransactionPaymentProcessor } from '../../transactions/application/services/transaction-payment.processor';
+import { TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
+import { NfcTransactionBuilder } from './nfc-transaction.builder';
 
 export interface TokenData {
   cardId: string;
@@ -47,6 +50,9 @@ export interface AuthorizationResult {
   tenantId?: string;
   terminalId?: string;
   sessionId?: string;
+  transferCode?: string;
+  isoResponseCode?: string;
+  status?: TransactionStatus;
 }
 
 /** Lua script for atomic nonce consumption */
@@ -88,6 +94,9 @@ export class NfcAuthorizationService {
     private readonly terminalService: TerminalService,
     @InjectRedis() private readonly redis: Redis,
     private readonly configService: ConfigService,
+    private readonly transactionsRepository: TransactionsRepository,
+    private readonly paymentProcessor: TransactionPaymentProcessor,
+    private readonly transactionBuilder: NfcTransactionBuilder,
   ) {}
 
   async authorizePayment(
@@ -108,24 +117,26 @@ export class NfcAuthorizationService {
       return this.getIdempotentResult(tokenData.sessionId);
     }
 
-    // Step 2b: Terminal lookup (when clientId is provided from OAuth token)
+    // Step 2b: Terminal lookup (required to derive tenant from OAuth clientId)
     let terminal: Awaited<ReturnType<TerminalService['findByOAuthClientId']>> = null;
-    if (clientId) {
-      terminal = await this.terminalService.findByOAuthClientId(clientId);
-      if (!terminal) {
-        return { approved: false, reason: 'TERMINAL_NOT_FOUND' };
-      }
-      if (terminal.status === TerminalStatus.SUSPENDED) {
-        return { approved: false, reason: 'TERMINAL_SUSPENDED' };
-      }
-      if (terminal.status === TerminalStatus.REVOKED) {
-        return { approved: false, reason: 'TERMINAL_REVOKED' };
-      }
+    if (!clientId) {
+      return { approved: false, reason: 'CLIENT_ID_REQUIRED' };
+    }
 
-      // Step 2c: Capability check
-      if (!terminal.capabilities.includes(TerminalCapability.NFC)) {
-        return { approved: false, reason: 'TERMINAL_MISSING_CAPABILITY' };
-      }
+    terminal = await this.terminalService.findByOAuthClientId(clientId);
+    if (!terminal) {
+      return { approved: false, reason: 'TERMINAL_NOT_FOUND' };
+    }
+    if (terminal.status === TerminalStatus.SUSPENDED) {
+      return { approved: false, reason: 'TERMINAL_SUSPENDED' };
+    }
+    if (terminal.status === TerminalStatus.REVOKED) {
+      return { approved: false, reason: 'TERMINAL_REVOKED' };
+    }
+
+    // Step 2c: Capability check
+    if (!terminal.capabilities.includes(TerminalCapability.NFC)) {
+      return { approved: false, reason: 'TERMINAL_MISSING_CAPABILITY' };
     }
 
     // Step 3: Get enrollment and root seed from Vault
@@ -205,23 +216,114 @@ export class NfcAuthorizationService {
 
     // Step 10: Balance check placeholder (deferred to integration)
 
-    // Step 11: Create transaction record
-    const txId = crypto.randomUUID();
+    // Step 11: Persist Transaction and dispatch to SGT (reuses QR settlement pipeline)
+    const { transaction, processPaymentArgs } = this.transactionBuilder.build({
+      tokenData,
+      enrollment,
+      terminal,
+    });
 
-    // Mark session as used in prepare service
-    await this.prepareService.markSessionUsed(tokenData.sessionId);
+    let persisted: Awaited<ReturnType<TransactionsRepository['create']>>;
+    let authorizationResult: AuthorizationResult | null = null;
+    let processingError: unknown;
 
-    // Update enrollment counter
-    await this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter);
+    try {
+      persisted = await this.transactionsRepository.create(transaction);
+      const processingTransaction = await this.transactionsRepository.updateStatus(
+        persisted.id,
+        TransactionStatus.PROCESSING,
+      );
+      if (!processingTransaction) {
+        throw new Error(`Transaction not found after status update: ${persisted.id}`);
+      }
+      if (!processingTransaction.cardId) {
+        throw new Error(`Transaction missing cardId: ${persisted.id}`);
+      }
+      try {
+        const paymentResult = await this.paymentProcessor.processPayment(
+          processingTransaction.id,
+          processingTransaction.tenantId,
+          processingTransaction.customerId,
+          processingTransaction.cardId,
+          processPaymentArgs[4],
+        );
 
-    return {
-      approved: true,
-      txId,
-      amount: tokenData.amount,
-      currency: tokenData.currency,
-      sessionId: tokenData.sessionId,
-      ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
-    };
+        authorizationResult = {
+          approved: paymentResult.success,
+          txId: persisted.id,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+          sessionId: tokenData.sessionId,
+          transferCode: paymentResult.transferCode,
+          isoResponseCode: paymentResult.isoResponseCode,
+          status: paymentResult.status,
+          ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
+        };
+      } catch (err) {
+        this.logger.error(
+          `SGT dispatch failed for txId=${persisted.id}: ${(err as Error).message}`,
+        );
+
+        await this.transactionsRepository.updateStatus(
+          persisted.id,
+          TransactionStatus.FAILED,
+          { processedAt: new Date(), sgtTransferCode: 'SGT_UNREACHABLE' },
+        );
+
+        authorizationResult = {
+          approved: false,
+          txId: persisted.id,
+          reason: 'SGT_UNREACHABLE',
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+          sessionId: tokenData.sessionId,
+          status: TransactionStatus.FAILED,
+          ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
+        };
+      }
+    } catch (err) {
+      processingError = err;
+    } finally {
+      const [sessionMarkedResult, enrollmentCounterResult] = await Promise.allSettled([
+        this.prepareService.markSessionUsed(tokenData.sessionId),
+        this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter),
+      ]);
+
+      const finalizationError =
+        sessionMarkedResult.status === 'rejected'
+          ? {
+              stage: 'markSessionUsed',
+              reason: sessionMarkedResult.reason,
+            }
+          : enrollmentCounterResult.status === 'rejected'
+            ? {
+                stage: 'updateEnrollmentCounter',
+                reason: enrollmentCounterResult.reason,
+              }
+            : null;
+
+      if (finalizationError) {
+        if (processingError) {
+          this.logger.error(
+            `NFC finalization failed at ${finalizationError.stage} after processing error: ${
+              (finalizationError.reason as Error).message
+            }`,
+          );
+          throw processingError;
+        }
+        throw finalizationError.reason;
+      }
+    }
+
+    if (processingError) {
+      throw processingError;
+    }
+
+    if (!authorizationResult) {
+      throw new Error('NFC authorization finished without a result');
+    }
+
+    return authorizationResult;
   }
 
   private async consumeNonceAtomically(sessionId: string): Promise<boolean> {

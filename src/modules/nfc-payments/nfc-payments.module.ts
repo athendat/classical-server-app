@@ -32,6 +32,7 @@ import { NfcPrepareController } from './infrastructure/controllers/nfc-prepare.c
 // Authorization (Slice 8)
 import { NfcAuthorizationService } from './application/nfc-authorization.service';
 import { NfcAuthorizationController } from './infrastructure/controllers/nfc-authorization.controller';
+import { NfcTransactionBuilder } from './application/nfc-transaction.builder';
 
 // Reused adapters from other modules
 import { EcdhCryptoAdapter } from '../devices/infrastructure/adapters/ecdh-crypto.adapter';
@@ -42,6 +43,7 @@ import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { VaultHttpAdapter } from '../vault/infrastructure/adapters/vault-http.adapter';
 import { TerminalsModule } from '../terminals/terminals.module';
 import { SocketsModule } from 'src/sockets/sockets.module';
+import { TransactionsModule } from '../transactions/transactions.module';
 
 @Module({
   imports: [
@@ -53,6 +55,7 @@ import { SocketsModule } from 'src/sockets/sockets.module';
     CachingModule,
     TerminalsModule,
     SocketsModule,
+    TransactionsModule,
   ],
   controllers: [NfcEnrollmentController, NfcPrepareController, NfcAuthorizationController],
   providers: [
@@ -84,6 +87,7 @@ import { SocketsModule } from 'src/sockets/sockets.module';
     NfcPrepareService,
     // Slice 8: Authorization
     NfcAuthorizationService,
+    NfcTransactionBuilder,
   ],
   exports: [
     NFC_PAYMENT_INJECTION_TOKENS.TLV_CODEC_PORT,
