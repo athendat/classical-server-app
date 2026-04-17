@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
 
 import { TokenData } from './nfc-authorization.service';
 import { Transaction, TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
@@ -8,7 +9,7 @@ import type { NfcEnrollmentEntity } from '../domain/ports/nfc-enrollment-reposit
 export interface NfcTransactionBuildInput {
   tokenData: TokenData;
   enrollment: NfcEnrollmentEntity;
-  terminal: TerminalEntity | null;
+  terminal: TerminalEntity;
 }
 
 export type ProcessPaymentArgs = [
@@ -26,15 +27,46 @@ export interface NfcTransactionBuildResult {
 
 @Injectable()
 export class NfcTransactionBuilder {
+  private static lastTransactionNo = 0;
+  private static readonly TRANSACTION_TTL_MINUTES = 15;
+
+  private nextTransactionNo(): number {
+    const now = Date.now();
+    NfcTransactionBuilder.lastTransactionNo = Math.max(
+      now,
+      NfcTransactionBuilder.lastTransactionNo + 1,
+    );
+
+    return NfcTransactionBuilder.lastTransactionNo;
+  }
+
+  private buildExpiresAt(ttlMinutes: number): Date {
+    return new Date(Date.now() + ttlMinutes * 60 * 1000);
+  }
+
   build(input: NfcTransactionBuildInput): NfcTransactionBuildResult {
     const { tokenData, enrollment, terminal } = input;
+    if (!terminal?.tenantId) {
+      throw new Error('Cannot build NFC transaction without a tenantId');
+    }
+
+    const ttlMinutes = NfcTransactionBuilder.TRANSACTION_TTL_MINUTES;
+    const signature = createHash('sha256')
+      .update(`${tokenData.sessionId}:${tokenData.txRef}:${tokenData.amount}`)
+      .digest('hex');
 
     const transaction = new Transaction({
-      tenantId: terminal?.tenantId ?? '',
+      no: this.nextTransactionNo(),
+      ref: tokenData.txRef || `nfc-${tokenData.sessionId}`,
+      tenantId: terminal.tenantId,
+      tenantName: terminal.name || terminal.tenantId,
       customerId: enrollment.userId,
       cardId: tokenData.cardId,
       amount: tokenData.amount,
       intentId: tokenData.sessionId,
+      ttlMinutes,
+      expiresAt: this.buildExpiresAt(ttlMinutes),
+      signature,
       status: TransactionStatus.NEW,
     });
 
@@ -43,7 +75,7 @@ export class NfcTransactionBuilder {
       transaction.tenantId,
       enrollment.userId,
       tokenData.cardId,
-      tokenData.amount,
+      tokenData.amount * 0.01,
     ];
 
     return { transaction, processPaymentArgs };

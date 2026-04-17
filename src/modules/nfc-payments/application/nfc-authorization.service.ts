@@ -9,7 +9,6 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import * as crypto from 'crypto';
 
 import {
   NFC_PAYMENT_INJECTION_TOKENS,
@@ -118,24 +117,26 @@ export class NfcAuthorizationService {
       return this.getIdempotentResult(tokenData.sessionId);
     }
 
-    // Step 2b: Terminal lookup (when clientId is provided from OAuth token)
+    // Step 2b: Terminal lookup (required to derive tenant from OAuth clientId)
     let terminal: Awaited<ReturnType<TerminalService['findByOAuthClientId']>> = null;
-    if (clientId) {
-      terminal = await this.terminalService.findByOAuthClientId(clientId);
-      if (!terminal) {
-        return { approved: false, reason: 'TERMINAL_NOT_FOUND' };
-      }
-      if (terminal.status === TerminalStatus.SUSPENDED) {
-        return { approved: false, reason: 'TERMINAL_SUSPENDED' };
-      }
-      if (terminal.status === TerminalStatus.REVOKED) {
-        return { approved: false, reason: 'TERMINAL_REVOKED' };
-      }
+    if (!clientId) {
+      return { approved: false, reason: 'CLIENT_ID_REQUIRED' };
+    }
 
-      // Step 2c: Capability check
-      if (!terminal.capabilities.includes(TerminalCapability.NFC)) {
-        return { approved: false, reason: 'TERMINAL_MISSING_CAPABILITY' };
-      }
+    terminal = await this.terminalService.findByOAuthClientId(clientId);
+    if (!terminal) {
+      return { approved: false, reason: 'TERMINAL_NOT_FOUND' };
+    }
+    if (terminal.status === TerminalStatus.SUSPENDED) {
+      return { approved: false, reason: 'TERMINAL_SUSPENDED' };
+    }
+    if (terminal.status === TerminalStatus.REVOKED) {
+      return { approved: false, reason: 'TERMINAL_REVOKED' };
+    }
+
+    // Step 2c: Capability check
+    if (!terminal.capabilities.includes(TerminalCapability.NFC)) {
+      return { approved: false, reason: 'TERMINAL_MISSING_CAPABILITY' };
     }
 
     // Step 3: Get enrollment and root seed from Vault
@@ -221,45 +222,76 @@ export class NfcAuthorizationService {
       enrollment,
       terminal,
     });
-    const persisted = await this.transactionsRepository.create(transaction);
-    let paymentResult;
+
+    let persisted: Awaited<ReturnType<TransactionsRepository['create']>>;
+
     try {
-      paymentResult = await this.paymentProcessor.processPayment(...processPaymentArgs);
-    } catch (err) {
-      this.logger.error(
-        `SGT dispatch failed for txId=${persisted.id}: ${(err as Error).message}`,
+      persisted = await this.transactionsRepository.create(transaction);
+      const processingTransaction = await this.transactionsRepository.updateStatus(
+        persisted.id,
+        TransactionStatus.PROCESSING,
       );
-      await this.prepareService.markSessionUsed(tokenData.sessionId);
-      await this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter);
-      return {
-        approved: false,
-        txId: persisted.id,
-        reason: 'SGT_UNREACHABLE',
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-        sessionId: tokenData.sessionId,
-        status: TransactionStatus.FAILED,
-        ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
-      };
+      if (!processingTransaction) {
+        throw new Error(`Transaction not found after status update: ${persisted.id}`);
+      }
+      if (!processingTransaction.cardId) {
+        throw new Error(`Transaction missing cardId: ${persisted.id}`);
+      }
+      try {
+        const paymentResult = await this.paymentProcessor.processPayment(
+          processingTransaction.id,
+          processingTransaction.tenantId,
+          processingTransaction.customerId,
+          processingTransaction.cardId,
+          processPaymentArgs[4],
+        );
+
+        return {
+          approved: paymentResult.success,
+          txId: persisted.id,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+          sessionId: tokenData.sessionId,
+          transferCode: paymentResult.transferCode,
+          isoResponseCode: paymentResult.isoResponseCode,
+          status: paymentResult.status,
+          ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
+        };
+      } catch (err) {
+        this.logger.error(
+          `SGT dispatch failed for txId=${persisted.id}: ${(err as Error).message}`,
+        );
+
+        await this.transactionsRepository.updateStatus(
+          persisted.id,
+          TransactionStatus.FAILED,
+          { processedAt: new Date(), sgtTransferCode: 'SGT_UNREACHABLE' },
+        );
+
+        return {
+          approved: false,
+          txId: persisted.id,
+          reason: 'SGT_UNREACHABLE',
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+          sessionId: tokenData.sessionId,
+          status: TransactionStatus.FAILED,
+          ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
+        };
+      }
+    } finally {
+      const [sessionMarkedResult, enrollmentCounterResult] = await Promise.allSettled([
+        this.prepareService.markSessionUsed(tokenData.sessionId),
+        this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter),
+      ]);
+
+      if (sessionMarkedResult.status === 'rejected') {
+        throw sessionMarkedResult.reason;
+      }
+      if (enrollmentCounterResult.status === 'rejected') {
+        throw enrollmentCounterResult.reason;
+      }
     }
-
-    // Mark session as used in prepare service
-    await this.prepareService.markSessionUsed(tokenData.sessionId);
-
-    // Update enrollment counter
-    await this.updateEnrollmentCounter(tokenData.cardId, tokenData.counter);
-
-    return {
-      approved: paymentResult.success,
-      txId: persisted.id,
-      amount: tokenData.amount,
-      currency: tokenData.currency,
-      sessionId: tokenData.sessionId,
-      transferCode: paymentResult.transferCode,
-      isoResponseCode: paymentResult.isoResponseCode,
-      status: paymentResult.status,
-      ...(terminal && { tenantId: terminal.tenantId, terminalId: terminal.terminalId }),
-    };
   }
 
   private async consumeNonceAtomically(sessionId: string): Promise<boolean> {

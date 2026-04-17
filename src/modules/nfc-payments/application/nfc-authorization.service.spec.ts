@@ -122,7 +122,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
   let mockRedis: { eval: jest.Mock };
   let mockTerminalService: Partial<jest.Mocked<TerminalService>>;
   let mockConfigService: Partial<jest.Mocked<ConfigService>>;
-  let mockTransactionsRepository: { create: jest.Mock };
+  let mockTransactionsRepository: { create: jest.Mock; updateStatus: jest.Mock };
   let mockPaymentProcessor: { processPayment: jest.Mock };
 
   // Use the real TLV codec for building test payloads
@@ -229,8 +229,30 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       get: jest.fn().mockReturnValue('app_'),
     };
 
+    let storedTransaction: Transaction | null = null;
     mockTransactionsRepository = {
-      create: jest.fn().mockImplementation(async (tx: Transaction) => tx),
+      create: jest.fn().mockImplementation(async (tx: Transaction) => {
+        storedTransaction = new Transaction({
+          ...tx,
+          amount: tx.amount * 0.01,
+        });
+        return storedTransaction;
+      }),
+      updateStatus: jest.fn().mockImplementation(
+        async (
+          id: string,
+          status: TransactionStatus,
+          updates?: Record<string, any>,
+        ) => {
+          storedTransaction = new Transaction({
+            ...(storedTransaction ?? {}),
+            id,
+            status,
+            ...updates,
+          });
+          return storedTransaction;
+        },
+      ),
     };
 
     mockPaymentProcessor = {
@@ -308,11 +330,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
     it('should approve a valid payment with correct signature, counter, and amount', async () => {
       const { signedPayload, tokenData } = buildValidSignedPayload();
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(true);
       expect(result.txId).toBeDefined();
@@ -344,7 +369,11 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         'tenant-001',
         expect.any(String),
         tokenData.cardId,
-        tokenData.amount,
+        tokenData.amount * 0.01,
+      );
+      expect(mockTransactionsRepository.updateStatus).toHaveBeenCalledWith(
+        persisted.id,
+        TransactionStatus.PROCESSING,
       );
 
       expect(result.approved).toBe(true);
@@ -384,6 +413,33 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       expect(mockRedis.eval).toHaveBeenCalled();
     });
 
+    it('should keep TR002 aligned with QR semantics (approved=true)', async () => {
+      mockPaymentProcessor.processPayment.mockImplementationOnce(
+        async (transactionId: string) => ({
+          success: true,
+          status: TransactionStatus.SUCCESS,
+          transferCode: 'TR002',
+          isoResponseCode: '00',
+          updatedTransaction: new Transaction({
+            id: transactionId,
+            status: TransactionStatus.SUCCESS,
+            sgtTransferCode: 'TR002',
+            sgtIsoResponseCode: '00',
+          }),
+        }),
+      );
+
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+      const result = await service.authorizePayment(
+        { signedPayload, amount: tokenData.amount, currency: tokenData.currency },
+        'oauth-client-1',
+      );
+
+      expect(result.approved).toBe(true);
+      expect((result as any).transferCode).toBe('TR002');
+      expect((result as any).status).toBe(TransactionStatus.SUCCESS);
+    });
+
     it('should return failure response when SGT processor throws (unreachable)', async () => {
       mockPaymentProcessor.processPayment.mockRejectedValueOnce(
         new Error('ECONNREFUSED'),
@@ -399,17 +455,25 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('SGT_UNREACHABLE');
       expect((result as any).status).toBe(TransactionStatus.FAILED);
+      expect(mockTransactionsRepository.updateStatus).toHaveBeenCalledWith(
+        expect.any(String),
+        TransactionStatus.FAILED,
+        expect.objectContaining({ sgtTransferCode: 'SGT_UNREACHABLE' }),
+      );
     });
 
     it('should reject when session not found', async () => {
       mockPrepareService.getSession!.mockResolvedValueOnce(null);
       const { signedPayload, tokenData } = buildValidSignedPayload();
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('SESSION_NOT_FOUND');
@@ -419,11 +483,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       mockEcdsaService.verify.mockReturnValueOnce(false);
       const { signedPayload, tokenData } = buildValidSignedPayload();
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('INVALID_SIGNATURE');
@@ -450,11 +517,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       });
       const { signedPayload, tokenData } = buildValidSignedPayload({ counter: 3 });
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('COUNTER_TOO_LOW');
@@ -468,11 +538,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       });
       const { signedPayload, tokenData } = buildValidSignedPayload({ counter: 20 });
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('COUNTER_BEYOND_WINDOW');
@@ -483,11 +556,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         serverTimestamp: Date.now() - 400000, // > 5 min ago
       });
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('TOKEN_EXPIRED');
@@ -496,11 +572,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
     it('should reject when amount does not match', async () => {
       const { signedPayload, tokenData } = buildValidSignedPayload({ amount: 1000 });
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: 2000, // POS sends different amount
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: 2000, // POS sends different amount
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('AMOUNT_MISMATCH');
@@ -510,11 +589,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       mockRedis.eval.mockResolvedValueOnce(0);
       const { signedPayload, tokenData } = buildValidSignedPayload();
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(false);
       expect(result.reason).toBe('NONCE_ALREADY_USED');
@@ -524,6 +606,24 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       mockEnrollmentService.getEnrollment!.mockResolvedValueOnce(null);
       const { signedPayload, tokenData } = buildValidSignedPayload();
 
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
+
+      expect(result.approved).toBe(false);
+      expect(result.reason).toBe('CARD_NOT_ENROLLED');
+    });
+
+    // ── Terminal validation tests (Slice 5) ──────────────────────────
+
+    it('should reject with CLIENT_ID_REQUIRED when OAuth client id is missing', async () => {
+      const { signedPayload, tokenData } = buildValidSignedPayload();
+
       const result = await service.authorizePayment({
         signedPayload,
         amount: tokenData.amount,
@@ -531,10 +631,10 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       });
 
       expect(result.approved).toBe(false);
-      expect(result.reason).toBe('CARD_NOT_ENROLLED');
+      expect(result.reason).toBe('CLIENT_ID_REQUIRED');
+      expect(mockTransactionsRepository.create).not.toHaveBeenCalled();
+      expect(mockPaymentProcessor.processPayment).not.toHaveBeenCalled();
     });
-
-    // ── Terminal validation tests (Slice 5) ──────────────────────────
 
     it('should reject with TERMINAL_NOT_FOUND when clientId has no terminal', async () => {
       mockTerminalService.findByOAuthClientId!.mockResolvedValueOnce(null);
@@ -619,11 +719,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       const warnSpy = jest.spyOn(Logger.prototype, 'warn');
       const { signedPayload, tokenData } = buildValidSignedPayload();
 
-      await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       const sigDebugCalls = warnSpy.mock.calls.filter(
         (args) => typeof args[0] === 'string' && args[0].includes('SIG-DEBUG'),
@@ -640,11 +743,14 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       });
       const { signedPayload, tokenData } = buildValidSignedPayload();
 
-      const result = await service.authorizePayment({
-        signedPayload,
-        amount: tokenData.amount,
-        currency: tokenData.currency,
-      });
+      const result = await service.authorizePayment(
+        {
+          signedPayload,
+          amount: tokenData.amount,
+          currency: tokenData.currency,
+        },
+        'oauth-client-1',
+      );
 
       expect(result.approved).toBe(true);
       expect(result.reason).toBe('ALREADY_PROCESSED');

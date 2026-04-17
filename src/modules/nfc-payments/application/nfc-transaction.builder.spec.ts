@@ -54,6 +54,8 @@ describe('NfcTransactionBuilder', () => {
 
     expect(transaction.status).toBe(TransactionStatus.NEW);
     expect(transaction.intentId).toBe(tokenData.sessionId);
+    expect(transaction.no).toBeGreaterThan(0);
+    expect(transaction.expiresAt.getTime()).toBeGreaterThan(Date.now());
   });
 
   it('maps cardId, amount, customerId from enrollment, tenantId from terminal', () => {
@@ -77,13 +79,13 @@ describe('NfcTransactionBuilder', () => {
       transaction.tenantId,
       enrollment.userId,
       tokenData.cardId,
-      tokenData.amount,
+      tokenData.amount * 0.01,
     ]);
   });
 
-  it('falls back to empty tenantId when terminal is null (legacy callers)', () => {
-    const { transaction } = builder.build({ tokenData, enrollment, terminal: null });
-
-    expect(transaction.tenantId).toBe('');
+  it('throws when terminal is missing tenantId', () => {
+    expect(() =>
+      builder.build({ tokenData, enrollment, terminal: null as unknown as TerminalEntity }),
+    ).toThrow('Cannot build NFC transaction without a tenantId');
   });
 });
