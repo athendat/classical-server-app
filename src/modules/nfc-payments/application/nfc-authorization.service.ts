@@ -240,12 +240,18 @@ export class NfcAuthorizationService {
         throw new Error(`Transaction missing cardId: ${persisted.id}`);
       }
       try {
+        this.logger.log(
+          `Dispatching NFC payment to SGT: txId=${processingTransaction.id}, tenantId=${processingTransaction.tenantId}, cardId=${processingTransaction.cardId}, domainAmount=${processPaymentArgs[4]}`,
+        );
         const paymentResult = await this.paymentProcessor.processPayment(
           processingTransaction.id,
           processingTransaction.tenantId,
           processingTransaction.customerId,
           processingTransaction.cardId,
           processPaymentArgs[4],
+        );
+        this.logger.log(
+          `SGT dispatch returned for txId=${processingTransaction.id}: approved=${paymentResult.success}, transferCode=${paymentResult.transferCode}, status=${paymentResult.status}`,
         );
 
         authorizationResult = {
@@ -389,7 +395,7 @@ export class NfcAuthorizationService {
         throw new Error('ENROLLMENT_COUNTER_NOT_MONOTONIC');
       }
 
-      this.logger.debug(
+      this.logger.log(
         `Enrollment counter for card ${cardId} updated to ${newCounter}`,
       );
     } catch (err) {
