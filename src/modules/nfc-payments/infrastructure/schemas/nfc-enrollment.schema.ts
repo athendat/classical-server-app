@@ -16,6 +16,9 @@ export class NfcEnrollment extends AbstractSchema {
   cardId: string;
 
   @Prop({ required: true })
+  userId: string; // Cardholder user id — persisted so NFC→SGT dispatch can look up the user
+
+  @Prop({ required: true })
   devicePublicKey: string; // Base64 of 65-byte uncompressed P-256
 
   @Prop({ required: true })
