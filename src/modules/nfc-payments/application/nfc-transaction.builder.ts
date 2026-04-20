@@ -79,7 +79,7 @@ export class NfcTransactionBuilder {
     ];
 
     this.logger.log(
-      `NFC transaction built: txId=${transaction.id}, cardId=${tokenData.cardId}, tenantId=${terminal.tenantId}, amount=${tokenData.amount} ${tokenData.currency}, domainAmount=${processPaymentArgs[4]}, customerId=${enrollment.userId}, txRef=${transaction.ref}`,
+      `NFC transaction built: txId=${transaction.id}, cardId=${tokenData.cardId}, tenantId=${terminal.tenantId}, amount=${tokenData.amount} ${tokenData.currency}, domainAmount=${processPaymentArgs[4]}, customerId=${enrollment.userId}`,
     );
 
     return { transaction, processPaymentArgs };
