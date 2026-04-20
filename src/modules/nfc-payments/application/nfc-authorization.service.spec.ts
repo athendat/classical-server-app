@@ -33,6 +33,7 @@ import { TransactionsRepository } from '../../transactions/infrastructure/adapte
 import { TransactionPaymentProcessor } from '../../transactions/application/services/transaction-payment.processor';
 import { Transaction, TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
 import { NfcTransactionBuilder } from './nfc-transaction.builder';
+import { SocketGateway } from 'src/sockets/sockets.gateway';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -317,6 +318,10 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
           useValue: mockPaymentProcessor,
         },
         NfcTransactionBuilder,
+        {
+          provide: SocketGateway,
+          useValue: { sendToRoom: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -367,6 +372,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         expect.any(String),
         tokenData.cardId,
         tokenData.amount * 0.01,
+        tokenData.currency,
       );
       expect(mockTransactionsRepository.updateStatus).toHaveBeenCalledWith(
         persisted.id,

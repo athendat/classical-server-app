@@ -69,6 +69,7 @@ export class TransactionPaymentProcessor {
     customerId: string,
     cardId: string,
     amount: number,
+    currency?: string,
   ): Promise<PaymentResult> {
     this.logger.log(
       `Procesando pago para transacción=${transactionId}, card=${cardId}, tenant=${tenantId}`,
@@ -214,7 +215,7 @@ export class TransactionPaymentProcessor {
 
         this.eventEmitter.emit(
           'transaction.processed',
-          new TransactionProcessedEvent(transactionId, tenantId, 'success'),
+          new TransactionProcessedEvent(transactionId, tenantId, 'success', undefined, amount, currency),
         );
 
         return {
@@ -258,7 +259,7 @@ export class TransactionPaymentProcessor {
 
         this.eventEmitter.emit(
           'transaction.processed',
-          new TransactionProcessedEvent(transactionId, tenantId, 'failed', errorMsg),
+          new TransactionProcessedEvent(transactionId, tenantId, 'failed', errorMsg, amount, currency),
         );
 
         return {
@@ -289,6 +290,8 @@ export class TransactionPaymentProcessor {
     tenantId: string,
     customerId: string,
     errorMsg: string,
+    amount?: number,
+    currency?: string,
   ): Promise<PaymentResult> {
     const updatedTransaction = await this.transactionsRepository.updateStatus(
       transactionId,
@@ -311,7 +314,7 @@ export class TransactionPaymentProcessor {
 
     this.eventEmitter.emit(
       'transaction.processed',
-      new TransactionProcessedEvent(transactionId, tenantId, 'failed', errorMsg),
+      new TransactionProcessedEvent(transactionId, tenantId, 'failed', errorMsg, amount, currency),
     );
 
     return {

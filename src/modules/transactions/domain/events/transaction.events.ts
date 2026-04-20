@@ -31,6 +31,8 @@ export class TransactionProcessedEvent extends BaseDomainEvent {
     readonly tenantId: string,
     readonly status: 'success' | 'failed',
     readonly error?: string,
+    readonly amount?: number,
+    readonly currency?: string,
   ) {
     super('transaction.processed');
   }
