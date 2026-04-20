@@ -36,7 +36,21 @@ async function bootstrap() {
   // App
   // Console verbosity is controlled by LOG_LEVEL env var (error | warn | info | http | verbose | debug | silly).
   // Default 'info' matches Winston defaults and keeps `logger.log()` breadcrumbs visible in containerized deployments.
-  const consoleLogLevel = process.env.LOG_LEVEL || 'info';
+  const supportedLogLevels = [
+    'error',
+    'warn',
+    'info',
+    'http',
+    'verbose',
+    'debug',
+    'silly',
+  ] as const;
+  const normalizedLogLevel = process.env.LOG_LEVEL?.trim().toLowerCase();
+  const consoleLogLevel = supportedLogLevels.includes(
+    normalizedLogLevel as (typeof supportedLogLevels)[number],
+  )
+    ? normalizedLogLevel
+    : 'info';
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: WinstonModule.createLogger({
       transports: [
