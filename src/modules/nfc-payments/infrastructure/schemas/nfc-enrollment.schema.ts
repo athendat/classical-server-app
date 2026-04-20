@@ -12,6 +12,9 @@ export type NfcEnrollmentDocument = HydratedDocument<NfcEnrollment>;
 
 @Schema({ collection: 'nfc_enrollments', timestamps: true })
 export class NfcEnrollment extends AbstractSchema {
+  @Prop({ type: String, required: true, ref: 'User', index: true })
+  declare userId: string;
+
   @Prop({ required: true, unique: true, index: true })
   cardId: string;
 

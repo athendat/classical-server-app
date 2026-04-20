@@ -15,7 +15,7 @@ import {
   HttpStatus,
   Res,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request as ExpressRequest, Response } from 'express';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -28,10 +28,13 @@ import {
   ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 
+import type { Actor } from 'src/common/interfaces';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { NfcPrepareService } from '../../application/nfc-prepare.service';
 import { NfcPrepareRequestDto } from '../../dto/nfc-prepare-request.dto';
 import { NfcPrepareResponseDto } from '../../dto/nfc-prepare-response.dto';
+
+type AuthenticatedRequest = ExpressRequest & { user: Actor };
 
 @Controller('payment-tokens')
 @ApiTags('NFC Payments')
@@ -58,7 +61,7 @@ export class NfcPrepareController {
   @ApiInternalServerErrorResponse({ description: 'Error preparing payment session' })
   async prepare(
     @Body() dto: NfcPrepareRequestDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<Response> {
     const result = await this.prepareService.preparePaymentSession(

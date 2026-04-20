@@ -17,7 +17,7 @@ import {
   HttpStatus,
   Res,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request as ExpressRequest, Response } from 'express';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -32,10 +32,13 @@ import {
   ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 
+import type { Actor } from 'src/common/interfaces';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { NfcEnrollmentService } from '../../application/nfc-enrollment.service';
 import { NfcEnrollmentRequestDto } from '../../dto/nfc-enrollment-request.dto';
 import { NfcEnrollmentResponseDto } from '../../dto/nfc-enrollment-response.dto';
+
+type AuthenticatedRequest = ExpressRequest & { user: Actor };
 
 @Controller('cards')
 @ApiTags('NFC Enrollment')
@@ -69,7 +72,7 @@ export class NfcEnrollmentController {
   async enrollCard(
     @Param('cardId') cardId: string,
     @Body() dto: NfcEnrollmentRequestDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<Response> {
     const result = await this.enrollmentService.enrollCard(
@@ -103,7 +106,7 @@ export class NfcEnrollmentController {
   @ApiInternalServerErrorResponse({ description: 'Error during revocation process' })
   async revokeEnrollment(
     @Param('cardId') cardId: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<Response> {
     await this.enrollmentService.revokeEnrollment(cardId, req.user.actorId);
