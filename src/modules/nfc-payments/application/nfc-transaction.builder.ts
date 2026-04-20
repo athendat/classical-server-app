@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { TokenData } from './nfc-authorization.service';
 import { Transaction, TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
@@ -26,6 +26,7 @@ export interface NfcTransactionBuildResult {
 
 @Injectable()
 export class NfcTransactionBuilder {
+  private readonly logger = new Logger(NfcTransactionBuilder.name);
   private static readonly DOMAIN_AMOUNT_FACTOR = 0.01;
   private static lastTransactionNo = 0;
   private static readonly TRANSACTION_TTL_MINUTES = 15;
@@ -76,6 +77,10 @@ export class NfcTransactionBuilder {
       // Convert request amount (cents) to domain amount (dollars) expected by processPayment.
       tokenData.amount * NfcTransactionBuilder.DOMAIN_AMOUNT_FACTOR,
     ];
+
+    this.logger.log(
+      `NFC transaction built: txId=${transaction.id}, cardId=${tokenData.cardId}, tenantId=${terminal.tenantId}, amount=${tokenData.amount} ${tokenData.currency}, domainAmount=${processPaymentArgs[4]}, customerId=${enrollment.userId}, txRef=${transaction.ref}`,
+    );
 
     return { transaction, processPaymentArgs };
   }

@@ -5,6 +5,8 @@
  * No I/O, no DI — just data shaping.
  */
 
+import { Logger } from '@nestjs/common';
+
 import { NfcTransactionBuilder } from './nfc-transaction.builder';
 import { TokenData } from './nfc-authorization.service';
 import { TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
@@ -87,5 +89,27 @@ describe('NfcTransactionBuilder', () => {
     expect(() =>
       builder.build({ tokenData, enrollment, terminal: null as unknown as TerminalEntity }),
     ).toThrow('Cannot build NFC transaction without a tenantId');
+  });
+
+  it('emits an info-level log on build() with a sanitized token snapshot (no nonce, no sessionId body)', () => {
+    const spy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    try {
+      const { transaction } = builder.build({ tokenData, enrollment, terminal });
+
+      const messages = spy.mock.calls
+        .map((call) => (typeof call[0] === 'string' ? call[0] : JSON.stringify(call[0])))
+        .join('\n');
+
+      expect(messages).toContain('NFC transaction built');
+      expect(messages).toContain(tokenData.cardId);
+      expect(messages).toContain(terminal.tenantId);
+      expect(messages).toContain(String(tokenData.amount));
+      expect(messages).toContain(transaction.id);
+
+      // Sensitive fields must never appear in info-level logs
+      expect(messages).not.toContain(tokenData.nonce);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

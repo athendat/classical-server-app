@@ -34,10 +34,14 @@ async function bootstrap() {
   const logger = new Logger('bootstrap');
 
   // App
+  // Console verbosity is controlled by LOG_LEVEL env var (error | warn | info | http | verbose | debug | silly).
+  // Default 'info' matches Winston defaults and keeps `logger.log()` breadcrumbs visible in containerized deployments.
+  const consoleLogLevel = process.env.LOG_LEVEL || 'info';
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: WinstonModule.createLogger({
       transports: [
         new winston.transports.Console({
+          level: consoleLogLevel,
           format: winston.format.combine(
             winston.format.colorize({ all: true }),
             winston.format.timestamp({
