@@ -351,6 +351,25 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
 
     it('should persist Transaction and dispatch to SGT, returning transferCode/status on success', async () => {
       const { signedPayload, tokenData } = buildValidSignedPayload();
+      const callSequence: string[] = [];
+      mockSocketGateway.sendToRoom.mockImplementation(() => {
+        callSequence.push('payment.processing');
+      });
+      mockPaymentProcessor.processPayment.mockImplementationOnce(async (transactionId: string) => {
+        callSequence.push('processPayment');
+        return {
+          success: true,
+          status: TransactionStatus.SUCCESS,
+          transferCode: 'TR000',
+          isoResponseCode: '00',
+          updatedTransaction: new Transaction({
+            id: transactionId,
+            status: TransactionStatus.SUCCESS,
+            sgtTransferCode: 'TR000',
+            sgtIsoResponseCode: '00',
+          }),
+        };
+      });
 
       const result = await service.authorizePayment(
         {
@@ -390,9 +409,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
           currency: tokenData.currency,
         }),
       );
-      expect(mockSocketGateway.sendToRoom.mock.invocationCallOrder[0]).toBeLessThan(
-        mockPaymentProcessor.processPayment.mock.invocationCallOrder[0],
-      );
+      expect(callSequence).toEqual(['payment.processing', 'processPayment']);
 
       expect(result.approved).toBe(true);
       expect(result.txId).toBe(persisted.id);

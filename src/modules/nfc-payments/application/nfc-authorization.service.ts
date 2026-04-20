@@ -224,6 +224,7 @@ export class NfcAuthorizationService {
       enrollment,
       terminal,
     });
+    const [, , , , domainAmount] = processPaymentArgs;
 
     let persisted: Awaited<ReturnType<TransactionsRepository['create']>>;
     let authorizationResult: AuthorizationResult | null = null;
@@ -243,7 +244,7 @@ export class NfcAuthorizationService {
       }
       try {
         this.logger.log(
-          `Dispatching NFC payment to SGT: txId=${processingTransaction.id}, tenantId=${processingTransaction.tenantId}, cardId=${processingTransaction.cardId}, domainAmount=${processPaymentArgs[4]}`,
+          `Dispatching NFC payment to SGT: txId=${processingTransaction.id}, tenantId=${processingTransaction.tenantId}, cardId=${processingTransaction.cardId}, domainAmount=${domainAmount}`,
         );
 
         // Signal "tap complete, waiting on issuer" to the phone before the SGT call.
@@ -251,7 +252,7 @@ export class NfcAuthorizationService {
         this.socketGateway.sendToRoom(tokenData.sessionId, 'payment.processing', {
           transactionId: processingTransaction.id,
           intentId: tokenData.sessionId,
-          amount: processPaymentArgs[4],
+          amount: domainAmount,
           currency: tokenData.currency,
           timestamp: new Date().toISOString(),
         });
@@ -261,7 +262,7 @@ export class NfcAuthorizationService {
           processingTransaction.tenantId,
           processingTransaction.customerId,
           processingTransaction.cardId,
-          processPaymentArgs[4],
+          domainAmount,
           tokenData.currency,
         );
         this.logger.log(
