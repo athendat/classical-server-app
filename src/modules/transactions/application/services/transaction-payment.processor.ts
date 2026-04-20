@@ -80,15 +80,36 @@ export class TransactionPaymentProcessor {
       const card = await this.cardsRepository.findById(cardId);
       this.logger.log(`Tarjeta encontrada: ${cardId}`);
       if (!card) {
-        return this.failAndReturn(transactionId, tenantId, customerId, 'Tarjeta no encontrada');
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          'Tarjeta no encontrada',
+          amount,
+          currency,
+        );
       }
 
       if (card.status !== CardStatusEnum.ACTIVE) {
-        return this.failAndReturn(transactionId, tenantId, customerId, `Tarjeta no activa: ${card.status}`);
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          `Tarjeta no activa: ${card.status}`,
+          amount,
+          currency,
+        );
       }
 
       if (!card.token) {
-        return this.failAndReturn(transactionId, tenantId, customerId, 'Tarjeta sin token SGT');
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          'Tarjeta sin token SGT',
+          amount,
+          currency,
+        );
       }
 
       // Step 2: Obtener pinblock de la tarjeta desde Vault
@@ -96,27 +117,55 @@ export class TransactionPaymentProcessor {
       this.logger.log(`Pinblock obtenido para tarjeta: ${cardId}`);
       console.log({ pinblockResult });
       if (pinblockResult.isFailure) {
-        return this.failAndReturn(transactionId, tenantId, customerId, 'Error al recuperar pinblock de Vault');
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          'Error al recuperar pinblock de Vault',
+          amount,
+          currency,
+        );
       }
 
       // Step 3: Obtener datos del usuario (idNumber)
       const user = await this.usersRepository.findByIdRaw(customerId);
       this.logger.log(`Usuario encontrado: ${customerId}`);
       if (!user) {
-        return this.failAndReturn(transactionId, tenantId, customerId, 'Usuario no encontrado');
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          'Usuario no encontrado',
+          amount,
+          currency,
+        );
       }
 
       // Step 4: Obtener datos del tenant y su PAN (cuenta beneficiaria)
       const tenant = await this.tenantsRepository.findById(tenantId);
       this.logger.log(`Tenant encontrado: ${tenantId}`);
       if (!tenant) {
-        return this.failAndReturn(transactionId, tenantId, customerId, 'Tenant no encontrado');
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          'Tenant no encontrado',
+          amount,
+          currency,
+        );
       }
 
       const tenantPanResult = await this.tenantVaultService.getPan(tenantId);
       this.logger.log(`PAN del tenant obtenido: ${tenantId}`);
       if (tenantPanResult.isFailure) {
-        return this.failAndReturn(transactionId, tenantId, customerId, 'Error al recuperar PAN del tenant');
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          'Error al recuperar PAN del tenant',
+          amount,
+          currency,
+        );
       }
 
       const beneficiaryAccount = tenantPanResult.getValue();
@@ -165,7 +214,14 @@ export class TransactionPaymentProcessor {
         this.logger.error(
           `SGT /transfer falló para transacción=${transactionId}: ${error.message}`,
         );
-        return this.failAndReturn(transactionId, tenantId, customerId, error.message);
+        return this.failAndReturn(
+          transactionId,
+          tenantId,
+          customerId,
+          error.message,
+          amount,
+          currency,
+        );
       }
 
       const sgtResponse = transferResult.getValue();
@@ -278,7 +334,7 @@ export class TransactionPaymentProcessor {
         error,
       );
 
-      return this.failAndReturn(transactionId, tenantId, customerId, errorMsg);
+      return this.failAndReturn(transactionId, tenantId, customerId, errorMsg, amount, currency);
     }
   }
 

@@ -125,6 +125,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
   let mockConfigService: Partial<jest.Mocked<ConfigService>>;
   let mockTransactionsRepository: { create: jest.Mock; updateStatus: jest.Mock };
   let mockPaymentProcessor: { processPayment: jest.Mock };
+  let mockSocketGateway: { sendToRoom: jest.Mock };
 
   // Use the real TLV codec for building test payloads
   const realCodec = new TlvCodecAdapter();
@@ -269,6 +270,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         }),
       ),
     };
+    mockSocketGateway = { sendToRoom: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -320,7 +322,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         NfcTransactionBuilder,
         {
           provide: SocketGateway,
-          useValue: { sendToRoom: jest.fn() },
+          useValue: mockSocketGateway,
         },
       ],
     }).compile();
@@ -377,6 +379,19 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
       expect(mockTransactionsRepository.updateStatus).toHaveBeenCalledWith(
         persisted.id,
         TransactionStatus.PROCESSING,
+      );
+      expect(mockSocketGateway.sendToRoom).toHaveBeenCalledWith(
+        tokenData.sessionId,
+        'payment.processing',
+        expect.objectContaining({
+          transactionId: persisted.id,
+          intentId: tokenData.sessionId,
+          amount: tokenData.amount * 0.01,
+          currency: tokenData.currency,
+        }),
+      );
+      expect(mockSocketGateway.sendToRoom.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPaymentProcessor.processPayment.mock.invocationCallOrder[0],
       );
 
       expect(result.approved).toBe(true);

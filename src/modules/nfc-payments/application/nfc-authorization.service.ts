@@ -251,7 +251,7 @@ export class NfcAuthorizationService {
         this.socketGateway.sendToRoom(tokenData.sessionId, 'payment.processing', {
           transactionId: processingTransaction.id,
           intentId: tokenData.sessionId,
-          amount: tokenData.amount,
+          amount: processPaymentArgs[4],
           currency: tokenData.currency,
           timestamp: new Date().toISOString(),
         });
