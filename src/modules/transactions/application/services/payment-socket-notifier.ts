@@ -20,7 +20,13 @@ export class PaymentSocketNotifier {
 
   @OnEvent('transaction.processed')
   async handleTransactionProcessed(event: TransactionProcessedEvent): Promise<void> {
-    await this.emitPaymentResult(event.transactionId, event.status, event.error ?? null);
+    await this.emitPaymentResult(
+      event.transactionId,
+      event.status,
+      event.error ?? null,
+      event.amount,
+      event.currency,
+    );
   }
 
   @OnEvent('transaction.expired')
@@ -37,6 +43,8 @@ export class PaymentSocketNotifier {
     transactionId: string,
     status: string,
     error: string | null = null,
+    amount?: number,
+    currency?: string,
   ): Promise<void> {
     const transaction = await this.transactionsRepository.findById(transactionId);
     if (!transaction) {
@@ -49,6 +57,8 @@ export class PaymentSocketNotifier {
       intentId: transaction.intentId,
       status,
       error,
+      amount: amount ?? transaction.amount,
+      currency,
       timestamp: new Date().toISOString(),
     });
   }

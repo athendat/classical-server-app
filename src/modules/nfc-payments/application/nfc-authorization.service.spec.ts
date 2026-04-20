@@ -33,6 +33,7 @@ import { TransactionsRepository } from '../../transactions/infrastructure/adapte
 import { TransactionPaymentProcessor } from '../../transactions/application/services/transaction-payment.processor';
 import { Transaction, TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
 import { NfcTransactionBuilder } from './nfc-transaction.builder';
+import { SocketGateway } from 'src/sockets/sockets.gateway';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
   let mockConfigService: Partial<jest.Mocked<ConfigService>>;
   let mockTransactionsRepository: { create: jest.Mock; updateStatus: jest.Mock };
   let mockPaymentProcessor: { processPayment: jest.Mock };
+  let mockSocketGateway: { sendToRoom: jest.Mock };
 
   // Use the real TLV codec for building test payloads
   const realCodec = new TlvCodecAdapter();
@@ -268,6 +270,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         }),
       ),
     };
+    mockSocketGateway = { sendToRoom: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -317,6 +320,10 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
           useValue: mockPaymentProcessor,
         },
         NfcTransactionBuilder,
+        {
+          provide: SocketGateway,
+          useValue: mockSocketGateway,
+        },
       ],
     }).compile();
 
@@ -344,6 +351,26 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
 
     it('should persist Transaction and dispatch to SGT, returning transferCode/status on success', async () => {
       const { signedPayload, tokenData } = buildValidSignedPayload();
+      const expectedDomainAmount = tokenData.amount / 100;
+      const callSequence: string[] = [];
+      mockSocketGateway.sendToRoom.mockImplementation(() => {
+        callSequence.push('payment.processing');
+      });
+      mockPaymentProcessor.processPayment.mockImplementationOnce(async (transactionId: string) => {
+        callSequence.push('processPayment');
+        return {
+          success: true,
+          status: TransactionStatus.SUCCESS,
+          transferCode: 'TR000',
+          isoResponseCode: '00',
+          updatedTransaction: new Transaction({
+            id: transactionId,
+            status: TransactionStatus.SUCCESS,
+            sgtTransferCode: 'TR000',
+            sgtIsoResponseCode: '00',
+          }),
+        };
+      });
 
       const result = await service.authorizePayment(
         {
@@ -366,12 +393,24 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         'tenant-001',
         expect.any(String),
         tokenData.cardId,
-        tokenData.amount * 0.01,
+        expectedDomainAmount,
+        tokenData.currency,
       );
       expect(mockTransactionsRepository.updateStatus).toHaveBeenCalledWith(
         persisted.id,
         TransactionStatus.PROCESSING,
       );
+      expect(mockSocketGateway.sendToRoom).toHaveBeenCalledWith(
+        tokenData.sessionId,
+        'payment.processing',
+        expect.objectContaining({
+          transactionId: persisted.id,
+          intentId: tokenData.sessionId,
+          amount: expectedDomainAmount,
+          currency: tokenData.currency,
+        }),
+      );
+      expect(callSequence).toEqual(['payment.processing', 'processPayment']);
 
       expect(result.approved).toBe(true);
       expect(result.txId).toBe(persisted.id);

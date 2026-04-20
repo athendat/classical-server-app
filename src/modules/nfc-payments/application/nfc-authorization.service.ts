@@ -28,6 +28,7 @@ import { TransactionsRepository } from '../../transactions/infrastructure/adapte
 import { TransactionPaymentProcessor } from '../../transactions/application/services/transaction-payment.processor';
 import { TransactionStatus } from '../../transactions/domain/entities/transaction.entity';
 import { NfcTransactionBuilder } from './nfc-transaction.builder';
+import { SocketGateway } from 'src/sockets/sockets.gateway';
 
 export interface TokenData {
   cardId: string;
@@ -97,6 +98,7 @@ export class NfcAuthorizationService {
     private readonly transactionsRepository: TransactionsRepository,
     private readonly paymentProcessor: TransactionPaymentProcessor,
     private readonly transactionBuilder: NfcTransactionBuilder,
+    private readonly socketGateway: SocketGateway,
   ) {}
 
   async authorizePayment(
@@ -222,6 +224,7 @@ export class NfcAuthorizationService {
       enrollment,
       terminal,
     });
+    const [, , , , domainAmount] = processPaymentArgs;
 
     let persisted: Awaited<ReturnType<TransactionsRepository['create']>>;
     let authorizationResult: AuthorizationResult | null = null;
@@ -241,14 +244,26 @@ export class NfcAuthorizationService {
       }
       try {
         this.logger.log(
-          `Dispatching NFC payment to SGT: txId=${processingTransaction.id}, tenantId=${processingTransaction.tenantId}, cardId=${processingTransaction.cardId}, domainAmount=${processPaymentArgs[4]}`,
+          `Dispatching NFC payment to SGT: txId=${processingTransaction.id}, tenantId=${processingTransaction.tenantId}, cardId=${processingTransaction.cardId}, domainAmount=${domainAmount}`,
         );
+
+        // Signal "tap complete, waiting on issuer" to the phone before the SGT call.
+        // The room is the NFC sessionId that the phone joined after prepare.
+        this.socketGateway.sendToRoom(tokenData.sessionId, 'payment.processing', {
+          transactionId: processingTransaction.id,
+          intentId: tokenData.sessionId,
+          amount: domainAmount,
+          currency: tokenData.currency,
+          timestamp: new Date().toISOString(),
+        });
+
         const paymentResult = await this.paymentProcessor.processPayment(
           processingTransaction.id,
           processingTransaction.tenantId,
           processingTransaction.customerId,
           processingTransaction.cardId,
-          processPaymentArgs[4],
+          domainAmount,
+          tokenData.currency,
         );
         this.logger.log(
           `SGT dispatch returned for txId=${processingTransaction.id}: approved=${paymentResult.success}, transferCode=${paymentResult.transferCode}, status=${paymentResult.status}`,
