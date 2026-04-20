@@ -17,7 +17,7 @@ import {
   HttpStatus,
   Res,
 } from '@nestjs/common';
-import type { Request as ExpressRequest, Response } from 'express';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -32,13 +32,11 @@ import {
   ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 
-import type { Actor } from 'src/common/interfaces';
+import type { AuthenticatedRequest } from 'src/common/types';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { NfcEnrollmentService } from '../../application/nfc-enrollment.service';
 import { NfcEnrollmentRequestDto } from '../../dto/nfc-enrollment-request.dto';
 import { NfcEnrollmentResponseDto } from '../../dto/nfc-enrollment-response.dto';
-
-type AuthenticatedRequest = ExpressRequest & { user: Actor };
 
 @Controller('cards')
 @ApiTags('NFC Enrollment')

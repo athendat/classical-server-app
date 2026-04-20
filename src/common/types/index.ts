@@ -1,3 +1,4 @@
+export * from './authenticated-request.type';
 export * from './api-response.type';
 export * from './common.types';
 export * from './navigation-item.type';

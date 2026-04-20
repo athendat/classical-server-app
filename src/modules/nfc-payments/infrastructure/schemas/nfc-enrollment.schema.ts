@@ -12,6 +12,7 @@ export type NfcEnrollmentDocument = HydratedDocument<NfcEnrollment>;
 
 @Schema({ collection: 'nfc_enrollments', timestamps: true })
 export class NfcEnrollment extends AbstractSchema {
+  // Re-declare userId here so Mongo keeps it required without triggering TS2612 on the inherited property.
   @Prop({ type: String, required: true, ref: 'User', index: true })
   declare userId: string;
 
