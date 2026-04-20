@@ -108,6 +108,22 @@ describe('NfcTransactionBuilder', () => {
 
       // Sensitive fields must never appear in info-level logs
       expect(messages).not.toContain(tokenData.nonce);
+      expect(messages).not.toContain(tokenData.sessionId);
+
+      const tokenDataWithoutTxRef: TokenData = {
+        ...tokenData,
+        txRef: undefined,
+      };
+
+      builder.build({ tokenData: tokenDataWithoutTxRef, enrollment, terminal });
+
+      const messagesWithoutTxRef = spy.mock.calls
+        .map((call) => (typeof call[0] === 'string' ? call[0] : JSON.stringify(call[0])))
+        .join('\n');
+
+      expect(messagesWithoutTxRef).toContain('NFC transaction built');
+      expect(messagesWithoutTxRef).not.toContain(tokenDataWithoutTxRef.nonce);
+      expect(messagesWithoutTxRef).not.toContain(tokenDataWithoutTxRef.sessionId);
     } finally {
       spy.mockRestore();
     }
