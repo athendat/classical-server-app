@@ -73,7 +73,7 @@ export class NfcEnrollmentController {
     @Res() res: Response,
   ): Promise<Response> {
     const result = await this.enrollmentService.enrollCard(
-      req.user.userId,
+      req.user.actorId,
       cardId,
       dto.devicePublicKey,
     );
@@ -106,7 +106,7 @@ export class NfcEnrollmentController {
     @Request() req: any,
     @Res() res: Response,
   ): Promise<Response> {
-    await this.enrollmentService.revokeEnrollment(cardId, req.user.userId);
+    await this.enrollmentService.revokeEnrollment(cardId, req.user.actorId);
     return res.status(HttpStatus.OK).json({
       ok: true,
       statusCode: HttpStatus.OK,

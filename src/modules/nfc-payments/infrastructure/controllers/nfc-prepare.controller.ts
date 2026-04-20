@@ -62,7 +62,7 @@ export class NfcPrepareController {
     @Res() res: Response,
   ): Promise<Response> {
     const result = await this.prepareService.preparePaymentSession(
-      req.user.userId,
+      req.user.actorId,
       dto.cardId,
     );
     return res.status(HttpStatus.OK).json({
