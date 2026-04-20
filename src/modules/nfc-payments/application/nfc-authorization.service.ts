@@ -241,7 +241,7 @@ export class NfcAuthorizationService {
       }
       try {
         this.logger.log(
-          `Dispatching NFC payment to SGT: txId=${processingTransaction.id}, tenantId=${processingTransaction.tenantId}, cardId=${processingTransaction.cardId}, domainAmount=${processPaymentArgs[4]}, sessionId=${tokenData.sessionId}`,
+          `Dispatching NFC payment to SGT: txId=${processingTransaction.id}, tenantId=${processingTransaction.tenantId}, cardId=${processingTransaction.cardId}, domainAmount=${processPaymentArgs[4]}`,
         );
         const paymentResult = await this.paymentProcessor.processPayment(
           processingTransaction.id,
