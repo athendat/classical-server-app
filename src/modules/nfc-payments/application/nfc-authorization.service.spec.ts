@@ -351,6 +351,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
 
     it('should persist Transaction and dispatch to SGT, returning transferCode/status on success', async () => {
       const { signedPayload, tokenData } = buildValidSignedPayload();
+      const expectedDomainAmount = tokenData.amount / 100;
       const callSequence: string[] = [];
       mockSocketGateway.sendToRoom.mockImplementation(() => {
         callSequence.push('payment.processing');
@@ -392,7 +393,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         'tenant-001',
         expect.any(String),
         tokenData.cardId,
-        tokenData.amount * 0.01,
+        expectedDomainAmount,
         tokenData.currency,
       );
       expect(mockTransactionsRepository.updateStatus).toHaveBeenCalledWith(
@@ -405,7 +406,7 @@ describe('NfcAuthorizationService (Unit Tests)', () => {
         expect.objectContaining({
           transactionId: persisted.id,
           intentId: tokenData.sessionId,
-          amount: tokenData.amount * 0.01,
+          amount: expectedDomainAmount,
           currency: tokenData.currency,
         }),
       );
