@@ -28,6 +28,7 @@ import {
   ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 
+import type { AuthenticatedRequest } from 'src/common/types';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { NfcPrepareService } from '../../application/nfc-prepare.service';
 import { NfcPrepareRequestDto } from '../../dto/nfc-prepare-request.dto';
@@ -58,11 +59,11 @@ export class NfcPrepareController {
   @ApiInternalServerErrorResponse({ description: 'Error preparing payment session' })
   async prepare(
     @Body() dto: NfcPrepareRequestDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<Response> {
     const result = await this.prepareService.preparePaymentSession(
-      req.user.userId,
+      req.user.actorId,
       dto.cardId,
     );
     return res.status(HttpStatus.OK).json({

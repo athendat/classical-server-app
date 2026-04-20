@@ -32,6 +32,7 @@ import {
   ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 
+import type { AuthenticatedRequest } from 'src/common/types';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { NfcEnrollmentService } from '../../application/nfc-enrollment.service';
 import { NfcEnrollmentRequestDto } from '../../dto/nfc-enrollment-request.dto';
@@ -69,11 +70,11 @@ export class NfcEnrollmentController {
   async enrollCard(
     @Param('cardId') cardId: string,
     @Body() dto: NfcEnrollmentRequestDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<Response> {
     const result = await this.enrollmentService.enrollCard(
-      req.user.userId,
+      req.user.actorId,
       cardId,
       dto.devicePublicKey,
     );
@@ -103,10 +104,10 @@ export class NfcEnrollmentController {
   @ApiInternalServerErrorResponse({ description: 'Error during revocation process' })
   async revokeEnrollment(
     @Param('cardId') cardId: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<Response> {
-    await this.enrollmentService.revokeEnrollment(cardId, req.user.userId);
+    await this.enrollmentService.revokeEnrollment(cardId, req.user.actorId);
     return res.status(HttpStatus.OK).json({
       ok: true,
       statusCode: HttpStatus.OK,
