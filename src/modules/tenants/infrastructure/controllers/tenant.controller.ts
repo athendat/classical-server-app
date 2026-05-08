@@ -32,6 +32,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
 import { CurrentActor } from 'src/modules/auth/decorators/current-actor.decorator';
 import type { Actor } from 'src/common/interfaces';
 import { TenantsService } from 'src/modules/tenants/application/tenant.service';
@@ -62,7 +63,7 @@ import type { QueryParams, SortOrder } from 'src/common/types';
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('tenants')
 export class TenantController {
 
@@ -78,7 +79,7 @@ export class TenantController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  // @Permissions('tenants.create')
+  @Permissions('tenants.create')
   @ApiOperation({
     summary: 'Crear nuevo tenant',
     description:

@@ -32,6 +32,8 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
 import { UsersService } from 'src/modules/users/application/users.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import {
@@ -60,7 +62,7 @@ import type { QueryParams, SortOrder } from 'src/common/types';
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('users')
 export class UsersController {
   constructor(
@@ -77,6 +79,7 @@ export class UsersController {
    * La contraseña se proporciona en texto plano
    */
   @Post()
+  @Permissions('users.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Crear nuevo usuario',
@@ -121,6 +124,7 @@ export class UsersController {
    * GET /users/:id
    */
   @Get(':id')
+  @Permissions('users.read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Obtener usuario por ID',
@@ -169,6 +173,7 @@ export class UsersController {
    * GET /users
    */
   @Get()
+  @Permissions('users.read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Listar todos los usuarios',
@@ -284,6 +289,7 @@ export class UsersController {
    * POST /users/:id/roles
    */
   @Post(':id/roles')
+  @Permissions('users.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar rol de usuario',
@@ -396,6 +402,7 @@ export class UsersController {
    * PATCH /users/:id
    */
   @Patch(':id')
+  @Permissions('users.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar datos del usuario',
@@ -461,6 +468,7 @@ export class UsersController {
    * DELETE /users/:id
    */
   @Delete(':id')
+  @Permissions('users.delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Deshabilitar usuario',
@@ -495,7 +503,7 @@ export class UsersController {
    */
   @Post(':id/transition')
   @HttpCode(HttpStatus.OK)
-  // @Permissions('users.manage')
+  @Permissions('users.manage')
   @ApiOperation({
     summary: 'Cambiar estado del usuario',
     description:
@@ -573,7 +581,7 @@ export class UsersController {
    */
   @Get(':id/lifecycle')
   @HttpCode(HttpStatus.OK)
-  // @Permissions('users.read')
+  @Permissions('users.read')
   @ApiOperation({
     summary: 'Obtener historial de ciclo de vida',
     description:
