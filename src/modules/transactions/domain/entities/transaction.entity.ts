@@ -20,6 +20,7 @@ export class Transaction {
   tenantId: string; // Tenant propietario
   tenantName: string; // Nombre del tenant (para QR)
   customerId: string; // Cliente que inicia la transacción
+  customerName?: string; // Nombre completo del cliente, embebido al listar (issue #28)
   amount: number; // Monto en centavos
   status: TransactionStatus; // Estado actual
   cardId?: string; // Tarjeta usada para pagar (se agrega en confirmación)
@@ -41,6 +42,7 @@ export class Transaction {
     this.tenantId = partial.tenantId ?? '';
     this.tenantName = partial.tenantName ?? '';
     this.customerId = partial.customerId ?? '';
+    this.customerName = partial.customerName;
     this.amount = partial.amount ?? 0;
     this.status = partial.status ?? TransactionStatus.NEW;
     this.cardId = partial.cardId;

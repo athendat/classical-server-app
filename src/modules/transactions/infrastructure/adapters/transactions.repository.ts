@@ -11,6 +11,7 @@ import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 import { AsyncContextService } from 'src/common/context';
 
 import { Transaction, TransactionStatus } from '../../domain/entities/transaction.entity';
+import { enrichTransactionsWithCustomers } from '../../domain/helpers/enrich-transactions-with-customers';
 
 import { Card } from 'src/modules/cards/infrastructure/schemas/card.schema';
 import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
@@ -254,8 +255,13 @@ export class TransactionsRepository implements ITransactionsRepository {
         `Found ${transactions.length} Transactions (total: ${total}, skip: ${options.skip}, limit: ${options.limit})`,
       );
 
+      const data = enrichTransactionsWithCustomers(
+        transactions.map((doc) => this.mapToDomain(doc)),
+        customers as unknown as { id: string; fullname?: string }[],
+      );
+
       return {
-        data: transactions.map((doc) => this.mapToDomain(doc)),
+        data,
         total,
         meta: {
           cards,
