@@ -52,6 +52,7 @@ export interface UserDTO {
   initials?: string;
   isSystemAdmin?: boolean;
   lastSession?: Session;
+  lastActive?: Date; // Última actividad observada (issue #30)
   phoneConfirmed?: boolean;
   recentActivity?: AuditEvent[];
   role?: Role;

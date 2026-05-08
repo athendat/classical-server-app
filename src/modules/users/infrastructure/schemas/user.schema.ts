@@ -68,6 +68,12 @@ export class User extends AbstractSchema {
   @Prop({ type: Object })
   metadata?: Record<string, any>;
 
+  // Última actividad observada del usuario. Se actualiza desde el middleware
+  // de autenticación; si está ausente se deriva del último login en sesión
+  // (issue #30).
+  @Prop({ type: Date })
+  lastActive?: Date;
+
   lastSession?: Session;
 
   recentActivity?: AuditEvent[];

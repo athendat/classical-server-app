@@ -15,6 +15,7 @@ import { UserCreatedEvent } from '../events/user-created.event';
 import { UserPasswordChangedEvent } from '../events/user-password-changed.event';
 
 import { User, UserDocument } from '../infrastructure/schemas/user.schema';
+import { deriveUserLastActive } from '../domain/helpers/derive-user-last-active';
 
 import { ApiResponse } from 'src/common/types/api-response.type';
 import {
@@ -822,6 +823,7 @@ export class UsersService implements IUsersService {
       initials: user.initials,
       recentActivity: user.recentActivity,
       lastSession: user.lastSession,
+      lastActive: deriveUserLastActive(user as any) ?? undefined,
       tenant: user.tenant,
     };
   }
