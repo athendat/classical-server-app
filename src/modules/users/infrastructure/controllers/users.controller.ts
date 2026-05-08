@@ -124,7 +124,7 @@ export class UsersController {
    * GET /users/:id
    */
   @Get(':id')
-  @Permissions('users.read')
+  @Permissions('users.view')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Obtener usuario por ID',
@@ -173,7 +173,7 @@ export class UsersController {
    * GET /users
    */
   @Get()
-  @Permissions('users.read')
+  @Permissions('users.view')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Listar todos los usuarios',
@@ -289,7 +289,7 @@ export class UsersController {
    * POST /users/:id/roles
    */
   @Post(':id/roles')
-  @Permissions('users.update')
+  @Permissions('users.assign-roles')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar rol de usuario',
@@ -344,8 +344,13 @@ export class UsersController {
   /**
    * Cambiar contraseña de usuario
    * POST /users/:id/password
+   *
+   * Sólo admins (users.edit). El cambio de contraseña por el propio
+   * usuario debería ir contra /auth/change-password con validación
+   * actorId === :id; eso queda como follow-up.
    */
   @Post(':id/password')
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Cambiar contraseña de usuario',
@@ -400,9 +405,14 @@ export class UsersController {
   /**
    * Actualizar datos del usuario
    * PATCH /users/:id
+   *
+   * NOTA: este endpoint exige `users.edit` (admin-only en los seeds).
+   * Para "perfil propio" debe usarse el endpoint /profile, que valida
+   * que actorId === userId. Una validación de self/tenant aquí queda
+   * pendiente como follow-up explícito (ver review de PR #32).
    */
   @Patch(':id')
-  @Permissions('users.update')
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar datos del usuario',
@@ -503,7 +513,7 @@ export class UsersController {
    */
   @Post(':id/transition')
   @HttpCode(HttpStatus.OK)
-  @Permissions('users.manage')
+  @Permissions('users.edit')
   @ApiOperation({
     summary: 'Cambiar estado del usuario',
     description:
@@ -581,7 +591,7 @@ export class UsersController {
    */
   @Get(':id/lifecycle')
   @HttpCode(HttpStatus.OK)
-  @Permissions('users.read')
+  @Permissions('users.view')
   @ApiOperation({
     summary: 'Obtener historial de ciclo de vida',
     description:

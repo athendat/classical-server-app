@@ -33,7 +33,8 @@ export function enrichTransactionsWithCustomers(
       return tx;
     }
 
-    tx.customerName = match.fullname;
-    return tx;
+    // Devolver una nueva instancia para mantener la función sin efectos
+    // laterales (el constructor de Transaction copia campos via partial).
+    return new Transaction({ ...tx, customerName: match.fullname });
   });
 }

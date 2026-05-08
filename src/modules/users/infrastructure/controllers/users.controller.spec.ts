@@ -22,13 +22,14 @@ describe('UsersController authorization metadata', () => {
 
   describe.each([
     ['create', 'users.create'],
-    ['getUser', 'users.read'],
-    ['listUsers', 'users.read'],
-    ['updateRoles', 'users.update'],
-    ['updateUser', 'users.update'],
+    ['getUser', 'users.view'],
+    ['listUsers', 'users.view'],
+    ['updateRoles', 'users.assign-roles'],
+    ['updateUser', 'users.edit'],
+    ['updatePassword', 'users.edit'],
     ['deleteUser', 'users.delete'],
-    ['transitionState', 'users.manage'],
-    ['getLifecycle', 'users.read'],
+    ['transitionState', 'users.edit'],
+    ['getLifecycle', 'users.view'],
   ])('%s exige el permiso %s', (method, expectedPermission) => {
     it(`declara @Permissions('${expectedPermission}')`, () => {
       const handler = (UsersController.prototype as any)[method];

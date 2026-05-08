@@ -54,4 +54,17 @@ describe('enrichTransactionsWithCustomers', () => {
     const result = enrichTransactionsWithCustomers([], []);
     expect(result).toEqual([]);
   });
+
+  it('no muta la transacción original (función pura)', () => {
+    const original = tx({ id: 'tx-pure', customerId: 'user-a' });
+    const customers = [{ id: 'user-a', fullname: 'Frank' }] as any;
+
+    const [returned] = enrichTransactionsWithCustomers([original], customers);
+
+    // Cada item es una nueva instancia con customerName poblado.
+    expect(returned).not.toBe(original);
+    expect(returned.customerName).toBe('Frank');
+    // El input original sigue sin customerName.
+    expect(original.customerName).toBeUndefined();
+  });
 });
