@@ -31,6 +31,7 @@ import { ApiResponse } from 'src/common/types/api-response.type';
 import { buildMongoQuery } from 'src/common/helpers';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { TenantLifecycleEvent } from '../domain/interfaces/lifecycle-event.interface';
+import { buildLifecycleActor } from '../domain/helpers/build-lifecycle-actor';
 import { TenantStatus } from '../domain/enums';
 import { TenantOAuth2CredentialsService } from './services/tenant-oauth2-credentials.service';
 import { TenantWebhooksService } from './services/tenant-webhooks.service';
@@ -160,15 +161,14 @@ export class TenantsService {
       });
 
       // Crear evento de ciclo de vida inicial
+      const creatorUser = userId
+        ? await this.usersRepository.findById(userId)
+        : null;
       const lifecycleEvent: TenantLifecycleEvent = {
         tenantId: newTenant.id,
         fromState: TenantStatus.PENDING_REVIEW,
         toState: TenantStatus.PENDING_REVIEW,
-        triggeredBy: {
-          userId,
-          username: actor?.sub || 'system',
-          roleKey: actor?.scopes?.[0] || 'system',
-        },
+        triggeredBy: buildLifecycleActor(actor, creatorUser ?? undefined),
         comment: 'Tenant creado',
         timestamp: new Date(),
       };
@@ -785,15 +785,14 @@ export class TenantsService {
       );
 
       // Crear evento de ciclo de vida
+      const triggererUser = actor?.actorId
+        ? await this.usersRepository.findById(actor.actorId)
+        : null;
       const lifecycleEvent: TenantLifecycleEvent = {
         tenantId,
         fromState: currentState,
         toState: targetState,
-        triggeredBy: {
-          userId: actor.sub,
-          username: actor.sub,
-          roleKey: actor.scopes?.[0] || 'system',
-        },
+        triggeredBy: buildLifecycleActor(actor, triggererUser ?? undefined),
         comment: dto.comment,
         timestamp: new Date(),
         xstateSnapshot: this.getXstateSnapshot(targetState),

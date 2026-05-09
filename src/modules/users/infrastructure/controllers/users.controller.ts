@@ -32,6 +32,8 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { Permissions } from 'src/modules/auth/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
 import { UsersService } from 'src/modules/users/application/users.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import {
@@ -60,7 +62,7 @@ import type { QueryParams, SortOrder } from 'src/common/types';
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('users')
 export class UsersController {
   constructor(
@@ -77,6 +79,7 @@ export class UsersController {
    * La contraseña se proporciona en texto plano
    */
   @Post()
+  @Permissions('users.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Crear nuevo usuario',
@@ -119,8 +122,12 @@ export class UsersController {
   /**
    * Obtener usuario por ID
    * GET /users/:id
+   *
+   * Admin-only: el acceso "perfil propio" vive en /profile para evitar
+   * lecturas cross-tenant desde el controller administrativo.
    */
   @Get(':id')
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Obtener usuario por ID',
@@ -167,8 +174,12 @@ export class UsersController {
   /**
    * Listar todos los usuarios
    * GET /users
+   *
+   * Admin-only: merchants y usuarios base gestionan su propio contexto por
+   * endpoints dedicados, no por este listado global del sistema.
    */
   @Get()
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Listar todos los usuarios',
@@ -284,6 +295,7 @@ export class UsersController {
    * POST /users/:id/roles
    */
   @Post(':id/roles')
+  @Permissions('users.assign-roles')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar rol de usuario',
@@ -338,8 +350,13 @@ export class UsersController {
   /**
    * Cambiar contraseña de usuario
    * POST /users/:id/password
+   *
+   * Sólo admins (users.edit). El cambio de contraseña por el propio
+   * usuario debería ir contra /auth/change-password con validación
+   * actorId === :id; eso queda como follow-up.
    */
   @Post(':id/password')
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Cambiar contraseña de usuario',
@@ -394,8 +411,14 @@ export class UsersController {
   /**
    * Actualizar datos del usuario
    * PATCH /users/:id
+   *
+   * NOTA: este endpoint exige `users.edit` (admin-only en los seeds).
+   * Para "perfil propio" debe usarse el endpoint /profile, que valida
+   * que actorId === userId. Una validación de self/tenant aquí queda
+   * pendiente como follow-up explícito (ver review de PR #32).
    */
   @Patch(':id')
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar datos del usuario',
@@ -461,6 +484,7 @@ export class UsersController {
    * DELETE /users/:id
    */
   @Delete(':id')
+  @Permissions('users.delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Deshabilitar usuario',
@@ -495,7 +519,7 @@ export class UsersController {
    */
   @Post(':id/transition')
   @HttpCode(HttpStatus.OK)
-  // @Permissions('users.manage')
+  @Permissions('users.edit')
   @ApiOperation({
     summary: 'Cambiar estado del usuario',
     description:
@@ -570,10 +594,12 @@ export class UsersController {
   /**
    * Obtener historial de ciclo de vida del usuario
    * GET /users/:id/lifecycle
+   *
+   * Admin-only: el historial puede revelar cambios sensibles fuera del tenant.
    */
   @Get(':id/lifecycle')
   @HttpCode(HttpStatus.OK)
-  // @Permissions('users.read')
+  @Permissions('users.edit')
   @ApiOperation({
     summary: 'Obtener historial de ciclo de vida',
     description:

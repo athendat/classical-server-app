@@ -37,7 +37,7 @@ import { Role } from '../schemas/role.schema';
 import { ApiResponse } from '../../../../common/types';
 import { Permissions } from '../../../auth/decorators/permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-// import { PermissionsGuard } from '../guards/permissions.guard';
+import { PermissionsGuard } from 'src/modules/permissions/infrastructure/guards/permissions.guard';
 
 /**
  * RolesController: Endpoints HTTP para gestión de roles
@@ -55,7 +55,7 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
   name: 'x-api-key',
   required: true,
 })
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
