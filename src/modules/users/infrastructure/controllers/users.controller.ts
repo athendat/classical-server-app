@@ -122,9 +122,12 @@ export class UsersController {
   /**
    * Obtener usuario por ID
    * GET /users/:id
+   *
+   * Admin-only: el acceso "perfil propio" vive en /profile para evitar
+   * lecturas cross-tenant desde el controller administrativo.
    */
   @Get(':id')
-  @Permissions('users.view')
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Obtener usuario por ID',
@@ -171,9 +174,12 @@ export class UsersController {
   /**
    * Listar todos los usuarios
    * GET /users
+   *
+   * Admin-only: merchants y usuarios base gestionan su propio contexto por
+   * endpoints dedicados, no por este listado global del sistema.
    */
   @Get()
-  @Permissions('users.view')
+  @Permissions('users.edit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Listar todos los usuarios',
@@ -588,10 +594,12 @@ export class UsersController {
   /**
    * Obtener historial de ciclo de vida del usuario
    * GET /users/:id/lifecycle
+   *
+   * Admin-only: el historial puede revelar cambios sensibles fuera del tenant.
    */
   @Get(':id/lifecycle')
   @HttpCode(HttpStatus.OK)
-  @Permissions('users.view')
+  @Permissions('users.edit')
   @ApiOperation({
     summary: 'Obtener historial de ciclo de vida',
     description:
