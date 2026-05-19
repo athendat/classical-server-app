@@ -68,10 +68,9 @@ describe('AuthController.logout — clearCookie atributos coinciden con getCooki
 
     await controller.logout(res);
 
+    expect(calls).toHaveLength(3);
     const byName = Object.fromEntries(calls.map((c) => [c.name, c.options]));
-    expect(byName['refresh_token'].domain).toBe('.clasica.xyz');
-    expect(byName['refresh_token'].secure).toBe(true);
-    expect(byName['refresh_token'].sameSite).toBe('none');
+    assertMatches(byName['refresh_token'], cfg.refresh_token);
     // Path debe ser '/', no '/auth/refresh' como antes del fix
     expect(byName['refresh_token'].path).toBe('/');
     assertMatches(byName['access_token'], cfg.access_token);
