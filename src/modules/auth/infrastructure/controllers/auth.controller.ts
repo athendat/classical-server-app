@@ -375,10 +375,21 @@ export class AuthController {
     description: 'Sesión cerrada exitosamente',
   })
   async logout(@Res() res: Response): Promise<Response> {
-    // Limpiar cookies
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/auth/refresh' });
-    res.clearCookie('XSRF-TOKEN', { path: '/' });
+    // Para que el navegador realmente elimine la cookie, los atributos
+    // Path / Domain / SameSite / Secure / HttpOnly deben coincidir con los
+    // usados al setearla. Reutilizamos la config de origen.
+    const cfg = getCookieConfig();
+    const clearOpts = (o: import('express').CookieOptions): import('express').CookieOptions => ({
+      httpOnly: o.httpOnly,
+      secure: o.secure,
+      sameSite: o.sameSite,
+      domain: o.domain,
+      path: o.path,
+    });
+
+    res.clearCookie('access_token', clearOpts(cfg.access_token));
+    res.clearCookie('refresh_token', clearOpts(cfg.refresh_token));
+    res.clearCookie('XSRF-TOKEN', clearOpts(cfg.csrf_token));
 
     return res.json({
       success: true,
