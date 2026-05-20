@@ -32,10 +32,10 @@ type EnvVars = {
   VAULT_ADDR: string;
   VAULT_KV_MOUNT: string;
   VAULT_NAMESPACE: string;
-  VAULT_ROLE_ID: string;
-  VAULT_SECRET_ID: string;
+  VAULT_ROLE_ID?: string;
+  VAULT_SECRET_ID?: string;
   VAULT_SECRET_ID_WRAPPED?: string;
-  VAULT_TOKEN: string;
+  VAULT_TOKEN?: string;
   VAULT_TOKEN_RENEW_SAFETY_WINDOW_SEC?: number;
 };
 
@@ -70,13 +70,26 @@ export const configValidationSchema: joi.ObjectSchema = joi
     VAULT_ADDR: joi.string().required(),
     VAULT_KV_MOUNT: joi.string().required(),
     VAULT_NAMESPACE: joi.string().required(),
-    VAULT_ROLE_ID: joi.string().required(),
-    VAULT_SECRET_ID: joi.string().required(),
+    VAULT_ROLE_ID: joi.string().optional().allow(''),
+    VAULT_SECRET_ID: joi.string().optional().allow(''),
     VAULT_SECRET_ID_WRAPPED: joi.string().optional(),
-    VAULT_TOKEN: joi.string().required(),
+    VAULT_TOKEN: joi.string().optional().allow(''),
     VAULT_TOKEN_RENEW_SAFETY_WINDOW_SEC: joi.number().optional(),
   })
-  .unknown(true);
+  .unknown(true)
+  // Vault auth: require either a static VAULT_TOKEN (legacy) or the AppRole
+  // pair VAULT_ROLE_ID + VAULT_SECRET_ID (recommended). See issue #38.
+  .custom((value, helpers) => {
+    const hasToken = !!value.VAULT_TOKEN;
+    const hasAppRole = !!value.VAULT_ROLE_ID && !!value.VAULT_SECRET_ID;
+    if (!hasToken && !hasAppRole) {
+      return helpers.message({
+        custom:
+          'Vault auth misconfigured: set VAULT_TOKEN or (VAULT_ROLE_ID + VAULT_SECRET_ID)',
+      });
+    }
+    return value;
+  });
 
 // Validar las variables de entorno
 const validationResult = configValidationSchema.validate(process.env, {
