@@ -120,7 +120,7 @@ describe('VaultHttpAdapter — issue #38 token lifecycle', () => {
     const adapter = buildAdapter();
     // No onModuleInit: constructor leaves the static token "valid" by clock,
     // so getToken() returns it and the 403 only surfaces on the HTTP call.
-    const result = await adapter.writeKV('admin/jwks-private/jwks-default', {
+    const result = await adapter.writeKV('jwks-private/jwks-default', {
       value: 'pem',
     });
 
@@ -144,11 +144,62 @@ describe('VaultHttpAdapter — issue #38 token lifecycle', () => {
     });
 
     const adapter = buildAdapter({ VAULT_ROLE_ID: '', VAULT_SECRET_ID: '' });
-    const result = await adapter.writeKV('admin/jwks-private/jwks-default', {
+    const result = await adapter.writeKV('jwks-private/jwks-default', {
       value: 'pem',
     });
 
     expect(result.isSuccess).toBe(false);
     expect(kvWriteAttempts).toBe(1);
+  });
+
+  it('rejects a KV path containing path traversal without issuing any request', async () => {
+    const adapter = buildAdapter();
+
+    const result = await adapter.writeKV('../../sys/policies/acl/root', {
+      value: 'pem',
+    });
+
+    expect(result.isSuccess).toBe(false);
+    expect(http.post).not.toHaveBeenCalled();
+  });
+
+  it('treats a non-expiring static token (lookup-self ttl=0) as valid', async () => {
+    http.get.mockImplementation((url: string) => {
+      if (url.includes('lookup-self')) {
+        return Promise.resolve({ data: { data: { ttl: 0, renewable: false } } });
+      }
+      return Promise.reject(new Error(`unexpected GET ${url}`));
+    });
+    http.post.mockImplementation((url: string) =>
+      Promise.reject(new Error(`no HTTP call expected, got ${url}`)),
+    );
+
+    const adapter = buildAdapter();
+    await adapter.onModuleInit();
+
+    const tokenResult = await adapter.getToken();
+
+    expect(tokenResult.isSuccess).toBe(true);
+    expect(tokenResult.getValue()).toBe(STATIC_TOKEN);
+  });
+
+  it('keeps the provisional token when lookup-self fails with a network error', async () => {
+    http.get.mockImplementation((url: string) => {
+      if (url.includes('lookup-self')) {
+        return Promise.reject(new Error('ECONNREFUSED'));
+      }
+      return Promise.reject(new Error(`unexpected GET ${url}`));
+    });
+    http.post.mockImplementation((url: string) =>
+      Promise.reject(new Error(`no login expected, got ${url}`)),
+    );
+
+    const adapter = buildAdapter();
+    await adapter.onModuleInit();
+
+    const tokenResult = await adapter.getToken();
+
+    expect(tokenResult.isSuccess).toBe(true);
+    expect(tokenResult.getValue()).toBe(STATIC_TOKEN);
   });
 });
