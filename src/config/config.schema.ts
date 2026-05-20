@@ -1,46 +1,12 @@
 // Third´s Modules
 import * as joi from 'joi';
-import 'dotenv/config';
 
 /**
- * Variables de entorno
- */
-type EnvVars = {
-  API_KEY: string;
-  APP_NAME: string;
-  DB_HOST: string;
-  ENVIRONMENT: string;
-  FIREBASE_CREDENTIALS?: string;
-  JWT_SECRET: string;
-  PORT: number;
-  REDIS_HOST: string;
-  REDIS_PASSWORD: string;
-  REDIS_PORT: number;
-  REDIS_ROOT_KEY: string;
-  REDIS_TTL: number;
-  SA_EMAIL: string;
-  SA_PWD: string;
-  SEED_ENABLED?: string;
-  SEED_ENABLED_VAULT?: string;
-  SGT_AES_KEY: string;
-  SGT_AES_IV: string;
-  SGT_URL: string;
-  SGT_HMAC_SECRET: string;
-  SGT_CLIENT_ID: string;
-  SMS_API_URL: string;
-  SMS_TOKEN: string;
-  VAULT_ADDR: string;
-  VAULT_KV_MOUNT: string;
-  VAULT_NAMESPACE: string;
-  VAULT_ROLE_ID: string;
-  VAULT_SECRET_ID: string;
-  VAULT_SECRET_ID_WRAPPED?: string;
-  VAULT_TOKEN: string;
-  VAULT_TOKEN_RENEW_SAFETY_WINDOW_SEC?: number;
-};
-
-/**
- * Validate env variables
+ * Joi schema for environment variable validation.
+ *
+ * This module is intentionally side-effect-free: it only exports the schema.
+ * Validation of `process.env` runs once, via NestJS `ConfigModule`
+ * (`validationSchema: configValidationSchema` in `app.module.ts`).
  */
 export const configValidationSchema: joi.ObjectSchema = joi
   .object({
@@ -70,62 +36,25 @@ export const configValidationSchema: joi.ObjectSchema = joi
     VAULT_ADDR: joi.string().required(),
     VAULT_KV_MOUNT: joi.string().required(),
     VAULT_NAMESPACE: joi.string().required(),
-    VAULT_ROLE_ID: joi.string().required(),
-    VAULT_SECRET_ID: joi.string().required(),
-    VAULT_SECRET_ID_WRAPPED: joi.string().optional(),
-    VAULT_TOKEN: joi.string().required(),
+    VAULT_ROLE_ID: joi.string().optional().allow(''),
+    VAULT_SECRET_ID: joi.string().optional().allow(''),
+    VAULT_SECRET_ID_WRAPPED: joi.string().optional().allow(''),
+    VAULT_TOKEN: joi.string().optional().allow(''),
     VAULT_TOKEN_RENEW_SAFETY_WINDOW_SEC: joi.number().optional(),
   })
-  .unknown(true);
-
-// Validar las variables de entorno
-const validationResult = configValidationSchema.validate(process.env, {
-  abortEarly: false,
-});
-
-// Lanzar error si hay un error en la validación
-if (validationResult.error) {
-  throw new Error(`Config validation error: ${validationResult.error.message}`);
-}
-
-/**
- * Variables de entorno
- */
-const envVars: EnvVars = validationResult.value as unknown as EnvVars;
-
-/**
- * Exportar las variables de number
- */
-export const envs = {
-  API_KEY: envVars.API_KEY,
-  APP_NAME: envVars.APP_NAME,
-  DB_HOST: envVars.DB_HOST,
-  ENVIRONMENT: envVars.ENVIRONMENT,
-  FIREBASE_CREDENTIALS: envVars.FIREBASE_CREDENTIALS,
-  JWT_SECRET: envVars.JWT_SECRET,
-  PORT: envVars.PORT,
-  REDIS_HOST: envVars.REDIS_HOST,
-  REDIS_PASSWORD: envVars.REDIS_PASSWORD,
-  REDIS_PORT: envVars.REDIS_PORT,
-  REDIS_ROOT_KEY: envVars.REDIS_ROOT_KEY,
-  REDIS_TTL: envVars.REDIS_TTL,
-  SA_EMAIL: envVars.SA_EMAIL,
-  SA_PWD: envVars.SA_PWD,
-  SEED_ENABLED: envVars.SEED_ENABLED,
-  SEED_ENABLED_VAULT: envVars.SEED_ENABLED_VAULT,
-  SGT_AES_KEY: envVars.SGT_AES_KEY,
-  SGT_AES_IV: envVars.SGT_AES_IV,
-  SGT_URL: envVars.SGT_URL,
-  SGT_HMAC_SECRET: envVars.SGT_HMAC_SECRET,
-  SGT_CLIENT_ID: envVars.SGT_CLIENT_ID,
-  SMS_API_URL: envVars.SMS_API_URL,
-  SMS_TOKEN: envVars.SMS_TOKEN,
-  VAULT_ADDR: envVars.VAULT_ADDR,
-  VAULT_KV_MOUNT: envVars.VAULT_KV_MOUNT,
-  VAULT_NAMESPACE: envVars.VAULT_NAMESPACE,
-  VAULT_ROLE_ID: envVars.VAULT_ROLE_ID,
-  VAULT_SECRET_ID: envVars.VAULT_SECRET_ID,
-  VAULT_SECRET_ID_WRAPPED: envVars.VAULT_SECRET_ID_WRAPPED,
-  VAULT_TOKEN: envVars.VAULT_TOKEN,
-  VAULT_TOKEN_RENEW_SAFETY_WINDOW_SEC: envVars.VAULT_TOKEN_RENEW_SAFETY_WINDOW_SEC,
-};
+  .unknown(true)
+  // Vault auth: require either a static VAULT_TOKEN (legacy) or the AppRole
+  // pair VAULT_ROLE_ID + VAULT_SECRET_ID (recommended). VAULT_SECRET_ID_WRAPPED
+  // counts as a SecretID for this purpose. See issue #38.
+  .custom((value, helpers) => {
+    const hasToken = !!value.VAULT_TOKEN;
+    const hasAppRole =
+      !!value.VAULT_ROLE_ID &&
+      (!!value.VAULT_SECRET_ID || !!value.VAULT_SECRET_ID_WRAPPED);
+    if (!hasToken && !hasAppRole) {
+      return helpers.message(
+        'Vault auth misconfigured: set VAULT_TOKEN or (VAULT_ROLE_ID + VAULT_SECRET_ID)' as never,
+      );
+    }
+    return value;
+  });

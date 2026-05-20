@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import axios, { AxiosInstance } from 'axios';
@@ -13,18 +13,25 @@ import { AsyncContextService } from 'src/common/context/async-context.service';
 import { Result } from 'src/common/types/result.type';
 
 /**
+ * Window applied to non-expiring Vault tokens (lookup-self ttl=0), so the
+ * token-expiry check in getToken() does not treat them as already expired.
+ */
+const NON_EXPIRING_TOKEN_WINDOW_MS = 10 * 365 * 24 * 60 * 60 * 1000; // ~10y
+
+/**
  * HTTP adapter for Vault client using axios.
  * Implements IVaultClient port with Result pattern error handling.
  * Handles token lifecycle (login, renew, unwrap wrapped tokens).
  */
 @Injectable()
-export class VaultHttpAdapter implements IVaultClient {
+export class VaultHttpAdapter implements IVaultClient, OnModuleInit {
   private readonly logger = new Logger(VaultHttpAdapter.name);
   private readonly httpClient: AxiosInstance;
 
   private token: string | null = null;
   private tokenExpire: Date | null = null;
   private isRenewable = false;
+  private vaultToken: string | undefined;
 
   private readonly vaultAddr: string;
   private readonly vaultNamespace: string | undefined;
@@ -34,7 +41,6 @@ export class VaultHttpAdapter implements IVaultClient {
   private secretId: string | undefined;
   private readonly secretIdWrapped: string | undefined;
   private readonly tokenRenewSafetyWindowSec: number;
-  private readonly vaultToken: string | undefined;
 
   constructor(
     private readonly config: ConfigService,
@@ -60,14 +66,71 @@ export class VaultHttpAdapter implements IVaultClient {
       },
     });
 
-    // Si hay un token de Vault configurado, usarlo directamente
+    // Si hay un token de Vault configurado, usarlo provisionalmente.
+    // onModuleInit() verificará su TTL real vía lookup-self.
     if (this.vaultToken) {
       this.token = this.vaultToken;
-      this.tokenExpire = new Date(Date.now() + 86400 * 1000); // 24 horas
-      this.isRenewable = false; // No renovable, es un token de raíz
+      this.tokenExpire = new Date(Date.now() + 86400 * 1000); // provisional
+      this.isRenewable = false;
       this.httpClient.defaults.headers.common['X-Vault-Token'] =
         this.vaultToken;
-      this.logger.log('Using pre-configured Vault token');
+    }
+  }
+
+  /**
+   * Verifica el VAULT_TOKEN estático contra Vault para descubrir su TTL y
+   * si es renovable. Sin esto el adapter asumía 24h a ciegas: un token con
+   * TTL menor expiraba en Vault mientras el adapter lo creía vigente, sin
+   * caer nunca a AppRole (issue #38).
+   */
+  async onModuleInit(): Promise<void> {
+    if (!this.vaultToken) {
+      return;
+    }
+    try {
+      const resp = await this.httpClient.get<{
+        data?: { ttl?: number; renewable?: boolean };
+      }>('/v1/auth/token/lookup-self', {
+        headers: { 'X-Vault-Token': this.vaultToken },
+      });
+      const data = resp.data?.data ?? {};
+      const ttlSec = data.ttl ?? 0;
+      this.token = this.vaultToken;
+      // ttl=0 means a non-expiring token (root/periodic). Treat it as
+      // far-future rather than "already expired".
+      this.tokenExpire =
+        ttlSec > 0
+          ? new Date(Date.now() + ttlSec * 1000)
+          : new Date(Date.now() + NON_EXPIRING_TOKEN_WINDOW_MS);
+      this.isRenewable = !!data.renewable;
+      this.httpClient.defaults.headers.common['X-Vault-Token'] =
+        this.vaultToken;
+      this.logger.log(
+        `Using pre-configured Vault token (ttl=${ttlSec > 0 ? `${ttlSec}s` : 'non-expiring'} renewable=${this.isRenewable})`,
+      );
+    } catch (error: unknown) {
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+      if (status === 401 || status === 403) {
+        // Token genuinely invalid/expired: discard it so getToken() falls
+        // back to AppRole login on the first operation.
+        this.logger.warn(
+          `Pre-configured VAULT_TOKEN rejected by Vault (${status}); falling back to AppRole`,
+        );
+        this.vaultToken = undefined;
+        this.token = null;
+        this.tokenExpire = null;
+        delete this.httpClient.defaults.headers.common['X-Vault-Token'];
+        return;
+      }
+      // Transient failure (network error, Vault down, timeout): keep the
+      // provisional token set in the constructor. withAppRoleFallback still
+      // recovers later if the token turns out to be invalid.
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `lookup-self failed transiently (${reason}); keeping pre-configured token provisionally`,
+      );
     }
   }
 
@@ -128,14 +191,18 @@ export class VaultHttpAdapter implements IVaultClient {
 
   async readKV(path: string): Promise<Result<VaultKVData, VaultError>> {
     try {
+      const safePath = this.assertSafeKvPath(path);
+
       const tokenResult = await this.getToken();
       if (tokenResult.isFailure) {
         this.emitEvent('read', path, 'failed', tokenResult.getError());
         return Result.fail(tokenResult.getError());
       }
 
-      const fullPath = `/v1/${this.kvMount}/data/${this.vaultNamespace}/${path}`;
-      const response = await this.httpClient.get<VaultKVData>(fullPath);
+      const fullPath = `/v1/${this.kvMount}/data/${this.vaultNamespace}/${safePath}`;
+      const response = await this.withAppRoleFallback(() =>
+        this.httpClient.get<VaultKVData>(fullPath),
+      );
       this.logger.log(`Read secret from Vault: ${path}`);
       this.emitEvent('read', path, 'completed');
 
@@ -152,16 +219,18 @@ export class VaultHttpAdapter implements IVaultClient {
     data: Record<string, any>,
   ): Promise<Result<VaultKVData, VaultError>> {
     try {
+      const safePath = this.assertSafeKvPath(path);
+
       const tokenResult = await this.getToken();
       if (tokenResult.isFailure) {
         this.emitEvent('write', path, 'failed', tokenResult.getError());
         return Result.fail(tokenResult.getError());
       }
 
-      const fullPath = `/v1/${this.kvMount}/data/${this.vaultNamespace}/${path}`;
-      const response = await this.httpClient.post<VaultKVData>(fullPath, {
-        data,
-      });
+      const fullPath = `/v1/${this.kvMount}/data/${this.vaultNamespace}/${safePath}`;
+      const response = await this.withAppRoleFallback(() =>
+        this.httpClient.post<VaultKVData>(fullPath, { data }),
+      );
 
       this.logger.log(`Wrote secret to Vault: ${path}`);
       this.emitEvent('write', path, 'completed');
@@ -176,14 +245,16 @@ export class VaultHttpAdapter implements IVaultClient {
 
   async deleteKV(path: string): Promise<Result<void, VaultError>> {
     try {
+      const safePath = this.assertSafeKvPath(path);
+
       const tokenResult = await this.getToken();
       if (tokenResult.isFailure) {
         this.emitEvent('delete', path, 'failed', tokenResult.getError());
         return Result.fail(tokenResult.getError());
       }
 
-      const fullPath = `/v1/${this.kvMount}/metadata/${this.vaultNamespace}/${path}`;
-      await this.httpClient.delete(fullPath);
+      const fullPath = `/v1/${this.kvMount}/metadata/${this.vaultNamespace}/${safePath}`;
+      await this.withAppRoleFallback(() => this.httpClient.delete(fullPath));
 
       this.logger.log(`Deleted secret from Vault: ${path}`);
       this.emitEvent('delete', path, 'completed');
@@ -229,6 +300,67 @@ export class VaultHttpAdapter implements IVaultClient {
   /**
    * Private helper methods
    */
+
+  /**
+   * Validates a KV path before it is interpolated into a Vault URL.
+   * Rejects anything outside a strict allowlist (letters, digits, `.`, `-`,
+   * `_`, `/`) and any `..` segment, so a caller-supplied path cannot escape
+   * the configured mount/namespace and redirect the request elsewhere
+   * (server-side request forgery). Returns the validated path unchanged.
+   */
+  private assertSafeKvPath(path: string): string {
+    const SAFE_KV_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
+    if (
+      typeof path !== 'string' ||
+      path.length === 0 ||
+      path.length > 256 ||
+      path.includes('..') ||
+      !SAFE_KV_PATH.test(path)
+    ) {
+      throw new VaultError(
+        400,
+        'Invalid Vault path',
+        `Vault path rejected (unsafe characters or traversal): ${path}`,
+      );
+    }
+    return path;
+  }
+
+  /**
+   * Runs a Vault HTTP operation; if it fails with 401/403 and AppRole
+   * credentials are configured, re-authenticates via AppRole and retries
+   * the operation once. Without this, a token that expires mid-flight
+   * (or a stale static VAULT_TOKEN) left every KV op failing permanently
+   * even with valid AppRole credentials in the env (issue #38).
+   */
+  private async withAppRoleFallback<T>(op: () => Promise<T>): Promise<T> {
+    try {
+      return await op();
+    } catch (error) {
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+      // AppRole is usable when a role_id plus either a plain secret_id or a
+      // wrapped secret_id (unwrapped lazily by login()) is configured.
+      const hasAppRole =
+        !!this.roleId && (!!this.secretId || !!this.secretIdWrapped);
+      if ((status !== 401 && status !== 403) || !hasAppRole) {
+        throw error;
+      }
+      this.logger.warn(
+        `Vault returned ${status}; attempting AppRole re-login and retry`,
+      );
+      const loginResult = await this.login();
+      if (loginResult.isFailure) {
+        const loginError = loginResult.getError();
+        this.logger.error(
+          `AppRole re-login failed after ${status}: ${loginError.message}`,
+        );
+        throw loginError;
+      }
+      return await op();
+    }
+  }
 
   private async renewToken(): Promise<Result<void, VaultError>> {
     try {
