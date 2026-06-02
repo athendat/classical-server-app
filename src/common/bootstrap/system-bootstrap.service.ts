@@ -116,26 +116,30 @@ export class SystemBootstrapService implements OnModuleInit {
     this.logger.log('👥 PHASE 2: Bootstrap roles...');
 
     try {
-      const count = await this.roleModel.countDocuments().exec();
-
-      if (count > 0) {
-        this.logger.log(
-          `   ⏭️  Roles collection already has ${count} documents - skipping seed`,
-        );
-        return;
-      }
-
+      // Reconciliación idempotente: NO hacemos early-return si ya existen roles.
+      // El loop hace upsert por `key` con `$set: {...role}`, de modo que los
+      // cambios de permisos de roles de sistema (definidos en código) se
+      // propagan a entornos existentes en cada arranque. Los roles custom (no
+      // presentes en SYSTEM_ROLES) no se tocan. Antes, el early-return dejaba
+      // los permisos desincronizados respecto del código (issue #42-adjacent).
       let seedCount = 0;
       for (const role of SYSTEM_ROLES) {
         try {
+          // Reconciliamos SÓLO los campos definidos por código que queremos
+          // mantener en sincronía (permisos + metadata de presentación). NO
+          // tocamos `status` en updates para no revertir un cambio out-of-band;
+          // se fija únicamente al insertar ($setOnInsert).
           await this.roleModel.updateOne(
             { key: role.key },
             {
               $set: {
-                ...role,
+                permissionKeys: role.permissionKeys,
+                name: role.name,
+                description: role.description,
                 isSystem: true,
               },
               $setOnInsert: {
+                status: role.status,
                 createdAt: new Date(),
               },
             },

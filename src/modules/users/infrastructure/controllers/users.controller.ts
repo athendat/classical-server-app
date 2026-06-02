@@ -71,6 +71,69 @@ export class UsersController {
   ) { }
 
   /**
+   * Listar los usuarios del propio tenant (merchant).
+   * GET /users/my-tenant
+   *
+   * Tenant-scoped: el servicio filtra SIEMPRE por el tenantId del JWT, así que
+   * sólo devuelve usuarios del tenant del actor. Declarado antes de GET /:id
+   * para que la ruta literal no sea capturada por el parámetro.
+   */
+  @Get('my-tenant')
+  @Permissions('users.view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Listar usuarios del propio tenant',
+    description:
+      'Devuelve los usuarios del tenant del actor (derivado del JWT). Scoped por tenant.',
+  })
+  async listMyTenantUsers(
+    @Res() res: Response,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: SortOrder,
+    @Query('status') status?: string,
+    @Query('roleKey') roleKey?: string,
+  ): Promise<Response> {
+    const queryParams: QueryParams = {
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 10,
+      sortBy,
+      sortOrder,
+      search: search?.trim(),
+      filters: {
+        ...(status ? { status: status.trim() } : {}),
+        ...(roleKey ? { roleKey: roleKey.trim() } : {}),
+      },
+    };
+    const response = await this.usersService.listTenantUsers(queryParams);
+    return res.status(response.statusCode).json(response);
+  }
+
+  /**
+   * Crear un usuario en el propio tenant (merchant).
+   * POST /users/my-tenant
+   *
+   * Tenant-scoped: el tenantId se asigna desde el JWT (nunca desde el payload).
+   */
+  @Post('my-tenant')
+  @Permissions('users.create')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Crear usuario en el propio tenant',
+    description:
+      'Crea un usuario asignándole el tenantId del actor (derivado del JWT).',
+  })
+  async createMyTenantUser(
+    @Res() res: Response,
+    @Body() dto: CreateUserDto,
+  ): Promise<Response> {
+    const response = await this.usersService.createTenantUser(dto);
+    return res.status(response.statusCode).json(response);
+  }
+
+  /**
    * Crear nuevo usuario
    * POST /users
    *

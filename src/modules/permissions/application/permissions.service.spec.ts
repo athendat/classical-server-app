@@ -79,6 +79,63 @@ describe('PermissionsService caching', () => {
         expect(cacheService.set).not.toHaveBeenCalled();
     });
 
+    it('cachea los permisos como ARRAYS serializables, no como Set (round-trip JSON)', async () => {
+        // Bug raíz #42: un Set serializa a {} con JSON.stringify, así que al
+        // releer la caché los permisos quedaban vacíos → 403 intermitente.
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view', 'transactions.*', '*'] },
+        ]);
+
+        await service.resolvePermissions(actor);
+
+        const cachedValue = cacheService.set.mock.calls[0][1] as any;
+        expect(Array.isArray(cachedValue.permissions.exactPermissions)).toBe(true);
+        expect(Array.isArray(cachedValue.permissions.moduleWildcards)).toBe(true);
+        expect(cachedValue.permissions.exactPermissions).toContain('users.view');
+        // Sobrevive un round-trip JSON (lo que hace CacheService.set):
+        const roundTripped = JSON.parse(JSON.stringify(cachedValue));
+        expect(roundTripped.permissions.exactPermissions).toContain('users.view');
+    });
+
+    it('devuelve los permisos computados aunque cacheService.set falle (caché no debe denegar)', async () => {
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view'] },
+        ]);
+        cacheService.set.mockRejectedValue(new Error('Redis write down'));
+
+        const result = await service.resolvePermissions(actor);
+
+        // Un fallo de ESCRITURA de caché no debe denegar: devolvemos lo computado.
+        expect(result.exactPermissions.has('users.view')).toBe(true);
+    });
+
+    it('recomputa desde la DB cuando cacheService.getByKey falla (caché no debe denegar)', async () => {
+        cacheService.getByKey.mockRejectedValue(new Error('Redis read down'));
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view'] },
+        ]);
+
+        const result = await service.resolvePermissions(actor);
+
+        expect(rolesService.findActiveByKeys).toHaveBeenCalled();
+        expect(result.exactPermissions.has('users.view')).toBe(true);
+    });
+
+    it('recomputa desde la DB cuando la entrada de caché reconstruye vacía (legacy Set->{})', async () => {
+        // Entrada legacy escrita por el bug del Set: serializada como {}.
+        cacheService.getByKey.mockResolvedValue({
+            permissions: { hasGlobalWildcard: false, moduleWildcards: {}, exactPermissions: {} },
+        });
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view'] },
+        ]);
+
+        const result = await service.resolvePermissions(actor);
+
+        expect(rolesService.findActiveByKeys).toHaveBeenCalled();
+        expect(result.exactPermissions.has('users.view')).toBe(true);
+    });
+
     it('cuando findActiveByKeys lanza, falla-cerrado (vacío) y NO cachea', async () => {
         // Escenario real del bug #42: un error transitorio de Mongo se propaga.
         rolesService.findActiveByKeys.mockRejectedValue(new Error('Mongo timeout'));

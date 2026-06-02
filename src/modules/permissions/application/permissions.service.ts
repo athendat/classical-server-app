@@ -45,53 +45,90 @@ export class PermissionsService {
   }> {
     const cacheKey = `permissions:${actor.actorType}:${actor.actorId}`;
 
-    // Intentar obtener del caché
-    const cached =
-      await this.cacheService.getByKey<PermissionsCacheEntry>(cacheKey);
-
-    if (cached) {
-      // Reconstruir Sets desde arrays (JSON.parse pierde tipos)
-      return {
-        hasGlobalWildcard: cached.permissions.hasGlobalWildcard,
-        moduleWildcards: new Set(
-          Array.isArray(cached.permissions.moduleWildcards)
-            ? cached.permissions.moduleWildcards
-            : Object.values(cached.permissions.moduleWildcards || {}),
-        ),
-        exactPermissions: new Set(
-          Array.isArray(cached.permissions.exactPermissions)
-            ? cached.permissions.exactPermissions
-            : Object.values(cached.permissions.exactPermissions || {}),
-        ),
-      };
+    // 1) Lectura de caché RESILIENTE: un fallo de Redis (lectura) NO debe
+    // denegar permisos — se trata como cache-miss y se recomputa desde la DB.
+    // (Antes esta llamada estaba fuera del try/catch, así que un error de Redis
+    // hacía 403 en TODAS las peticiones.)
+    try {
+      const cached =
+        await this.cacheService.getByKey<PermissionsCacheEntry>(cacheKey);
+      if (cached) {
+        // Reconstruir Sets desde arrays (JSON.parse pierde tipos)
+        const reconstructed = {
+          hasGlobalWildcard: cached.permissions.hasGlobalWildcard,
+          moduleWildcards: new Set<string>(
+            Array.isArray(cached.permissions.moduleWildcards)
+              ? cached.permissions.moduleWildcards
+              : Object.values(cached.permissions.moduleWildcards || {}),
+          ),
+          exactPermissions: new Set<string>(
+            Array.isArray(cached.permissions.exactPermissions)
+              ? cached.permissions.exactPermissions
+              : Object.values(cached.permissions.exactPermissions || {}),
+          ),
+        };
+        // Defensivo: una entrada legacy escrita por el bug del Set (serializado
+        // como {}) reconstruye VACÍA. No la servimos (sería un 403 espurio hasta
+        // que expire el TTL): la tratamos como miss y recomputamos desde la DB.
+        if (!this.isEmptyPermissions(reconstructed)) {
+          return reconstructed;
+        }
+      }
+    } catch (error: any) {
+      this.logger.warn(
+        `Permission cache read failed (degrading to DB) for ${actor.actorType}:${actor.actorId}: ${(error as Error).message}`,
+      );
     }
 
+    // 2) Resolver desde la DB. Sólo un fallo de la DB (no del caché) puede
+    // fallar-cerrado (deny).
+    let permissions: {
+      hasGlobalWildcard: boolean;
+      moduleWildcards: Set<string>;
+      exactPermissions: Set<string>;
+    };
     try {
-      const permissions = await this.fetchPermissionsFromDB(actor);
-      // Issue #42: NO cachear resoluciones vacías. Un vacío puede provenir de
-      // un fallo transitorio (p.ej. findActiveByKeys traga un error de Mongo y
-      // devuelve []), y cachearlo envenenaría la sesión durante todo el TTL.
-      // Sólo cacheamos resoluciones con al menos un permiso; las vacías se
-      // recomputan en la siguiente petición.
-      if (!this.isEmptyPermissions(permissions)) {
-        await this.cacheService.set(cacheKey, {
-          permissions,
-          cachedAt: Date.now(),
-        });
-      }
-      return permissions;
+      permissions = await this.fetchPermissionsFromDB(actor);
     } catch (error: any) {
       this.logger.error(
         `Failed to resolve permissions for ${actor.actorType}:${actor.actorId}: ${(error as Error).message}`,
         (error as Error).stack,
       );
-      // Fail-closed: deny por defecto
+      // Fail-closed: deny por defecto SÓLO ante fallo de resolución (DB).
       return {
         hasGlobalWildcard: false,
         moduleWildcards: new Set<string>(),
         exactPermissions: new Set<string>(),
       };
     }
+
+    // 3) Escritura de caché RESILIENTE: un fallo al cachear NO debe afectar el
+    // resultado (la caché es una optimización, no una fuente de verdad).
+    // Issue #42: además, NO cacheamos resoluciones vacías (evita envenenar la
+    // sesión si un vacío fue transitorio).
+    if (!this.isEmptyPermissions(permissions)) {
+      try {
+        // IMPORTANTE: serializar los Set como ARRAYS. CacheService.set hace
+        // JSON.stringify, y `JSON.stringify(new Set([...]))` === '{}' — es decir,
+        // un Set se persiste VACÍO y al releerlo los permisos quedaban en cero,
+        // produciendo 403 intermitentes (200 en el cache-miss que computa fresco,
+        // 403 durante el TTL leyendo el Set vacío). Guardamos arrays; la lectura
+        // ya los reconstruye con `new Set(array)`.
+        await this.cacheService.set(cacheKey, {
+          permissions: {
+            hasGlobalWildcard: permissions.hasGlobalWildcard,
+            moduleWildcards: Array.from(permissions.moduleWildcards),
+            exactPermissions: Array.from(permissions.exactPermissions),
+          },
+        });
+      } catch (error: any) {
+        this.logger.warn(
+          `Permission cache write failed (ignored) for ${actor.actorType}:${actor.actorId}: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    return permissions;
   }
 
   /**

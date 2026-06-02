@@ -675,3 +675,43 @@ describe('RolesService.findActiveByKeys error handling', () => {
     await expect(service.findActiveByKeys(['user'])).resolves.toEqual([{ key: 'user' }]);
   });
 });
+
+/**
+ * Roles asignables por un merchant a los usuarios de su tenant: sólo los roles
+ * de negocio (user, developer, merchant), nunca roles de plataforma
+ * (super_admin, admin, security_officer, ops, auditor).
+ */
+describe('RolesService.findTenantAssignable', () => {
+  let service: RolesService;
+  let rolesRepository: { findByKeysAndStatus: jest.Mock };
+
+  beforeEach(async () => {
+    rolesRepository = {
+      findByKeysAndStatus: jest
+        .fn()
+        .mockResolvedValue([{ key: 'user' }, { key: 'developer' }, { key: 'merchant' }]),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RolesService,
+        { provide: RolesRepository, useValue: rolesRepository },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: AsyncContextService, useValue: { getRequestId: jest.fn().mockReturnValue('req') } },
+        { provide: AuditService, useValue: { logAllow: jest.fn(), logError: jest.fn() } },
+      ],
+    }).compile();
+
+    service = module.get<RolesService>(RolesService);
+  });
+
+  it('consulta SÓLO los roles de negocio (whitelist) y los devuelve', async () => {
+    const res = await service.findTenantAssignable();
+
+    expect(rolesRepository.findByKeysAndStatus).toHaveBeenCalledWith(
+      ['user', 'developer', 'merchant'],
+      RoleStatus.ACTIVE,
+    );
+    expect(res.data?.map((r) => r.key)).toEqual(['user', 'developer', 'merchant']);
+  });
+});

@@ -31,6 +31,7 @@ import { buildMongoQuery } from 'src/common/helpers';
 import { UserStatus } from '../domain/enums/enums';
 import { isValidTransition } from '../domain/states-machines/user.state-machine';
 import type { Actor } from 'src/common/interfaces';
+import { TENANT_ASSIGNABLE_ROLE_KEYS } from '../../roles/application/roles.service';
 
 /**
  * Servicio de gestión de usuarios.
@@ -137,6 +138,126 @@ export class UsersService implements IUsersService {
           module: 'users',
           severity: 'HIGH',
           tags: ['user', 'creation', 'error'],
+        },
+      );
+
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        errorMsg,
+        'Error interno al crear usuario',
+        { requestId },
+      );
+    }
+  }
+
+  /**
+   * Crear un usuario dentro del tenant del actor (merchant).
+   *
+   * Aislamiento de tenant: el `tenantId` se toma SIEMPRE del contexto del actor
+   * (derivado del JWT), nunca del payload del cliente — así un merchant no puede
+   * crear usuarios en otro tenant. Un actor sin tenant no puede crear (fail-closed).
+   */
+  async createTenantUser(dto: CreateUserDto): Promise<ApiResponse<UserDTO>> {
+    const requestId = this.asyncContextService.getRequestId();
+    const userId = this.asyncContextService.getActorId()!;
+    const tenantId = this.asyncContextService.getTenantId();
+
+    if (!tenantId) {
+      this.logger.warn(
+        `[${requestId}] createTenantUser sin tenant en el contexto del actor`,
+      );
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.FORBIDDEN,
+        'NO_TENANT',
+        'El usuario no pertenece a un tenant',
+        { requestId },
+      );
+    }
+
+    // Anti escalada de privilegios: un merchant SÓLO puede asignar roles de
+    // negocio (la whitelist tenant-asignable). El servidor enforce esto — no se
+    // confía en el cliente (el /roles/assignable es sólo para poblar la UI).
+    const allowedRoles = new Set<string>(TENANT_ASSIGNABLE_ROLE_KEYS);
+    const requestedRoles = [
+      dto.roleKey,
+      ...(dto.additionalRoleKeys ?? []),
+    ].filter(Boolean);
+    const invalidRoles = requestedRoles.filter((k) => !allowedRoles.has(k));
+    if (invalidRoles.length > 0) {
+      this.logger.warn(
+        `[${requestId}] createTenantUser intento de asignar rol(es) no permitido(s): ${invalidRoles.join(', ')}`,
+      );
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.FORBIDDEN,
+        'ROLE_NOT_ASSIGNABLE',
+        `No tienes permiso para asignar el/los rol(es): ${invalidRoles.join(', ')}`,
+        { requestId },
+      );
+    }
+
+    try {
+      this.logger.log(
+        `[${requestId}] Creating tenant user (tenant: ${tenantId}) with roleKey: ${dto.roleKey}`,
+      );
+
+      const passwordHash = await this.hashPassword(dto.password);
+
+      // `tenantId` después de `...dto` para que SIEMPRE gane el del contexto.
+      const user = await this.usersRepository.create({
+        ...dto,
+        userId,
+        tenantId,
+        passwordHash,
+      });
+
+      const userDto = this.mapToDTO(user);
+
+      this.auditService.logAllow('USER_CREATED', 'user', userId, {
+        module: 'users',
+        severity: 'HIGH',
+        tags: ['user', 'creation', 'tenant-scoped'],
+        changes: {
+          after: {
+            id: user.id,
+            email: user.email,
+            fullname: user.fullname,
+            roleKey: user.roleKey,
+            tenantId,
+            userId,
+          },
+        },
+      });
+
+      this.eventEmitter.emit(
+        'user.created',
+        new UserCreatedEvent(userId, userDto.email || userDto.id),
+      );
+
+      this.logger.log(
+        `[${requestId}] Tenant user created successfully: ${user.id}`,
+      );
+      return ApiResponse.ok<UserDTO>(
+        HttpStatus.CREATED,
+        userDto,
+        'Usuario creado exitosamente',
+        { requestId },
+      );
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[${requestId}] Failed to create tenant user: ${errorMsg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      this.auditService.logError(
+        'USER_CREATE_FAILED',
+        'user',
+        userId,
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          module: 'users',
+          severity: 'HIGH',
+          tags: ['user', 'creation', 'tenant-scoped', 'error'],
         },
       );
 
@@ -384,6 +505,103 @@ export class UsersService implements IUsersService {
           module: 'users',
           severity: 'MEDIUM',
           tags: ['users', 'list', 'error'],
+        },
+      );
+
+      return ApiResponse.fail<UserDTO[]>(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        errorMsg,
+        'Error al listar usuarios',
+        { requestId },
+      );
+    }
+  }
+
+  /**
+   * Listar los usuarios del tenant del actor (merchant).
+   *
+   * Aislamiento de tenant: el filtro SIEMPRE incluye el `tenantId` del contexto
+   * del actor, por lo que sólo devuelve usuarios de su propio tenant. Un actor
+   * sin tenant no puede listar (fail-closed).
+   */
+  async listTenantUsers(
+    queryParams: QueryParams,
+  ): Promise<ApiResponse<UserDTO[]>> {
+    const requestId = this.asyncContextService.getRequestId();
+    const userId = this.asyncContextService.getActorId()!;
+    const tenantId = this.asyncContextService.getTenantId();
+
+    if (!tenantId) {
+      this.logger.warn(
+        `[${requestId}] listTenantUsers sin tenant en el contexto del actor`,
+      );
+      return ApiResponse.fail<UserDTO[]>(
+        HttpStatus.FORBIDDEN,
+        'NO_TENANT',
+        'El usuario no pertenece a un tenant',
+        { requestId },
+      );
+    }
+
+    try {
+      const searchFields = ['fullname', 'idNumber', 'email', 'phone'];
+      const { mongoFilter, options } = buildMongoQuery(
+        queryParams,
+        searchFields,
+      );
+
+      // Forzar el scope de tenant en el filtro (tras mongoFilter para que gane).
+      const filter = { ...mongoFilter, tenantId };
+
+      const { data: users, total, meta } = await this.usersRepository.findAll(
+        filter,
+        options,
+      );
+
+      const limit = options.limit;
+      const page = queryParams.page || 1;
+      const totalPages = Math.ceil(total / limit);
+      const skip = options.skip;
+      const hasMore = skip + limit < total;
+
+      const filteredUsers = users.filter((u) => u.roleKey !== 'super_admin');
+      const dtos = filteredUsers.map((u) => this.mapToDTO(u));
+
+      this.auditService.logAllow('USERS_LIST', 'users', userId, {
+        module: 'users',
+        severity: 'LOW',
+        tags: ['users', 'list', 'tenant-scoped'],
+        actorId: userId,
+        response: { count: dtos.length },
+      });
+
+      return ApiResponse.ok<UserDTO[]>(HttpStatus.OK, dtos, undefined, {
+        requestId,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasMore,
+        } as PaginationMeta,
+        ...meta,
+      });
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[${requestId}] Failed to list tenant users: ${errorMsg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      this.auditService.logError(
+        'USERS_LIST_FAILED',
+        'users',
+        'tenant',
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          module: 'users',
+          severity: 'MEDIUM',
+          tags: ['users', 'list', 'tenant-scoped', 'error'],
         },
       );
 

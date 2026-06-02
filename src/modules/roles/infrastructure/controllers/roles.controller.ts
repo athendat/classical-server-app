@@ -144,6 +144,37 @@ export class RolesController {
   }
 
   /**
+   * Roles asignables por un merchant a los usuarios de su tenant.
+   * GET /roles/assignable
+   *
+   * Devuelve SÓLO los roles de negocio (user, developer, merchant), nunca roles
+   * de plataforma. Se gatea con `users.view` (que el merchant posee) en lugar de
+   * `roles.read`, para que un merchant pueda poblar el formulario de alta de
+   * usuarios sin acceso al catálogo global de roles. Declarado antes de /:id.
+   */
+  @Get('assignable')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('users.view')
+  @ApiOperation({
+    summary: 'Roles asignables a usuarios del tenant',
+    description:
+      'Devuelve sólo los roles de negocio que un merchant puede asignar a los usuarios de su tenant.',
+  })
+  @ApiOkResponse({
+    description: 'Lista de roles asignables',
+    type: [Object],
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Unauthorized',
+  })
+  async findTenantAssignable(@Res() res: Response): Promise<Response> {
+    const response: ApiResponse<Role[]> =
+      await this.rolesService.findTenantAssignable();
+
+    return res.status(response.statusCode).json(response);
+  }
+
+  /**
    * Obtener rol por clave única
    * GET /roles/by-key/:key
    */

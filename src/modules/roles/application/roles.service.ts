@@ -15,6 +15,13 @@ import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 
 /**
+ * Roles de negocio que un merchant puede asignar a los usuarios de su tenant.
+ * Excluye explícitamente los roles de plataforma (super_admin, admin,
+ * security_officer, ops, auditor).
+ */
+export const TENANT_ASSIGNABLE_ROLE_KEYS = ['user', 'developer', 'merchant'] as const;
+
+/**
  * RolesService - Servicio de aplicación para gestión de roles
  * Responsable de:
  * - CRUD de roles
@@ -1081,6 +1088,24 @@ export class RolesService {
       // que PermissionsService falle-cerrado por petición sin envenenar caché.
       throw error;
     }
+  }
+
+  /**
+   * Roles que un merchant puede asignar a los usuarios de su tenant.
+   *
+   * Sólo roles de negocio (user, developer, merchant) — NUNCA roles de
+   * plataforma (super_admin, admin, security_officer, ops, auditor). Se usa para
+   * poblar el formulario de alta de usuarios del tenant.
+   */
+  async findTenantAssignable(): Promise<ApiResponse<Role[]>> {
+    const requestId = this.asyncContextService.getRequestId();
+    const roles = await this.findActiveByKeys([...TENANT_ASSIGNABLE_ROLE_KEYS]);
+    return ApiResponse.ok<Role[]>(
+      HttpStatus.OK,
+      roles,
+      'Roles asignables obtenidos exitosamente',
+      { requestId },
+    );
   }
 
   /**
