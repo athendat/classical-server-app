@@ -102,7 +102,19 @@ export class PermissionsService {
     // sesión si un vacío fue transitorio).
     if (!this.isEmptyPermissions(permissions)) {
       try {
-        await this.cacheService.set(cacheKey, { permissions });
+        // IMPORTANTE: serializar los Set como ARRAYS. CacheService.set hace
+        // JSON.stringify, y `JSON.stringify(new Set([...]))` === '{}' — es decir,
+        // un Set se persiste VACÍO y al releerlo los permisos quedaban en cero,
+        // produciendo 403 intermitentes (200 en el cache-miss que computa fresco,
+        // 403 durante el TTL leyendo el Set vacío). Guardamos arrays; la lectura
+        // ya los reconstruye con `new Set(array)`.
+        await this.cacheService.set(cacheKey, {
+          permissions: {
+            hasGlobalWildcard: permissions.hasGlobalWildcard,
+            moduleWildcards: Array.from(permissions.moduleWildcards),
+            exactPermissions: Array.from(permissions.exactPermissions),
+          },
+        });
       } catch (error: any) {
         this.logger.warn(
           `Permission cache write failed (ignored) for ${actor.actorType}:${actor.actorId}: ${(error as Error).message}`,

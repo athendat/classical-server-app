@@ -79,6 +79,24 @@ describe('PermissionsService caching', () => {
         expect(cacheService.set).not.toHaveBeenCalled();
     });
 
+    it('cachea los permisos como ARRAYS serializables, no como Set (round-trip JSON)', async () => {
+        // Bug raíz #42: un Set serializa a {} con JSON.stringify, así que al
+        // releer la caché los permisos quedaban vacíos → 403 intermitente.
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view', 'transactions.*', '*'] },
+        ]);
+
+        await service.resolvePermissions(actor);
+
+        const cachedValue = cacheService.set.mock.calls[0][1] as any;
+        expect(Array.isArray(cachedValue.permissions.exactPermissions)).toBe(true);
+        expect(Array.isArray(cachedValue.permissions.moduleWildcards)).toBe(true);
+        expect(cachedValue.permissions.exactPermissions).toContain('users.view');
+        // Sobrevive un round-trip JSON (lo que hace CacheService.set):
+        const roundTripped = JSON.parse(JSON.stringify(cachedValue));
+        expect(roundTripped.permissions.exactPermissions).toContain('users.view');
+    });
+
     it('devuelve los permisos computados aunque cacheService.set falle (caché no debe denegar)', async () => {
         rolesService.findActiveByKeys.mockResolvedValue([
             { permissionKeys: ['users.view'] },
