@@ -16,7 +16,6 @@ interface PermissionsCacheEntry {
     moduleWildcards: Set<string>;
     exactPermissions: Set<string>;
   };
-  cachedAt: number;
 }
 
 /**
@@ -69,10 +68,17 @@ export class PermissionsService {
 
     try {
       const permissions = await this.fetchPermissionsFromDB(actor);
-      await this.cacheService.set(cacheKey, {
-        permissions,
-        cachedAt: Date.now(),
-      });
+      // Issue #42: NO cachear resoluciones vacías. Un vacío puede provenir de
+      // un fallo transitorio (p.ej. findActiveByKeys traga un error de Mongo y
+      // devuelve []), y cachearlo envenenaría la sesión durante todo el TTL.
+      // Sólo cacheamos resoluciones con al menos un permiso; las vacías se
+      // recomputan en la siguiente petición.
+      if (!this.isEmptyPermissions(permissions)) {
+        await this.cacheService.set(cacheKey, {
+          permissions,
+          cachedAt: Date.now(),
+        });
+      }
       return permissions;
     } catch (error: any) {
       this.logger.error(
@@ -86,6 +92,22 @@ export class PermissionsService {
         exactPermissions: new Set<string>(),
       };
     }
+  }
+
+  /**
+   * Indica si una estructura de permisos no concede ningún acceso.
+   * Issue #42: se usa para evitar cachear resoluciones vacías.
+   */
+  private isEmptyPermissions(permissions: {
+    hasGlobalWildcard: boolean;
+    moduleWildcards: Set<string>;
+    exactPermissions: Set<string>;
+  }): boolean {
+    return (
+      !permissions.hasGlobalWildcard &&
+      permissions.moduleWildcards.size === 0 &&
+      permissions.exactPermissions.size === 0
+    );
   }
 
   /**

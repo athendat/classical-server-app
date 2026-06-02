@@ -636,3 +636,42 @@ describe.skip('RolesService', () => {
     });
   });
 });
+
+/**
+ * Issue #42 — findActiveByKeys tragaba cualquier error del repositorio y
+ * devolvía [], indistinguible de "sin roles activos". Eso hacía que un fallo
+ * transitorio de Mongo produjera permisos vacíos (que luego se cacheaban). El
+ * error debe propagarse para que el caller falle-cerrado por petición.
+ */
+describe('RolesService.findActiveByKeys error handling', () => {
+  let service: RolesService;
+  let rolesRepository: { findByKeysAndStatus: jest.Mock };
+
+  beforeEach(async () => {
+    rolesRepository = { findByKeysAndStatus: jest.fn() };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RolesService,
+        { provide: RolesRepository, useValue: rolesRepository },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: AsyncContextService, useValue: { getRequestId: jest.fn().mockReturnValue('req') } },
+        { provide: AuditService, useValue: { logAllow: jest.fn(), logError: jest.fn() } },
+      ],
+    }).compile();
+
+    service = module.get<RolesService>(RolesService);
+  });
+
+  it('propaga el error del repositorio en lugar de devolver []', async () => {
+    rolesRepository.findByKeysAndStatus.mockRejectedValue(new Error('Mongo timeout'));
+
+    await expect(service.findActiveByKeys(['user', 'merchant'])).rejects.toThrow('Mongo timeout');
+  });
+
+  it('devuelve los roles activos cuando el repositorio responde', async () => {
+    rolesRepository.findByKeysAndStatus.mockResolvedValue([{ key: 'user' }]);
+
+    await expect(service.findActiveByKeys(['user'])).resolves.toEqual([{ key: 'user' }]);
+  });
+});

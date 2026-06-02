@@ -1075,7 +1075,11 @@ export class RolesService {
         `Error al obtener roles activos por keys: ${(error as Error).message}`,
         (error as Error).stack,
       );
-      return [];
+      // Issue #42: NO devolver [] ante un error — eso es indistinguible de
+      // "sin roles activos" y hacía que un fallo transitorio de Mongo se
+      // tradujera en permisos vacíos (que luego se cacheaban). Propagamos para
+      // que PermissionsService falle-cerrado por petición sin envenenar caché.
+      throw error;
     }
   }
 
