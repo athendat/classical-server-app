@@ -79,6 +79,30 @@ describe('PermissionsService caching', () => {
         expect(cacheService.set).not.toHaveBeenCalled();
     });
 
+    it('devuelve los permisos computados aunque cacheService.set falle (caché no debe denegar)', async () => {
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view'] },
+        ]);
+        cacheService.set.mockRejectedValue(new Error('Redis write down'));
+
+        const result = await service.resolvePermissions(actor);
+
+        // Un fallo de ESCRITURA de caché no debe denegar: devolvemos lo computado.
+        expect(result.exactPermissions.has('users.view')).toBe(true);
+    });
+
+    it('recomputa desde la DB cuando cacheService.getByKey falla (caché no debe denegar)', async () => {
+        cacheService.getByKey.mockRejectedValue(new Error('Redis read down'));
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view'] },
+        ]);
+
+        const result = await service.resolvePermissions(actor);
+
+        expect(rolesService.findActiveByKeys).toHaveBeenCalled();
+        expect(result.exactPermissions.has('users.view')).toBe(true);
+    });
+
     it('cuando findActiveByKeys lanza, falla-cerrado (vacío) y NO cachea', async () => {
         // Escenario real del bug #42: un error transitorio de Mongo se propaga.
         rolesService.findActiveByKeys.mockRejectedValue(new Error('Mongo timeout'));
