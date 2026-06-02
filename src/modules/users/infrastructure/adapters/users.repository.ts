@@ -33,6 +33,7 @@ export class UsersRepository implements IUsersPort {
       idNumber: payload.idNumber,
       passwordHash: payload.passwordHash,
       metadata: payload.metadata,
+      tenantId: payload.tenantId,
       status: UserStatus.ACTIVE,
     });
 

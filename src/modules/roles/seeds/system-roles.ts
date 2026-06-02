@@ -256,8 +256,9 @@ export const SYSTEM_ROLES = [
       // Gestión del comercio (propio)
       // `${MODULES.MERCHANTS}.view`,
 
-      // Usuarios del comercio
+      // Usuarios del comercio (gestión tenant-scoped de su propio tenant)
       `${MODULES.USERS}.view`,
+      `${MODULES.USERS}.create`,
 
       // Terminales del comercio
       `${MODULES.TERMINALS}.create`,
