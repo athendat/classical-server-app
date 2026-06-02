@@ -2,7 +2,7 @@ import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 
 import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import * as jwt_decode from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 import { ClsService } from 'nestjs-cls';
 
 import { AppClsStore } from '../common/context/cls-store.interface';
@@ -47,7 +47,11 @@ export class RequestIdMiddleware implements NestMiddleware {
       }
 
       const token = authHeader.substring(7);
-      const decoded = (jwt_decode as any)(token);
+      // jwt-decode v4 exporta el named `jwtDecode` (no default). El código previo
+      // (`import * as jwt_decode` + llamarlo como función) rompía con
+      // "jwt_decode is not a function" tras el bump de dependencias, dejando el
+      // actor del contexto (cls) sin setear → resolución de permisos vacía → 403.
+      const decoded = jwtDecode<Record<string, any>>(token);
 
       return {
         actorId: decoded.actorId || 'unknown',
