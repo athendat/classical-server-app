@@ -16,7 +16,6 @@ interface PermissionsCacheEntry {
     moduleWildcards: Set<string>;
     exactPermissions: Set<string>;
   };
-  cachedAt: number;
 }
 
 /**

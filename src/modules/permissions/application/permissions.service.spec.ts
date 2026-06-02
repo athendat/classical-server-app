@@ -70,13 +70,24 @@ describe('PermissionsService caching', () => {
                 moduleWildcards: [],
                 exactPermissions: ['transactions.read'],
             },
-            cachedAt: 1,
         });
 
         const result = await service.resolvePermissions(actor);
 
         expect(result.exactPermissions.has('transactions.read')).toBe(true);
         expect(rolesService.findActiveByKeys).not.toHaveBeenCalled();
+        expect(cacheService.set).not.toHaveBeenCalled();
+    });
+
+    it('cuando findActiveByKeys lanza, falla-cerrado (vacío) y NO cachea', async () => {
+        // Escenario real del bug #42: un error transitorio de Mongo se propaga.
+        rolesService.findActiveByKeys.mockRejectedValue(new Error('Mongo timeout'));
+
+        const result = await service.resolvePermissions(actor);
+
+        expect(result.hasGlobalWildcard).toBe(false);
+        expect(result.moduleWildcards.size).toBe(0);
+        expect(result.exactPermissions.size).toBe(0);
         expect(cacheService.set).not.toHaveBeenCalled();
     });
 });
