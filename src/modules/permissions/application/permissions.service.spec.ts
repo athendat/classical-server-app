@@ -121,6 +121,21 @@ describe('PermissionsService caching', () => {
         expect(result.exactPermissions.has('users.view')).toBe(true);
     });
 
+    it('recomputa desde la DB cuando la entrada de caché reconstruye vacía (legacy Set->{})', async () => {
+        // Entrada legacy escrita por el bug del Set: serializada como {}.
+        cacheService.getByKey.mockResolvedValue({
+            permissions: { hasGlobalWildcard: false, moduleWildcards: {}, exactPermissions: {} },
+        });
+        rolesService.findActiveByKeys.mockResolvedValue([
+            { permissionKeys: ['users.view'] },
+        ]);
+
+        const result = await service.resolvePermissions(actor);
+
+        expect(rolesService.findActiveByKeys).toHaveBeenCalled();
+        expect(result.exactPermissions.has('users.view')).toBe(true);
+    });
+
     it('cuando findActiveByKeys lanza, falla-cerrado (vacío) y NO cachea', async () => {
         // Escenario real del bug #42: un error transitorio de Mongo se propaga.
         rolesService.findActiveByKeys.mockRejectedValue(new Error('Mongo timeout'));

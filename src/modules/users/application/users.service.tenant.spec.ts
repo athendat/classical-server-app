@@ -85,6 +85,37 @@ describe('UsersService — tenant-scoped create', () => {
         expect(repoCreate).not.toHaveBeenCalled();
     });
 
+    it('RECHAZA (403) un roleKey fuera de la whitelist de negocio (anti escalada) y NO crea', async () => {
+        const escalation = { ...baseDto, roleKey: 'admin' } as unknown as CreateUserDto;
+
+        const res = await service.createTenantUser(escalation);
+
+        expect(res.statusCode).toBe(403);
+        expect(repoCreate).not.toHaveBeenCalled();
+    });
+
+    it('RECHAZA (403) additionalRoleKeys fuera de la whitelist (e.g. super_admin) y NO crea', async () => {
+        const escalation = {
+            ...baseDto,
+            roleKey: 'user',
+            additionalRoleKeys: ['super_admin'],
+        } as unknown as CreateUserDto;
+
+        const res = await service.createTenantUser(escalation);
+
+        expect(res.statusCode).toBe(403);
+        expect(repoCreate).not.toHaveBeenCalled();
+    });
+
+    it('permite un roleKey de negocio de la whitelist (developer)', async () => {
+        const dto = { ...baseDto, roleKey: 'developer' } as unknown as CreateUserDto;
+
+        const res = await service.createTenantUser(dto);
+
+        expect(res.statusCode).toBe(201);
+        expect(repoCreate).toHaveBeenCalledTimes(1);
+    });
+
     it('listTenantUsers filtra por el tenantId del contexto', async () => {
         await service.listTenantUsers({} as any);
 

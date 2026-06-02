@@ -125,14 +125,21 @@ export class SystemBootstrapService implements OnModuleInit {
       let seedCount = 0;
       for (const role of SYSTEM_ROLES) {
         try {
+          // Reconciliamos SÓLO los campos definidos por código que queremos
+          // mantener en sincronía (permisos + metadata de presentación). NO
+          // tocamos `status` en updates para no revertir un cambio out-of-band;
+          // se fija únicamente al insertar ($setOnInsert).
           await this.roleModel.updateOne(
             { key: role.key },
             {
               $set: {
-                ...role,
+                permissionKeys: role.permissionKeys,
+                name: role.name,
+                description: role.description,
                 isSystem: true,
               },
               $setOnInsert: {
+                status: role.status,
                 createdAt: new Date(),
               },
             },

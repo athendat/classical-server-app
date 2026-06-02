@@ -31,6 +31,7 @@ import { buildMongoQuery } from 'src/common/helpers';
 import { UserStatus } from '../domain/enums/enums';
 import { isValidTransition } from '../domain/states-machines/user.state-machine';
 import type { Actor } from 'src/common/interfaces';
+import { TENANT_ASSIGNABLE_ROLE_KEYS } from '../../roles/application/roles.service';
 
 /**
  * Servicio de gestión de usuarios.
@@ -169,6 +170,27 @@ export class UsersService implements IUsersService {
         HttpStatus.FORBIDDEN,
         'NO_TENANT',
         'El usuario no pertenece a un tenant',
+        { requestId },
+      );
+    }
+
+    // Anti escalada de privilegios: un merchant SÓLO puede asignar roles de
+    // negocio (la whitelist tenant-asignable). El servidor enforce esto — no se
+    // confía en el cliente (el /roles/assignable es sólo para poblar la UI).
+    const allowedRoles = new Set<string>(TENANT_ASSIGNABLE_ROLE_KEYS);
+    const requestedRoles = [
+      dto.roleKey,
+      ...(dto.additionalRoleKeys ?? []),
+    ].filter(Boolean);
+    const invalidRoles = requestedRoles.filter((k) => !allowedRoles.has(k));
+    if (invalidRoles.length > 0) {
+      this.logger.warn(
+        `[${requestId}] createTenantUser intento de asignar rol(es) no permitido(s): ${invalidRoles.join(', ')}`,
+      );
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.FORBIDDEN,
+        'ROLE_NOT_ASSIGNABLE',
+        `No tienes permiso para asignar el/los rol(es): ${invalidRoles.join(', ')}`,
         { requestId },
       );
     }

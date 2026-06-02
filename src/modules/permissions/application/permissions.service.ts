@@ -54,19 +54,25 @@ export class PermissionsService {
         await this.cacheService.getByKey<PermissionsCacheEntry>(cacheKey);
       if (cached) {
         // Reconstruir Sets desde arrays (JSON.parse pierde tipos)
-        return {
+        const reconstructed = {
           hasGlobalWildcard: cached.permissions.hasGlobalWildcard,
-          moduleWildcards: new Set(
+          moduleWildcards: new Set<string>(
             Array.isArray(cached.permissions.moduleWildcards)
               ? cached.permissions.moduleWildcards
               : Object.values(cached.permissions.moduleWildcards || {}),
           ),
-          exactPermissions: new Set(
+          exactPermissions: new Set<string>(
             Array.isArray(cached.permissions.exactPermissions)
               ? cached.permissions.exactPermissions
               : Object.values(cached.permissions.exactPermissions || {}),
           ),
         };
+        // Defensivo: una entrada legacy escrita por el bug del Set (serializado
+        // como {}) reconstruye VACÍA. No la servimos (sería un 403 espurio hasta
+        // que expire el TTL): la tratamos como miss y recomputamos desde la DB.
+        if (!this.isEmptyPermissions(reconstructed)) {
+          return reconstructed;
+        }
       }
     } catch (error: any) {
       this.logger.warn(
