@@ -9,6 +9,7 @@ import { AuditService } from 'src/modules/audit/application/audit.service';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { Actor } from 'src/common/interfaces';
 import { buildMongoQuery } from 'src/common/helpers';
+import { buildCreatedAtRangeFilter } from '../build-created-at-filter';
 
 /**
  * Servicio de consulta para listar transacciones con filtrado inteligente
@@ -30,7 +31,11 @@ export class TransactionQueryService {
    * - merchant: filtrar por tenantId
    * - otros roles: permitir query params (tenantId, customerId, etc)
    */
-  async list(queryParams: QueryParams, contextApp?: string): Promise<ApiResponse<Transaction[]>> {
+  async list(
+    queryParams: QueryParams,
+    contextApp?: string,
+    dateRange?: { from?: string; to?: string },
+  ): Promise<ApiResponse<Transaction[]>> {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId();
     const actor = this.asyncContextService.getActor()!;
@@ -51,10 +56,16 @@ export class TransactionQueryService {
       ];
 
       // Construir query de MongoDB
-      const { mongoFilter, options } = buildMongoQuery(
+      const { mongoFilter: baseFilter, options } = buildMongoQuery(
         queryParams,
         searchFields,
       );
+
+      // Issue #28: acotar por rango de fechas (createdAt) si vino from/to.
+      const mongoFilter = {
+        ...baseFilter,
+        ...buildCreatedAtRangeFilter(dateRange?.from, dateRange?.to),
+      };
 
       this.logger.log(
         `[${requestId}] MongoDB filter: ${JSON.stringify(mongoFilter)}`,
