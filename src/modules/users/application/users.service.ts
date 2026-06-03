@@ -73,6 +73,37 @@ export class UsersService implements IUsersService {
   async create(dto: CreateUserDto): Promise<ApiResponse<UserDTO>> {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
+
+    // Issue #27 (SECURITY): este es el endpoint ADMINISTRATIVO de plataforma
+    // (POST /users), que crea con el roleKey/tenantId del payload sin scoping.
+    // Comparte el permiso `users.create` con el endpoint scoped /users/my-tenant,
+    // así que un actor ligado a un tenant (p.ej. merchant) podría alcanzarlo y
+    // escalar (roleKey arbitrario / tenant ajeno). Fail-closed: un actor con
+    // tenant DEBE usar createTenantUser (scoped, con whitelist de roles).
+    const tenantId = this.asyncContextService.getTenantId();
+    if (tenantId) {
+      this.logger.warn(
+        `[${requestId}] create() global bloqueado para actor tenant-bound (tenant: ${tenantId})`,
+      );
+      this.auditService.logDeny(
+        'USER_CREATE',
+        'user',
+        userId,
+        'Actor tenant-bound usando el endpoint global de creación de usuarios',
+        {
+          module: 'users',
+          severity: 'HIGH',
+          tags: ['user', 'creation', 'denied', 'security', 'tenant-isolation'],
+        },
+      );
+      return ApiResponse.fail<UserDTO>(
+        HttpStatus.FORBIDDEN,
+        'FORBIDDEN',
+        'Use el endpoint de su tenant para crear usuarios',
+        { requestId },
+      );
+    }
+
     try {
       this.logger.log(
         `[${requestId}] Creating user with roleKey: ${dto.roleKey}`,

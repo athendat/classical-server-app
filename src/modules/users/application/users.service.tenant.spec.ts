@@ -54,7 +54,7 @@ describe('UsersService — tenant-scoped create', () => {
                         getTenantId,
                     },
                 },
-                { provide: AuditService, useValue: { logAllow: jest.fn(), logError: jest.fn() } },
+                { provide: AuditService, useValue: { logAllow: jest.fn(), logError: jest.fn(), logDeny: jest.fn() } },
             ],
         }).compile();
 
@@ -111,6 +111,30 @@ describe('UsersService — tenant-scoped create', () => {
         const dto = { ...baseDto, roleKey: 'developer' } as unknown as CreateUserDto;
 
         const res = await service.createTenantUser(dto);
+
+        expect(res.statusCode).toBe(201);
+        expect(repoCreate).toHaveBeenCalledTimes(1);
+    });
+
+    // Issue #27: el endpoint global POST /users (create) es administrativo de
+    // plataforma. Comparte el permiso `users.create` con el endpoint scoped
+    // /users/my-tenant, así que un merchant (tenant-bound, con users.create)
+    // podía alcanzarlo y crear un usuario con roleKey arbitrario (escalada) o en
+    // otro tenant. El create() global debe rechazar a actores tenant-bound.
+    it('#27: create() global RECHAZA (403) a un actor tenant-bound y NO crea', async () => {
+        // getTenantId por defecto = 'tenant-1' (actor ligado a tenant, p.ej. merchant)
+        const escalation = { ...baseDto, roleKey: 'admin' } as unknown as CreateUserDto;
+
+        const res = await service.create(escalation);
+
+        expect(res.statusCode).toBe(403);
+        expect(repoCreate).not.toHaveBeenCalled();
+    });
+
+    it('#27: create() global permite a un actor de plataforma (sin tenant)', async () => {
+        getTenantId.mockReturnValue(undefined);
+
+        const res = await service.create(baseDto);
 
         expect(res.statusCode).toBe(201);
         expect(repoCreate).toHaveBeenCalledTimes(1);
