@@ -89,4 +89,19 @@ describe('JwksAdapter — boot resilience (#40)', () => {
 
         adapter.onModuleDestroy();
     });
+
+    it('una vez inicializado, tryInitialize no regenera ni reescribe la clave', async () => {
+        const vault = emptyReachable();
+        const adapter = buildAdapter(vault);
+        await adapter.onModuleInit();
+        const writesAfterInit = vault.writeKV.mock.calls.length;
+
+        // Un reintento posterior (p.ej. tick rezagado) debe cortar de inmediato.
+        const again = await (adapter as any).tryInitialize();
+
+        expect(again).toBe(true);
+        expect(vault.writeKV.mock.calls.length).toBe(writesAfterInit);
+
+        adapter.onModuleDestroy();
+    });
 });

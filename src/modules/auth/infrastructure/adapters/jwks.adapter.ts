@@ -37,6 +37,7 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
   private rotationTimer: NodeJS.Timeout | null = null;
   /** Issue #40: estado de inicialización y reintento en background. */
   private initialized = false;
+  private initInProgress = false;
   private initRetryTimer: NodeJS.Timeout | null = null;
   private readonly initRetryDelayMs = 10_000;
 
@@ -79,6 +80,14 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
    * clave activa lista.
    */
   private async tryInitialize(): Promise<boolean> {
+    // Ya hay una clave activa lista — nada que hacer (corta reintentos de más).
+    if (this.initialized) return true;
+    // Evita ejecuciones concurrentes: con `setInterval`, si un intento tarda más
+    // que el delay, el siguiente tick dispararía otro tryInitialize en paralelo
+    // y ambos generarían/persistirían la clave default en carrera.
+    if (this.initInProgress) return false;
+    this.initInProgress = true;
+
     try {
       await this.loadKeysFromVault();
 
@@ -136,6 +145,8 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       this.activeKidCache = null;
       this.initialized = false;
       return false;
+    } finally {
+      this.initInProgress = false;
     }
   }
 
