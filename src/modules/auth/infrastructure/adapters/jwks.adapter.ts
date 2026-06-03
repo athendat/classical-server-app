@@ -35,6 +35,10 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
   private keysCache: Map<string, JwksKey> = new Map();
   private activeKidCache: string | null = null;
   private rotationTimer: NodeJS.Timeout | null = null;
+  /** Issue #40: estado de inicialización y reintento en background. */
+  private initialized = false;
+  private initRetryTimer: NodeJS.Timeout | null = null;
+  private readonly initRetryDelayMs = 10_000;
 
   constructor(
     @Inject(INJECTION_TOKENS.VAULT_CLIENT)
@@ -52,6 +56,29 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     this.logger.log('Initializing JWKS adapter...');
+
+    const ok = await this.tryInitialize();
+    if (!ok) {
+      // Issue #40: NO lanzar. Un Vault sellado/inalcanzable no debe tumbar todo
+      // el API (incl. /health) ni provocar un crash-loop del contenedor. Se deja
+      // el adapter en estado `notReady` (la firma sigue fail-closed: getActiveKey
+      // devuelve null y getActivePrivateKey lanza) y se reintenta en background
+      // hasta que Vault esté accesible/desellado.
+      this.logger.warn(
+        `JWKS adapter not ready (Vault unavailable/sealed at boot). The API stays up; ` +
+          `token signing fails closed until Vault is reachable. Retrying every ${this.initRetryDelayMs}ms...`,
+      );
+      this.scheduleInitRetry();
+    }
+  }
+
+  /**
+   * Intenta cargar/generar las claves desde Vault. Issue #40: devuelve `false`
+   * (sin lanzar) si Vault está sellado/inalcanzable, dejando el estado interno
+   * limpio para que la firma quede fail-closed. Devuelve `true` cuando hay una
+   * clave activa lista.
+   */
+  private async tryInitialize(): Promise<boolean> {
     try {
       await this.loadKeysFromVault();
 
@@ -88,22 +115,61 @@ export class JwksAdapter implements IJwksPort, OnModuleInit, OnModuleDestroy {
       }
 
       // Programar rotación automática cada N horas
-      this.rotationTimer = setInterval(() => {
-        this.rotateKey().catch((err) => this.logger.error(err));
-      }, this.keyRotationIntervalMs);
+      if (!this.rotationTimer) {
+        this.rotationTimer = setInterval(() => {
+          this.rotateKey().catch((err) => this.logger.error(err));
+        }, this.keyRotationIntervalMs);
+      }
+      this.initialized = true;
       this.logger.log(
         `JWKS adapter initialized. Next rotation in ${this.keyRotationIntervalMs}ms`,
       );
+      return true;
     } catch (error: any) {
-      this.logger.error('Failed to initialize JWKS adapter', error);
-      // Fail-closed: si no podemos cargar claves, el servicio no arranca
-      throw error;
+      this.logger.error(
+        'Failed to initialize JWKS adapter (Vault unavailable?); will retry',
+        error,
+      );
+      // Fail-closed: descartar cualquier estado parcial en memoria para que la
+      // firma rechace operaciones hasta tener una clave realmente persistida.
+      this.keysCache.clear();
+      this.activeKidCache = null;
+      this.initialized = false;
+      return false;
     }
+  }
+
+  /**
+   * Issue #40: reintenta la inicialización en background hasta que Vault esté
+   * accesible/desellado, sin bloquear el arranque del API.
+   */
+  private scheduleInitRetry(): void {
+    if (this.initRetryTimer) return;
+    this.initRetryTimer = setInterval(() => {
+      void this.tryInitialize().then((ok) => {
+        if (ok) {
+          this.logger.log(
+            'JWKS adapter recovered: Vault reachable, keys initialized.',
+          );
+          if (this.initRetryTimer) {
+            clearInterval(this.initRetryTimer);
+            this.initRetryTimer = null;
+          }
+        }
+      });
+    }, this.initRetryDelayMs);
+    // No mantener vivo el event loop sólo por el reintento.
+    this.initRetryTimer.unref?.();
   }
 
   onModuleDestroy(): void {
     if (this.rotationTimer) {
       clearInterval(this.rotationTimer);
+      this.rotationTimer = null;
+    }
+    if (this.initRetryTimer) {
+      clearInterval(this.initRetryTimer);
+      this.initRetryTimer = null;
     }
   }
 
