@@ -295,6 +295,8 @@ export class TransactionsController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: SortOrder,
     @Query('status') status?: TransactionStatus,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ): Promise<Response> {
     // Construimos parámetros de consulta
     const queryParams: QueryParams = {
@@ -311,7 +313,8 @@ export class TransactionsController {
     // Obtener la app desde el header x-context-app para aplicar lógica de filtrado por rol
     const contextApp = req.header('x-context-app');
 
-    const response = await this.transactionQueryService.list(queryParams, contextApp);
+    // Issue #28: rango de fechas (createdAt) opcional.
+    const response = await this.transactionQueryService.list(queryParams, contextApp, { from, to });
     return res.status(response.statusCode).json(response);
   }
 
