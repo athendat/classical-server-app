@@ -250,11 +250,15 @@ export class TenantsService {
         actorId: userId,
       });
 
-      // Enriquecer tenant con datos del Vault
+      // Enriquecer tenant con datos del Vault. Issue #46: guardar el Result del
+      // PAN (suplementario) en vez de getValue() a ciegas, que lanza sobre un
+      // Result fallido y provocaba un 500. Mismo idiom que el clientSecret debajo.
       const panResult = await this.vaultService.getPan(tenant.id);
 
-      const maskedPan = this.vaultService.maskPan(panResult.getValue());
-      const unmaskPan = panResult.getValue();
+      const maskedPan = panResult.isSuccess
+        ? this.vaultService.maskPan(panResult.getValue())
+        : '**** **** **** ****';
+      const unmaskPan = panResult.isSuccess ? panResult.getValue() : undefined;
 
       // Obtener clientSecret del Vault
       const clientSecretResult = await this.vaultService.getOAuth2ClientSecret(tenant.id);
@@ -344,11 +348,16 @@ export class TenantsService {
         actorId: userId,
       });
 
-      // Enriquecer tenant con datos del Vault
+      // Enriquecer tenant con datos del Vault. Issue #46: el PAN es suplementario
+      // — un fallo transitorio del Vault no debe tumbar la respuesta con un 500.
+      // Se guarda el Result (mismo idiom que el clientSecret) en vez de llamar
+      // getValue() a ciegas, que lanza sobre un Result fallido.
       const panResult = await this.vaultService.getPan(tenant.id);
 
-      const maskedPan = this.vaultService.maskPan(panResult.getValue());
-      const unmaskPan = panResult.getValue();
+      const maskedPan = panResult.isSuccess
+        ? this.vaultService.maskPan(panResult.getValue())
+        : '**** **** **** ****';
+      const unmaskPan = panResult.isSuccess ? panResult.getValue() : undefined;
 
       const responseDto = this.mapTenantToResponse(tenant, { maskedPan, unmaskPan });
 
