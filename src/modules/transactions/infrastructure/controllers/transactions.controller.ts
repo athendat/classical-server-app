@@ -276,6 +276,20 @@ export class TransactionsController {
     description: 'Filter by transaction status',
     example: 'new',
   })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    type: String,
+    description: 'Inicio del rango (ISO 8601) sobre createdAt',
+    example: '2026-05-03T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    type: String,
+    description: 'Fin del rango (ISO 8601) sobre createdAt',
+    example: '2026-06-02T23:59:59.999Z',
+  })
   @ApiOkResponse({
     description: 'Transactions recuperados',
     type: TransactionPaginatedResponseDto,

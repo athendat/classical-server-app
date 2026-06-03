@@ -207,8 +207,6 @@ export class TransactionsRepository implements ITransactionsRepository {
         filter.customerId = userId;
       }
 
-      console.log({ filter })
-
       // Ejecutar query en paralelo: obtener documentos y contar total
       const [transactions, total] = await Promise.all([
         this.transactionModel
