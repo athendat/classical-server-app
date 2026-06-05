@@ -41,14 +41,26 @@ export class TerminalRepository implements ITerminalRepository {
     return this.toEntity(doc);
   }
 
-  async findAll(filters?: TerminalFilters): Promise<TerminalEntity[]> {
+  async findAll(
+    filters?: TerminalFilters & { tenantId?: string },
+    pagination?: { skip: number; limit: number },
+  ): Promise<{ data: TerminalEntity[]; total: number }> {
     const query: Record<string, any> = {};
+    if (filters?.tenantId) query.tenantId = filters.tenantId;
     if (filters?.type) query.type = filters.type;
     if (filters?.status) query.status = filters.status;
     if (filters?.capability) query.capabilities = { $in: [filters.capability] };
 
-    const docs = await this.model.find(query).lean().exec();
-    return docs.map((doc) => this.toEntity(doc));
+    if (!pagination) {
+      const all = await this.model.find(query).lean().exec();
+      return { data: all.map((doc) => this.toEntity(doc)), total: all.length };
+    }
+
+    const [docs, total] = await Promise.all([
+      this.model.find(query).skip(pagination.skip).limit(pagination.limit).lean().exec(),
+      this.model.countDocuments(query).exec(),
+    ]);
+    return { data: docs.map((doc) => this.toEntity(doc)), total };
   }
 
   async update(terminalId: string, data: Partial<TerminalEntity>): Promise<TerminalEntity | null> {

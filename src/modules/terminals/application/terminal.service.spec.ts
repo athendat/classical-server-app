@@ -41,7 +41,7 @@ describe('TerminalService', () => {
       findByTerminalId: jest.fn().mockResolvedValue(null),
       findByTenantId: jest.fn().mockResolvedValue([]),
       findByOAuthClientId: jest.fn().mockResolvedValue(null),
-      findAll: jest.fn().mockResolvedValue([]),
+      findAll: jest.fn().mockResolvedValue({ data: [], total: 0 }),
       update: jest.fn().mockResolvedValue(null),
     };
 
@@ -679,27 +679,39 @@ describe('TerminalService', () => {
   // ─── Admin methods ───────────────────────────────────────────────────
 
   describe('Admin methods', () => {
-    it('listAllTerminals should return ApiResponse.ok with all terminals when no tenantId filter', async () => {
+    it('listAllTerminals should return paginated terminals with default pagination when no filters', async () => {
       const terminal2: TerminalEntity = { ...mockTerminal, terminalId: 'term-uuid-2', tenantId: 'tenant-456' };
-      repository.findAll.mockResolvedValueOnce([mockTerminal, terminal2]);
+      repository.findAll.mockResolvedValueOnce({ data: [mockTerminal, terminal2], total: 2 });
 
       const result = await service.listAllTerminals();
 
       expect(result.ok).toBe(true);
       expect(result.statusCode).toBe(HttpStatus.OK);
       expect(result.data).toEqual([mockTerminal, terminal2]);
-      expect(repository.findAll).toHaveBeenCalledWith(undefined);
+      expect(repository.findAll).toHaveBeenCalledWith(
+        { tenantId: undefined, type: undefined, status: undefined, capability: undefined },
+        { skip: 0, limit: 20 },
+      );
+      expect(result.meta?.pagination).toEqual(
+        expect.objectContaining({ page: 1, limit: 20, total: 2, totalPages: 1, hasMore: false }),
+      );
     });
 
-    it('listAllTerminals should filter by tenantId when provided', async () => {
-      repository.findByTenantId.mockResolvedValueOnce([mockTerminal]);
+    it('listAllTerminals should fold tenantId into the findAll query and honor page/limit', async () => {
+      repository.findAll.mockResolvedValueOnce({ data: [mockTerminal], total: 56 });
 
-      const result = await service.listAllTerminals({ tenantId: 'tenant-123' });
+      const result = await service.listAllTerminals({ tenantId: 'tenant-123', page: 2, limit: 10 });
 
       expect(result.ok).toBe(true);
       expect(result.data).toEqual([mockTerminal]);
-      expect(repository.findByTenantId).toHaveBeenCalledWith('tenant-123', { tenantId: 'tenant-123' });
-      expect(repository.findAll).not.toHaveBeenCalled();
+      expect(repository.findAll).toHaveBeenCalledWith(
+        { tenantId: 'tenant-123', type: undefined, status: undefined, capability: undefined },
+        { skip: 10, limit: 10 },
+      );
+      expect(result.meta?.pagination).toEqual(
+        expect.objectContaining({ page: 2, limit: 10, total: 56, totalPages: 6, hasMore: true }),
+      );
+      expect(repository.findByTenantId).not.toHaveBeenCalled();
     });
 
     it('getTerminalById should return ApiResponse.ok with terminal', async () => {

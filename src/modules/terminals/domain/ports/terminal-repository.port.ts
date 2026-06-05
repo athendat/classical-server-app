@@ -28,6 +28,9 @@ export interface ITerminalRepository {
   findByTerminalId(terminalId: string): Promise<TerminalEntity | null>;
   findByTenantId(tenantId: string, filters?: TerminalFilters): Promise<TerminalEntity[]>;
   findByOAuthClientId(clientId: string): Promise<TerminalEntity | null>;
-  findAll(filters?: TerminalFilters): Promise<TerminalEntity[]>;
+  findAll(
+    filters?: TerminalFilters & { tenantId?: string },
+    pagination?: { skip: number; limit: number },
+  ): Promise<{ data: TerminalEntity[]; total: number }>;
   update(terminalId: string, data: Partial<TerminalEntity>): Promise<TerminalEntity | null>;
 }
