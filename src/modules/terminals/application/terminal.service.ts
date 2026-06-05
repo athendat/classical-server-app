@@ -6,7 +6,8 @@ import { OAuthService } from '../../oauth/application/oauth.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { ApiResponse } from 'src/common/types/api-response.type';
-import { normalizeTerminalPagination, buildPaginationMeta } from './terminal-pagination.helper';
+import { createPaginationMeta } from 'src/common/helpers';
+import { normalizeTerminalPagination } from './terminal-pagination.helper';
 import type { CreateTerminalDto } from '../dto/create-terminal.dto';
 import type { UpdateTerminalDto } from '../dto/update-terminal.dto';
 import type { CreateTerminalResult, RotateCredentialsResult } from '../dto/terminal-response.dto';
@@ -559,7 +560,7 @@ export class TerminalService {
         { skip, limit },
       );
 
-      const pagination = buildPaginationMeta(page, limit, total);
+      const pagination = createPaginationMeta(total, page, limit);
 
       this.auditService.logAllow('ADMIN_LIST_TERMINALS', 'terminal', 'list', {
         module: 'terminals',

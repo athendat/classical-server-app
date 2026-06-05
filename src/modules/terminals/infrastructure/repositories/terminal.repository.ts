@@ -51,13 +51,18 @@ export class TerminalRepository implements ITerminalRepository {
     if (filters?.status) query.status = filters.status;
     if (filters?.capability) query.capabilities = { $in: [filters.capability] };
 
+    // Orden estable y determinista entre páginas (sin sort, skip/limit puede
+    // duplicar u omitir filas). `_id` como desempate garantiza orden total aun
+    // con `createdAt` empatado (inserciones en el mismo milisegundo).
+    const sort = { createdAt: -1 as const, _id: 1 as const };
+
     if (!pagination) {
-      const all = await this.model.find(query).lean().exec();
+      const all = await this.model.find(query).sort(sort).lean().exec();
       return { data: all.map((doc) => this.toEntity(doc)), total: all.length };
     }
 
     const [docs, total] = await Promise.all([
-      this.model.find(query).skip(pagination.skip).limit(pagination.limit).lean().exec(),
+      this.model.find(query).sort(sort).skip(pagination.skip).limit(pagination.limit).lean().exec(),
       this.model.countDocuments(query).exec(),
     ]);
     return { data: docs.map((doc) => this.toEntity(doc)), total };
