@@ -15,6 +15,8 @@ import {
   TransactionCancelledEvent,
 } from '../../domain/events/transaction.events';
 import { Tenant } from 'src/modules/tenants/infrastructure/schemas/tenant.schema';
+import { Webhook } from 'src/modules/tenants/domain';
+import { isWebhookSubscribed } from './webhook-dispatch.helper';
 
 /**
  * Servicio que despacha webhook cuando ocurren eventos de transacción
@@ -117,7 +119,7 @@ export class TenantWebhookDispatcher {
   }
 
   /**
-   * Despacha webhook a todas las URLs configuradas para un evento específico
+   * Despacha el webhook configurado del tenant para un evento específico.
    * Fire-and-forget: no bloquea la operación original
    *
    * @param tenantId ID del tenant propietario de la transacción
@@ -130,33 +132,29 @@ export class TenantWebhookDispatcher {
     payload: Record<string, any>,
   ): Promise<void> {
     try {
-      // Obtener configuración de webhook del tenant
+      // Obtener configuración de webhook del tenant.
+      // El tenant guarda `webhook` como un sub-documento ÚNICO (o null), no un
+      // array — por eso se lee como objeto y se decide con un helper puro.
       const tenant = await this.tenantModel.findOne({ id: tenantId }).exec();
       if (!tenant || !tenant.webhook) {
         this.logger.log(`Ningún webhook configurado para tenant ${tenantId}`);
         return;
       }
 
-      // Filtrar webhook activos que están suscritos a este evento
-      const activeWebhook = (tenant.webhook as any).filter(
-        (webhook) => webhook.active && webhook.events.includes(eventType),
-      );
-
-      if (activeWebhook.length === 0) {
+      const webhook = tenant.webhook;
+      if (!isWebhookSubscribed(webhook, eventType)) {
         this.logger.log(
           `Ningún webhook activo para evento ${eventType} en tenant ${tenantId}`,
         );
         return;
       }
 
-      // Despachar a cada webhook
-      for (const webhook of activeWebhook) {
-        this.sendWebhook(webhook, eventType, payload).catch((error) => {
-          this.logger.error(
-            `Error enviando webhook a ${webhook.url}: ${error.message}`,
-          );
-        });
-      }
+      // Despachar el webhook configurado
+      await this.sendWebhook(webhook, eventType, payload).catch((error) => {
+        this.logger.error(
+          `Error enviando webhook a ${webhook.url}: ${error.message}`,
+        );
+      });
     } catch (error: any) {
       this.logger.error(`Error despachando webhook para tenant ${tenantId}: ${error.message}`);
     }
@@ -170,10 +168,18 @@ export class TenantWebhookDispatcher {
    * @param payload Datos a enviar
    */
   private async sendWebhook(
-    webhook: any,
+    webhook: Webhook,
     eventType: string,
     payload: Record<string, any>,
   ): Promise<void> {
+    // Invariante defensiva: `isWebhookSubscribed` ya garantiza una URL no vacía
+    // antes de llegar aquí; este guard sólo estrecha el tipo (url puede ser null).
+    const { url } = webhook;
+    if (!url) {
+      this.logger.warn(`Webhook ${webhook.id} sin URL configurada; se omite el envío`);
+      return;
+    }
+
     try {
       // Construir payload con metadatos
       const fullPayload = {
@@ -186,10 +192,10 @@ export class TenantWebhookDispatcher {
       const payloadString = JSON.stringify(fullPayload);
       const signature = this.cryptoService.createSignature(payloadString, webhook.secret);
 
-      this.logger.log(`Enviando webhook a ${webhook.url} con evento ${eventType}`);
+      this.logger.log(`Enviando webhook a ${url} con evento ${eventType}`);
 
       // Enviar POST con firma en header
-      await this.httpService.post(webhook.url, fullPayload, {
+      await this.httpService.post(url, fullPayload, {
         headers: {
           'X-Webhook-Signature': signature,
           'Content-Type': 'application/json',
@@ -197,10 +203,10 @@ export class TenantWebhookDispatcher {
         timeout: 10000, // 10 segundos timeout
       });
 
-      this.logger.log(`Webhook enviado exitosamente a ${webhook.url}`);
+      this.logger.log(`Webhook enviado exitosamente a ${url}`);
     } catch (error: any) {
       this.logger.error(
-        `Error enviando webhook a ${webhook.url}: ${error.message}`,
+        `Error enviando webhook a ${url}: ${error.message}`,
       );
       throw error;
     }
