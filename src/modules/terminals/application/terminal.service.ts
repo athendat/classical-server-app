@@ -6,6 +6,8 @@ import { OAuthService } from '../../oauth/application/oauth.service';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { ApiResponse } from 'src/common/types/api-response.type';
+import { createPaginationMeta } from 'src/common/helpers';
+import { normalizeTerminalPagination } from './terminal-pagination.helper';
 import type { CreateTerminalDto } from '../dto/create-terminal.dto';
 import type { UpdateTerminalDto } from '../dto/update-terminal.dto';
 import type { CreateTerminalResult, RotateCredentialsResult } from '../dto/terminal-response.dto';
@@ -538,19 +540,27 @@ export class TerminalService {
 
   // ─── Admin methods (cross-tenant) ─────────────────────────────────
 
-  async listAllTerminals(filters?: TerminalFilters & { tenantId?: string }): Promise<ApiResponse<TerminalEntity[]>> {
+  async listAllTerminals(
+    filters?: TerminalFilters & { tenantId?: string; page?: number; limit?: number },
+  ): Promise<ApiResponse<TerminalEntity[]>> {
     const requestId = this.asyncContextService.getRequestId();
     const actorId = this.asyncContextService.getActorId()!;
 
     try {
       this.logger.log(`[${requestId}] Admin listing all terminals`);
 
-      let terminals: TerminalEntity[];
-      if (filters?.tenantId) {
-        terminals = await this.terminalRepository.findByTenantId(filters.tenantId, filters);
-      } else {
-        terminals = await this.terminalRepository.findAll(filters);
-      }
+      const { page, limit, skip } = normalizeTerminalPagination(filters?.page, filters?.limit);
+      const { data: terminals, total } = await this.terminalRepository.findAll(
+        {
+          tenantId: filters?.tenantId,
+          type: filters?.type,
+          status: filters?.status,
+          capability: filters?.capability,
+        },
+        { skip, limit },
+      );
+
+      const pagination = createPaginationMeta(total, page, limit);
 
       this.auditService.logAllow('ADMIN_LIST_TERMINALS', 'terminal', 'list', {
         module: 'terminals',
@@ -558,14 +568,15 @@ export class TerminalService {
         tags: ['terminal', 'admin', 'read', 'list', 'successful'],
         actorId,
         changes: {
-          after: { count: terminals.length },
+          after: { count: terminals.length, total, page },
         },
       });
 
       return ApiResponse.ok<TerminalEntity[]>(
         HttpStatus.OK,
         terminals,
-        `${terminals.length} terminales encontradas`,
+        `${terminals.length} de ${total} terminales encontradas`,
+        { requestId, pagination },
       );
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);

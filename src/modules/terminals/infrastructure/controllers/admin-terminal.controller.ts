@@ -80,13 +80,27 @@ export class AdminTerminalController {
     description: 'Filtrar por capacidad de terminal',
     example: 'nfc',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (base 1). Por defecto 1.',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página. Por defecto 20, máximo 100.',
+    example: 20,
+  })
   @ApiOkResponse({
     description: 'Lista de terminales obtenida exitosamente',
     schema: {
       example: {
         ok: true,
         statusCode: 200,
-        message: '5 terminales encontradas',
+        message: '5 de 42 terminales encontradas',
         data: [
           {
             terminalId: 'term-001',
@@ -97,6 +111,17 @@ export class AdminTerminalController {
             status: 'active',
           },
         ],
+        meta: {
+          pagination: {
+            page: 1,
+            limit: 20,
+            total: 42,
+            totalPages: 3,
+            nextPage: 2,
+            prevPage: null,
+            hasMore: true,
+          },
+        },
       },
     },
   })
