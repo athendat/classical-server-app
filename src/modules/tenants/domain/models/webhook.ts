@@ -21,11 +21,13 @@
  * @property {string} id UUID único por webhook.
  * @property {string} url URL donde se enviarán los webhooks.
  * @property {string[]} events Eventos a los que suscribirse (ej.: 'transaction.created', 'transaction.confirmed').
+ * @property {boolean} active Si el webhook está activo y debe despacharse.
  * @property {string} secret Secret para firmar webhooks (HMAC-SHA256).
  */
 export class Webhook {
     id: string; // UUID único por webhook
     url?: string | null; // URL donde se enviarán los webhooks (opcional inicialmente, null por defecto)
     events: string[]; // Eventos a los que suscribirse (ej: 'transaction.created', 'transaction.confirmed')
+    active: boolean; // Si el webhook está activo y debe despacharse (el schema lo defaultea a true)
     secret: string; // Secret para firmar webhooks (HMAC-SHA256)
 }

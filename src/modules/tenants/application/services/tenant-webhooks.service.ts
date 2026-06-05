@@ -36,6 +36,7 @@ export class TenantWebhooksService {
       id: uuidv4(),
       url: null,
       events: [],
+      active: true,
       secret: uuidv4().replace(/-/g, ''),
     };
   }
