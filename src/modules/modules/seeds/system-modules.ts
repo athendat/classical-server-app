@@ -647,28 +647,9 @@ const CHANGELOG_MODULE = new ModuleEntity({
   type: ModuleType.basic,
 });
 
-const CONTACT_MODULE = new ModuleEntity({
-  order: 8,
-  parent: 'system',
-  indicator: 'contact',
-  name: 'Contact',
-  description: 'Información de contacto y formulario de comunicación.',
-  icon: 'mail',
-  actions: ['read'],
-  permissions: createPermissionsFromActions('contact', 'Contact', [
-    {
-      action: 'read',
-      id: 'ct_r',
-      name: 'Ver Contacto',
-      description:
-        'Acceso a información de contacto y formularios de comunicación.',
-      enabled: true,
-    },
-  ]),
-  status: 'active',
-  isSystem: true,
-  type: ModuleType.basic,
-});
+// CONTACT_MODULE removed (admin issue #5): the admin app has no /system/contact
+// route, so the module produced an NG04002 error when navigated to. Re-add when
+// the frontend route exists.
 
 
 // ============================================================================
@@ -704,7 +685,8 @@ export const SYSTEM_MODULES: ModuleEntity[] = [
   USERS_MODULE,
 
   CHANGELOG_MODULE,
-  CONTACT_MODULE,
+  // CONTACT_MODULE removed — admin app has no /system/contact route (admin issue #5).
+  // Re-add only when the route exists on the frontend.
   // DOCUMENTATION_MODULE,
   // SUPPORT_MODULE,
 
