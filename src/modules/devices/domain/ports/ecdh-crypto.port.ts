@@ -39,7 +39,7 @@ export interface IEcdhCryptoPort {
 
   /**
    * Deriva material criptográfico usando HKDF-SHA256 (RFC 5869)
-   * Implementa el protocolo de derivación de claves de CAPTURA_SEGURA_DEL_PIN.md
+   * Implementa el protocolo de derivación de claves de docs/integration-guides/CAPTURA_SEGURA_DEL_PIN.md
    *
    * @param sharedSecret - Secreto compartido derivado de ECDH
    * @param salt - Salt único de 32 bytes en Base64

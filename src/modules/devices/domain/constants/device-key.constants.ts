@@ -2,7 +2,7 @@
  * Domain Constants
  * 
  * Constantes criptográficas y de configuración para el módulo de dispositivos.
- * Alineadas con la especificación PCI-DSS y CAPTURA_SEGURA_DEL_PIN.md
+ * Alineadas con la especificación PCI-DSS y docs/integration-guides/CAPTURA_SEGURA_DEL_PIN.md
  */
 
 export const DEVICE_KEY_CONSTANTS = {
@@ -26,7 +26,7 @@ export const DEVICE_KEY_CONSTANTS = {
 
   /**
    * Info string para HKDF-SHA256
-   * Contexto específico de la aplicación, similar a CAPTURA_SEGURA_DEL_PIN.md
+   * Contexto específico de la aplicación, similar a docs/integration-guides/CAPTURA_SEGURA_DEL_PIN.md
    */
   HKDF_INFO: 'ATHPAY_DEVICE_MASTER_KEY_v1',
 
@@ -50,7 +50,7 @@ export const DEVICE_KEY_CONSTANTS = {
 
   /**
    * Versión del protocolo E2E
-   * Versión 1 como se especifica en CAPTURA_SEGURA_DEL_PIN.md
+   * Versión 1 como se especifica en docs/integration-guides/CAPTURA_SEGURA_DEL_PIN.md
    */
   E2E_PROTOCOL_VERSION: 'E2E1',
 

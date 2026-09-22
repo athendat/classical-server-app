@@ -96,7 +96,7 @@ updateStatus(id: string, status: CardStatusEnum): Promise<Card | null>
 - Test manual: `POST /cards` con tarjeta válida → respuesta con `status: ACTIVE`
 - Test manual: `POST /cards` con credenciales SGT incorrectas → respuesta con `status: VERIFICATION_FAILED`
 - Revisar logs de auditoría para los eventos `SGT_ACTIVATE_PIN_SUCCESS` y `SGT_ACTIVATE_PIN_FAILED`
-- Verificar que el header `X-Signature` se genera igual que en el `HMAC_AUTH_GUIDE.md`
+- Verificar que el header `X-Signature` se genera igual que en `docs/integration-guides/HMAC_AUTH_GUIDE.md`
 
 ---
 

@@ -94,7 +94,7 @@ export class EcdhCryptoAdapter implements IEcdhCryptoPort {
 
   /**
    * Deriva material criptográfico usando HKDF-SHA256 (RFC 5869)
-   * Implementa el protocolo especificado en CAPTURA_SEGURA_DEL_PIN.md
+   * Implementa el protocolo especificado en docs/integration-guides/CAPTURA_SEGURA_DEL_PIN.md
    */
   async deriveHkdf(
     sharedSecret: Buffer,
