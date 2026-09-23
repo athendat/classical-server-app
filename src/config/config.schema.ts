@@ -68,5 +68,11 @@ export const configValidationSchema: joi.ObjectSchema = joi
         'Vault auth misconfigured: set VAULT_TOKEN or (VAULT_ROLE_ID + VAULT_SECRET_ID)' as never,
       );
     }
+    // The simulated Issuer (issue #60) must never run in production (ADR-0005).
+    if (value.SGT_MODE === 'simulated' && value.ENVIRONMENT === 'PRODUCTION') {
+      return helpers.message(
+        'SGT_MODE=simulated is not allowed with ENVIRONMENT=PRODUCTION' as never,
+      );
+    }
     return value;
   });

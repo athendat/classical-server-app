@@ -118,6 +118,25 @@ describe('configValidationSchema — SGT_MODE', () => {
     expect(error).toBeDefined();
   });
 
+  it('refuses SGT_MODE=simulated with ENVIRONMENT=PRODUCTION', () => {
+    const { error } = configValidationSchema.validate({
+      ...baseEnv,
+      ENVIRONMENT: 'PRODUCTION',
+      SGT_MODE: 'simulated',
+    });
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('SGT_MODE=simulated');
+  });
+
+  it('accepts SGT_MODE=live with ENVIRONMENT=PRODUCTION', () => {
+    const { error } = configValidationSchema.validate({
+      ...baseEnv,
+      ENVIRONMENT: 'PRODUCTION',
+      SGT_MODE: 'live',
+    });
+    expect(error).toBeUndefined();
+  });
+
   it('does not require the SGT_* variables in simulated mode', () => {
     const { error } = configValidationSchema.validate({
       ...withoutSgtVars(baseEnv),

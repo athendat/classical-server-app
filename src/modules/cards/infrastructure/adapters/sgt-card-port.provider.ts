@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
@@ -28,6 +29,10 @@ export const sgtCardPortProvider = {
     const mode = (configService.get<string>('SGT_MODE') ?? 'live') as SgtMode;
 
     if (mode === 'simulated') {
+      new Logger('SgtCardPort').warn(
+        'SGT_MODE=simulated: the Issuer is SIMULATED. No request reaches SGT; Card activations and ' +
+          'Settlements are fake. For commercial demos only — never in production.',
+      );
       return new SimulatedSgtCardAdapter(configService);
     }
 

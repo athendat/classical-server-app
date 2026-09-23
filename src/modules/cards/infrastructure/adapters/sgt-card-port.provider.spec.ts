@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
@@ -38,5 +39,27 @@ describe('sgtCardPortProvider', () => {
     expect(
       resolve(fakeConfig({ SGT_MODE: 'simulated', ENVIRONMENT: 'SANDBOX' })),
     ).toBeInstanceOf(SimulatedSgtCardAdapter);
+  });
+
+  describe('startup warning', () => {
+    let warn: jest.SpyInstance;
+
+    beforeEach(() => {
+      warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => warn.mockRestore());
+
+    it('warns in the log that the Issuer is simulated when SGT_MODE=simulated', () => {
+      resolve(fakeConfig({ SGT_MODE: 'simulated', ENVIRONMENT: 'SANDBOX' }));
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('SGT_MODE=simulated'));
+    });
+
+    it('does not warn in live mode', () => {
+      resolve(fakeConfig({ SGT_MODE: 'live' }));
+
+      expect(warn).not.toHaveBeenCalled();
+    });
   });
 });
