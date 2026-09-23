@@ -1,10 +1,12 @@
 // Third´s Modules
 import * as joi from 'joi';
 
+import { DEFAULT_SGT_MODE, SGT_MODES, SgtMode } from 'src/modules/cards/domain/constants/sgt-mode.constant';
+
 /** An SGT connection variable: required with SGT_MODE=live, optional with SGT_MODE=simulated. */
 const sgtRequiredWhenLive = () =>
   joi.string().when('SGT_MODE', {
-    is: 'simulated',
+    is: 'simulated' satisfies SgtMode,
     then: joi.optional().allow(''),
     otherwise: joi.required(),
   });
@@ -36,7 +38,7 @@ export const configValidationSchema: joi.ObjectSchema = joi
     SEED_ENABLED_VAULT: joi.string().optional(),
     // SGT_MODE=simulated replaces the Issuer with an in-process simulator for
     // commercial demos (issue #60); the SGT_* connection variables are then optional.
-    SGT_MODE: joi.string().valid('live', 'simulated').default('live'),
+    SGT_MODE: joi.string().valid(...SGT_MODES).default(DEFAULT_SGT_MODE),
     SGT_SIMULATED_INITIAL_BALANCE: joi.number().integer().min(0).optional().allow(''),
     SGT_AES_KEY: sgtRequiredWhenLive(),
     SGT_AES_IV: sgtRequiredWhenLive(),
@@ -69,7 +71,7 @@ export const configValidationSchema: joi.ObjectSchema = joi
       );
     }
     // The simulated Issuer (issue #60) must never run in production (ADR-0005).
-    if (value.SGT_MODE === 'simulated' && value.ENVIRONMENT === 'PRODUCTION') {
+    if (value.SGT_MODE === ('simulated' satisfies SgtMode) && value.ENVIRONMENT === 'PRODUCTION') {
       return helpers.message(
         'SGT_MODE=simulated is not allowed with ENVIRONMENT=PRODUCTION' as never,
       );
