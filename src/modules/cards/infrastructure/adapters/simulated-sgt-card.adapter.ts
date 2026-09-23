@@ -34,6 +34,7 @@ const SGT_AMOUNT_DIGITS = 12;
  *   Balances live in memory per Card token, seeded with the initial Balance the first
  *   time a Card token is seen (so a restart resets every Card to the initial Balance).
  * - Deterministic rejection: an amount ending in 99 cents answers TR001 and keeps the Balance.
+ * - A refund always succeeds and credits the Balance; the rejection rules below apply to payments.
  * - Insufficient funds: an amount above the current Balance answers TR001 and keeps the Balance,
  *   so the Balance never goes negative.
  */
@@ -83,6 +84,10 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
   ): Promise<Result<SgtTransferResponse, Error>> {
     const amountMinor = parseInt(request.amount, 10);
 
+    if (request.type === 'refund') {
+      return this.settle(request, this.balanceOf(request.token) + amountMinor);
+    }
+
     if (amountMinor % 100 === SIMULATED_REJECTION_CENTS) {
       return this.reject(request, TRANSFER_CODES.TR001.message);
     }
@@ -91,11 +96,18 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
     if (amountMinor > previousMinor) {
       return this.reject(request, INSUFFICIENT_FUNDS_MESSAGE);
     }
-    const balanceMinor = previousMinor - amountMinor;
+    return this.settle(request, previousMinor - amountMinor);
+  }
+
+  /** TR000 with the resulting Balance, which becomes the Card token's Balance */
+  private settle(
+    request: SgtTransferRequest,
+    balanceMinor: number,
+  ): Result<SgtTransferResponse, Error> {
     this.balancesByCardToken.set(request.token, balanceMinor);
 
     this.logger.log(
-      `[SIMULATED SGT] transfer ref=${request.clientReference} amount=${request.amount} → ${TRANSFER_CODES.TR000.code}`,
+      `[SIMULATED SGT] ${request.type} ref=${request.clientReference} amount=${request.amount} → ${TRANSFER_CODES.TR000.code}`,
     );
 
     return Result.ok<SgtTransferResponse>({

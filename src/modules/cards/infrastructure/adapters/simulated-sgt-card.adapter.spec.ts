@@ -270,6 +270,29 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
     expect(cardsRepository.update).toHaveBeenCalledWith(CARD_ID, { balance: 0 });
   });
 
+  it('credits the Balance on a refund', async () => {
+    const adapter = new SimulatedSgtCardAdapter(
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
+    );
+
+    const result = await adapter.transfer({
+      token: 'SIM-CARD-TOKEN',
+      pin: 'pb',
+      amount: '000000002500',
+      settlementAmount: '000000002438',
+      cardholderAmount: '000000000062',
+      beneficiaryAccount: '9200000000000001',
+      clientReference: 'TXN-refund',
+      type: 'refund',
+      merchantId: '00000000000T001',
+      idNumber: '85010112345',
+    });
+
+    // 100.00 + 25.00
+    expect(result.getValue().data?.transferCode).toBe('TR000');
+    expect(result.getValue().data?.balance).toBe('000000012500');
+  });
+
   it('answers insufficient funds without any Balance on the wire', async () => {
     const adapter = new SimulatedSgtCardAdapter(
       fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
