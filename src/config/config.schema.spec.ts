@@ -63,3 +63,66 @@ describe('configValidationSchema — Vault auth modes', () => {
     expect(error).toBeDefined();
   });
 });
+
+/**
+ * Issue #60 — SGT_MODE=live|simulated (default live). In simulated mode the
+ * Issuer is simulated in-process, so the SGT_* connection variables are optional.
+ */
+describe('configValidationSchema — SGT_MODE', () => {
+  const sgtVars = ['SGT_AES_KEY', 'SGT_AES_IV', 'SGT_URL', 'SGT_HMAC_SECRET', 'SGT_CLIENT_ID'];
+  const baseEnv: Record<string, string> = {
+    API_KEY: 'k',
+    APP_NAME: 'classical-server-app',
+    DB_HOST: 'mongodb://localhost:27017/fx',
+    ENVIRONMENT: 'SANDBOX',
+    JWT_SECRET: 's',
+    PORT: '9053',
+    REDIS_HOST: 'localhost',
+    REDIS_PASSWORD: 'p',
+    REDIS_PORT: '6379',
+    REDIS_ROOT_KEY: 'app_',
+    REDIS_TTL: '3600',
+    SA_EMAIL: 'sa@example.com',
+    SA_PWD: 'pwd',
+    SGT_AES_KEY: 'aes',
+    SGT_AES_IV: 'iv',
+    SGT_URL: 'https://sgt.example',
+    SGT_HMAC_SECRET: 'hmac',
+    SGT_CLIENT_ID: 'cid',
+    SMS_API_URL: 'https://sms.example',
+    SMS_TOKEN: 'tok',
+    VAULT_ADDR: 'https://vault.example',
+    VAULT_KV_MOUNT: 'classical',
+    VAULT_NAMESPACE: 'admin',
+    VAULT_TOKEN: 'hvs.token',
+  };
+  const withoutSgtVars = (env: Record<string, string>) =>
+    Object.fromEntries(Object.entries(env).filter(([key]) => !sgtVars.includes(key)));
+
+  it('defaults SGT_MODE to live', () => {
+    const { error, value } = configValidationSchema.validate(baseEnv);
+    expect(error).toBeUndefined();
+    expect(value.SGT_MODE).toBe('live');
+  });
+
+  it('rejects an unknown SGT_MODE', () => {
+    const { error } = configValidationSchema.validate({ ...baseEnv, SGT_MODE: 'mock' });
+    expect(error).toBeDefined();
+  });
+
+  it('still requires the SGT_* variables in live mode', () => {
+    const { error } = configValidationSchema.validate({
+      ...withoutSgtVars(baseEnv),
+      SGT_MODE: 'live',
+    });
+    expect(error).toBeDefined();
+  });
+
+  it('does not require the SGT_* variables in simulated mode', () => {
+    const { error } = configValidationSchema.validate({
+      ...withoutSgtVars(baseEnv),
+      SGT_MODE: 'simulated',
+    });
+    expect(error).toBeUndefined();
+  });
+});

@@ -41,7 +41,7 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
 
   constructor(private readonly configService: ConfigService) {
     const configured = parseInt(
-      this.configService.get<string>('SGT_SIMULATED_INITIAL_BALANCE') ?? '',
+      String(this.configService.get<string | number>('SGT_SIMULATED_INITIAL_BALANCE') ?? ''),
       10,
     );
     this.initialBalanceMinor = Number.isFinite(configured)
