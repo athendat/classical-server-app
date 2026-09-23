@@ -182,4 +182,41 @@ describe('TransactionPaymentProcessor — Issuer rejection at Settlement', () =>
       expect.objectContaining({ transactionId: 'txn-1', status: 'failed', error: 'Transferencia rechazada' }),
     );
   });
+
+  it('settles TR002 with ok=false as a success: the Issuer moved the money, only the Balance query failed', async () => {
+    transactionsRepository.updateStatus.mockResolvedValue({ id: 'txn-1', status: TransactionStatus.SUCCESS });
+    sgtCardPort.transfer.mockResolvedValue(
+      Result.ok({ ok: false, message: 'Consulta de saldo fallida', data: { transferCode: 'TR002' } }),
+    );
+
+    const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', 'card-1', 15, 'USD');
+
+    expect(result).toEqual(
+      expect.objectContaining({ success: true, status: TransactionStatus.SUCCESS, transferCode: 'TR002' }),
+    );
+    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
+      'txn-1',
+      TransactionStatus.SUCCESS,
+      expect.objectContaining({ sgtTransferCode: 'TR002' }),
+    );
+  });
+
+  it('fails the Transaction without a transfer code when there is no Issuer answer (e.g. TR003)', async () => {
+    // What the SGT port returns for TR003 / timeout: no Issuer answer
+    sgtCardPort.transfer.mockResolvedValue(Result.fail(new Error('Error de comunicación')));
+
+    const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', 'card-1', 15, 'USD');
+
+    expect(result).toEqual(
+      expect.objectContaining({ success: false, status: TransactionStatus.FAILED, error: 'Error de comunicación' }),
+    );
+    expect(result.transferCode).toBeUndefined();
+    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith('txn-1', TransactionStatus.FAILED, {
+      processedAt: expect.any(Date),
+    });
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'transaction.processed',
+      expect.objectContaining({ transactionId: 'txn-1', status: 'failed' }),
+    );
+  });
 });
