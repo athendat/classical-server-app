@@ -11,6 +11,8 @@ import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 import { TransactionStatus } from '../../domain/entities/transaction.entity';
 import { TransactionsRepository } from '../../infrastructure/adapters/transactions.repository';
 import { TransactionPaymentProcessor } from './transaction-payment.processor';
+import { Result } from 'src/common/types/result.type';
+import { CardStatusEnum } from 'src/modules/cards/domain/enums/card-status.enum';
 
 describe('TransactionPaymentProcessor', () => {
   let processor: TransactionPaymentProcessor;
@@ -90,5 +92,109 @@ describe('TransactionPaymentProcessor', () => {
       }),
     );
     expect(auditService.logError).toHaveBeenCalled();
+  });
+});
+
+describe('TransactionPaymentProcessor — Issuer rejection at Settlement', () => {
+  let processor: TransactionPaymentProcessor;
+  let sgtCardPort: { transfer: jest.Mock };
+  let transactionsRepository: { updateStatus: jest.Mock };
+  let eventEmitter: { emit: jest.Mock };
+
+  beforeEach(async () => {
+    sgtCardPort = { transfer: jest.fn() };
+    transactionsRepository = {
+      updateStatus: jest.fn().mockResolvedValue({ id: 'txn-1', status: TransactionStatus.FAILED }),
+    };
+    eventEmitter = { emit: jest.fn() };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TransactionPaymentProcessor,
+        { provide: AuditService, useValue: { logError: jest.fn(), logAllow: jest.fn() } },
+        {
+          provide: CardsRepository,
+          useValue: {
+            findById: jest.fn().mockResolvedValue({
+              id: 'card-1',
+              status: CardStatusEnum.ACTIVE,
+              token: 'CARDTOKEN0001',
+            }),
+            update: jest.fn(),
+          },
+        },
+        {
+          provide: CardVaultAdapter,
+          useValue: { getPinblock: jest.fn().mockResolvedValue(Result.ok('stored-pinblock')) },
+        },
+        { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: INJECTION_TOKENS.CARD_SGT_PORT, useValue: sgtCardPort },
+        {
+          provide: TenantsRepository,
+          useValue: { findById: jest.fn().mockResolvedValue({ id: 'tenant-1', code: 'T001' }) },
+        },
+        {
+          provide: TenantVaultService,
+          useValue: { getPan: jest.fn().mockResolvedValue(Result.ok('9200000000000001')) },
+        },
+        { provide: TransactionsRepository, useValue: transactionsRepository },
+        {
+          provide: UsersRepository,
+          useValue: { findByIdRaw: jest.fn().mockResolvedValue({ idNumber: '85010112345' }) },
+        },
+      ],
+    }).compile();
+
+    processor = module.get<TransactionPaymentProcessor>(TransactionPaymentProcessor);
+  });
+
+  it("records the Issuer's transfer code and ISO code and reports the Issuer's message", async () => {
+    sgtCardPort.transfer.mockResolvedValue(
+      Result.ok({
+        ok: false,
+        message: 'Fondos insuficientes',
+        data: { transferCode: 'TR001', isoResponseCode: '51' },
+      }),
+    );
+
+    const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', 'card-1', 15, 'USD');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        status: TransactionStatus.FAILED,
+        transferCode: 'TR001',
+        isoResponseCode: '51',
+        error: 'Fondos insuficientes',
+      }),
+    );
+    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
+      'txn-1',
+      TransactionStatus.FAILED,
+      expect.objectContaining({
+        processedAt: expect.any(Date),
+        sgtTransferCode: 'TR001',
+        sgtIsoResponseCode: '51',
+      }),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'transaction.processed',
+      expect.objectContaining({ transactionId: 'txn-1', status: 'failed', error: 'Fondos insuficientes' }),
+    );
+  });
+
+  it('falls back to the transfer code message when the Issuer sends no message', async () => {
+    sgtCardPort.transfer.mockResolvedValue(
+      Result.ok({ ok: false, message: '', data: { transferCode: 'TR001', isoResponseCode: '05' } }),
+    );
+
+    const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', 'card-1', 15, 'USD');
+
+    expect(result.error).toBe('Transferencia rechazada');
+    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
+      'txn-1',
+      TransactionStatus.FAILED,
+      expect.objectContaining({ sgtTransferCode: 'TR001', sgtIsoResponseCode: '05' }),
+    );
   });
 });
