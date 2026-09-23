@@ -45,6 +45,7 @@ export const configValidationSchema: joi.ObjectSchema = joi
     SGT_URL: sgtRequiredWhenLive(),
     SGT_HMAC_SECRET: sgtRequiredWhenLive(),
     SGT_CLIENT_ID: sgtRequiredWhenLive(),
+    SGT_API_KEY: sgtRequiredWhenLive(),
     SMS_API_URL: joi.string().required(),
     SMS_TOKEN: joi.string().required(),
     VAULT_ADDR: joi.string().required(),

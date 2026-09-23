@@ -25,6 +25,7 @@ describe('configValidationSchema — Vault auth modes', () => {
     SGT_URL: 'https://sgt.example',
     SGT_HMAC_SECRET: 'hmac',
     SGT_CLIENT_ID: 'cid',
+    SGT_API_KEY: 'api-key',
     SMS_API_URL: 'https://sms.example',
     SMS_TOKEN: 'tok',
     VAULT_ADDR: 'https://vault.example',
@@ -69,7 +70,14 @@ describe('configValidationSchema — Vault auth modes', () => {
  * Issuer is simulated in-process, so the SGT_* connection variables are optional.
  */
 describe('configValidationSchema — SGT_MODE', () => {
-  const sgtVars = ['SGT_AES_KEY', 'SGT_AES_IV', 'SGT_URL', 'SGT_HMAC_SECRET', 'SGT_CLIENT_ID'];
+  const sgtVars = [
+    'SGT_AES_KEY',
+    'SGT_AES_IV',
+    'SGT_URL',
+    'SGT_HMAC_SECRET',
+    'SGT_CLIENT_ID',
+    'SGT_API_KEY',
+  ];
   const baseEnv: Record<string, string> = {
     API_KEY: 'k',
     APP_NAME: 'classical-server-app',
@@ -89,6 +97,7 @@ describe('configValidationSchema — SGT_MODE', () => {
     SGT_URL: 'https://sgt.example',
     SGT_HMAC_SECRET: 'hmac',
     SGT_CLIENT_ID: 'cid',
+    SGT_API_KEY: 'api-key',
     SMS_API_URL: 'https://sms.example',
     SMS_TOKEN: 'tok',
     VAULT_ADDR: 'https://vault.example',
@@ -116,6 +125,15 @@ describe('configValidationSchema — SGT_MODE', () => {
       SGT_MODE: 'live',
     });
     expect(error).toBeDefined();
+  });
+
+  // Issue #64 — the real adapter reads SGT_API_KEY on every Card activation and
+  // Settlement; a live deployment without it must not start.
+  it('refuses live mode without SGT_API_KEY', () => {
+    const { SGT_API_KEY: _omitted, ...env } = baseEnv;
+    const { error } = configValidationSchema.validate({ ...env, SGT_MODE: 'live' });
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('SGT_API_KEY');
   });
 
   it('refuses SGT_MODE=simulated with ENVIRONMENT=PRODUCTION', () => {
