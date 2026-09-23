@@ -5,6 +5,9 @@ import { HttpService } from 'src/common/http/http.service';
 import { Result } from 'src/common/types/result.type';
 
 import { SgtCardAdapter } from './sgt-card.adapter';
+import type { SgtTransferRequest } from '../../domain/ports/sgt-card.port';
+import type { ISgtPinblockPort } from '../../domain/ports/sgt-pinblock.port';
+import { Iso4PinblockService } from '../services/iso4-pinblock.service';
 
 // TODO: tests obsoletos — SgtCardAdapter ahora depende de SgtPinblockAdapter (decodeIso4Pinblock). Reescribir.
 describe.skip('SgtCardAdapter', () => {
@@ -74,6 +77,143 @@ describe.skip('SgtCardAdapter', () => {
     httpService.post.mockRejectedValue(httpException);
 
     const result = await adapter.activatePin('card-123', '4242424242424242', '1234', '12345678');
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError().message).toBe('Error en los parámetros enviados');
+  });
+});
+
+describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
+  let adapter: SgtCardAdapter;
+  let httpService: { post: jest.Mock };
+
+  const transferRequest: SgtTransferRequest = {
+    token: 'CARDTOKEN0001',
+    pin: 'iso4-pinblock',
+    amount: '000000001099',
+    settlementAmount: '000000001072',
+    cardholderAmount: '000000000027',
+    beneficiaryAccount: '9200000000000001',
+    clientReference: 'TXN-txn-1',
+    type: 'payment',
+    merchantId: '000000000000T01',
+    idNumber: '85010112345',
+  };
+
+  beforeEach(() => {
+    httpService = { post: jest.fn() };
+
+    const configService = {
+      getOrThrow: jest.fn((key: string) => {
+        const values: Record<string, string> = {
+          SGT_URL: 'https://sgt.local',
+          SGT_HMAC_SECRET: 'secret',
+          SGT_CLIENT_ID: 'client-id',
+          SGT_API_KEY: 'api-key',
+        };
+        if (!(key in values)) throw new Error(`Unknown key: ${key}`);
+        return values[key];
+      }),
+    } as unknown as ConfigService;
+
+    const sgtPinblockPort = {
+      encodeAndEncrypt: jest.fn().mockReturnValue(Result.ok('sgt-pinblock')),
+    };
+    const iso4PinblockService = {
+      decodeIso4Pinblock: jest.fn().mockReturnValue(Result.ok('1234')),
+    };
+
+    adapter = new SgtCardAdapter(
+      httpService as unknown as HttpService,
+      configService,
+      sgtPinblockPort as unknown as ISgtPinblockPort,
+      iso4PinblockService as unknown as Iso4PinblockService,
+    );
+  });
+
+  it('returns an Issuer rejection (ok=false, TR001) as an answer carrying its transfer code and ISO code', async () => {
+    httpService.post.mockResolvedValue({
+      ok: false,
+      message: 'Fondos insuficientes',
+      data: { transferCode: 'TR001', isoResponseCode: '51' },
+    });
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual({
+      ok: false,
+      message: 'Fondos insuficientes',
+      data: { transferCode: 'TR001', isoResponseCode: '51' },
+    });
+  });
+
+  it('recovers the Issuer rejection when SGT answers it with a non-2xx HTTP status', async () => {
+    const body = {
+      ok: false,
+      message: 'Transacción denegada por el emisor',
+      data: { transferCode: 'TR001', isoResponseCode: '05' },
+    };
+    // Same shape HttpService throws on a non-2xx: HttpException with the Axios response attached
+    const httpError = new HttpException(body, HttpStatus.UNPROCESSABLE_ENTITY);
+    (httpError as any).response = { status: HttpStatus.UNPROCESSABLE_ENTITY, data: body };
+    httpService.post.mockRejectedValue(httpError);
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
+  it('fails when there is no Issuer answer (no response from SGT)', async () => {
+    // What HttpService throws when the request got no response (timeout, connection refused)
+    httpService.post.mockRejectedValue(
+      new HttpException('No se recibió respuesta del servidor', HttpStatus.REQUEST_TIMEOUT),
+    );
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError().message).toBe('No se recibió respuesta del servidor');
+  });
+
+  it('returns TR002 with ok=false (transfer done, Balance query failed) as an Issuer answer', async () => {
+    const body = { ok: false, message: 'Consulta de saldo fallida', data: { transferCode: 'TR002' } };
+    httpService.post.mockResolvedValue(body);
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
+  it('fails on TR003: SGT could not reach the Issuer, so there is no Issuer answer', async () => {
+    httpService.post.mockResolvedValue({
+      ok: false,
+      message: 'Error de comunicación',
+      data: { transferCode: 'TR003' },
+    });
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails on a transfer code that is not an Issuer answer code, e.g. a proxy error body', async () => {
+    const body = { ok: false, message: 'Bad Gateway', data: { transferCode: 'GW502' } };
+    const httpError = new HttpException(body, HttpStatus.BAD_GATEWAY);
+    (httpError as any).response = { status: HttpStatus.BAD_GATEWAY, data: body };
+    httpService.post.mockRejectedValue(httpError);
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails when SGT answers ok=false without a transfer code', async () => {
+    httpService.post.mockResolvedValue({ ok: false, message: 'Error en los parámetros enviados' });
+
+    const result = await adapter.transfer(transferRequest);
 
     expect(result.isFailure).toBe(true);
     expect(result.getError().message).toBe('Error en los parámetros enviados');

@@ -12,8 +12,16 @@ import {
   SgtTransferResponse,
 } from '../../domain/ports/sgt-card.port';
 import { ACTIVATION_CODES } from '../../domain/constants/activation-codes.constant';
+import { TRANSFER_CODES } from '../../domain/constants/transfer-codes.constant';
 import type { ISgtPinblockPort } from '../../domain/ports/sgt-pinblock.port';
 import { Iso4PinblockService } from '../services/iso4-pinblock.service';
+
+/** Transfer codes con los que responde el Issuer (TR003 = el SGT no llegó al Issuer) */
+const ISSUER_ANSWER_CODES: readonly string[] = [
+  TRANSFER_CODES.TR000.code,
+  TRANSFER_CODES.TR001.code,
+  TRANSFER_CODES.TR002.code,
+];
 
 /**
  * Adaptador para comunicación con el servidor SGT (Switch / Módulo Emisor).
@@ -203,31 +211,30 @@ export class SgtCardAdapter implements ISgtCardPort {
         })}`,
       );
 
-      const response = await this.httpService.post<SgtTransferResponse>(
+      const response: unknown = await this.httpService.post<SgtTransferResponse>(
         `${baseUrl}/transfer`,
         body,
         { headers },
       );
 
-      // Log de la respuesta del SGT
-      this.logger.log(
-        `[SGT /transfer] ← RESPONSE ref=${request.clientReference} ok=${response?.ok} data=${JSON.stringify(response?.data ?? response)}`,
-      );
-
-      // TR002: transferencia OK pero balance query falló → considerar como éxito parcial
-      const transferCode = response?.data?.transferCode;
-      const isPartialSuccess = transferCode === 'TR002';
-
-      if (!response?.ok && !isPartialSuccess) {
-        const sgtMessage = this.extractSgtMessage(response);
-        this.logger.warn(
-          `[SGT /transfer] ✗ REJECTED ref=${request.clientReference}: ${sgtMessage}`,
-        );
-        return Result.fail<SgtTransferResponse>(new Error(sgtMessage));
+      if (this.isIssuerAnswer(response)) {
+        return this.acceptIssuerAnswer(request, response);
       }
 
-      return Result.ok<SgtTransferResponse>(response);
+      // Sin respuesta del Issuer (TR003, código desconocido o ausente) → fallo
+      const sgtMessage = this.extractSgtMessage(response);
+      this.logger.warn(
+        `[SGT /transfer] ✗ NO ISSUER ANSWER ref=${request.clientReference}: ${sgtMessage} body=${JSON.stringify(response)}`,
+      );
+      return Result.fail<SgtTransferResponse>(new Error(sgtMessage));
     } catch (error: any) {
+      // SGT puede responder con un estado HTTP no-2xx: si el cuerpo es una
+      // respuesta del Issuer, se trata igual que con HTTP 2xx.
+      const body: unknown = error?.response?.data;
+      if (this.isIssuerAnswer(body)) {
+        return this.acceptIssuerAnswer(request, body, error?.response?.status);
+      }
+
       const msg = this.extractSgtMessage(error);
       this.logger.error(
         `[SGT /transfer] ✗ ERROR ref=${request.clientReference}: ${msg} raw=${JSON.stringify(error?.response?.data ?? error?.message ?? error)}`,
@@ -237,6 +244,31 @@ export class SgtCardAdapter implements ISgtCardPort {
         error instanceof Error && error.message === msg ? error : new Error(msg),
       );
     }
+  }
+
+  /**
+   * Una respuesta del Issuer es un cuerpo cuyo transfer code es TR000, TR001 o TR002,
+   * aunque traiga ok=false. TR003 (el SGT no pudo comunicarse con el Issuer), un código
+   * desconocido o ausente no son respuesta del Issuer.
+   */
+  private isIssuerAnswer(body: unknown): body is SgtTransferResponse {
+    const transferCode = (body as SgtTransferResponse | undefined)?.data?.transferCode;
+    return ISSUER_ANSWER_CODES.includes(transferCode as string);
+  }
+
+  /** Devuelve la respuesta del Issuer tal cual, para que la Settlement persista su código */
+  private acceptIssuerAnswer(
+    request: SgtTransferRequest,
+    answer: SgtTransferResponse,
+    httpStatus?: number,
+  ): Result<SgtTransferResponse, Error> {
+    const line = `[SGT /transfer] ← RESPONSE ref=${request.clientReference}${httpStatus ? ` status=${httpStatus}` : ''} ok=${answer.ok} data=${JSON.stringify(answer.data)}`;
+    if (answer.data?.transferCode === TRANSFER_CODES.TR001.code) {
+      this.logger.warn(`${line} ✗ REJECTED by Issuer`);
+    } else {
+      this.logger.log(line);
+    }
+    return Result.ok<SgtTransferResponse>(answer);
   }
 
   private extractSgtMessage(source: unknown): string {
