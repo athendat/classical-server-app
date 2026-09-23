@@ -164,4 +164,25 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.getValue()).toEqual(body);
   });
+
+  it('fails when there is no Issuer answer (no response from SGT)', async () => {
+    // What HttpService throws when the request got no response (timeout, connection refused)
+    httpService.post.mockRejectedValue(
+      new HttpException('No se recibió respuesta del servidor', HttpStatus.REQUEST_TIMEOUT),
+    );
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError().message).toBe('No se recibió respuesta del servidor');
+  });
+
+  it('fails when SGT answers ok=false without a transfer code', async () => {
+    httpService.post.mockResolvedValue({ ok: false, message: 'Error en los parámetros enviados' });
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError().message).toBe('Error en los parámetros enviados');
+  });
 });
