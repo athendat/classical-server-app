@@ -184,9 +184,9 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
     const adapter = new SimulatedSgtCardAdapter(
       fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
     );
-    const token = await activatedCardToken(adapter);
+    const cardToken = await activatedCardToken(adapter);
     const { processor, cardsRepository, transactionsRepository, eventEmitter } =
-      await buildProcessor(adapter, token);
+      await buildProcessor(adapter, cardToken);
 
     // Domain amount in major units (ADR-0008): 15.25
     const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', CARD_ID, 15.25, 'USD');
@@ -209,9 +209,9 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
 
   it('rejects with TR001 when the amount ends in 99 cents, leaving the Transaction failed and the Balance untouched', async () => {
     const adapter = new SimulatedSgtCardAdapter(fakeConfig());
-    const token = await activatedCardToken(adapter);
+    const cardToken = await activatedCardToken(adapter);
     const { processor, cardsRepository, transactionsRepository, eventEmitter } =
-      await buildProcessor(adapter, token);
+      await buildProcessor(adapter, cardToken);
 
     const result = await processor.processPayment('txn-99', 'tenant-1', 'customer-1', CARD_ID, 10.99, 'USD');
 
@@ -230,12 +230,26 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
     expect(cardsRepository.update).not.toHaveBeenCalled();
   });
 
+  it('reports the current Balance, not the initial one, when a settled Card is activated again', async () => {
+    const adapter = new SimulatedSgtCardAdapter(
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
+    );
+    const cardToken = await activatedCardToken(adapter);
+    const { processor } = await buildProcessor(adapter, cardToken);
+    await processor.processPayment('txn-1', 'tenant-1', 'customer-1', CARD_ID, 15.25, 'USD');
+
+    const retry = await adapter.activatePin(CARD_ID, '4242424242424242', 'pb', '85010112345', 't', 'a', cardToken);
+
+    // 2500.00 − 15.25 = 2484.75 → 248475 minor units
+    expect(retry.getValue().data?.balance).toBe('000000248475');
+  });
+
   it('rejects with TR001 (insufficient funds) an amount above the Balance, leaving the Balance untouched', async () => {
     const adapter = new SimulatedSgtCardAdapter(
       fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
     );
-    const token = await activatedCardToken(adapter);
-    const { processor, cardsRepository, transactionsRepository } = await buildProcessor(adapter, token);
+    const cardToken = await activatedCardToken(adapter);
+    const { processor, cardsRepository, transactionsRepository } = await buildProcessor(adapter, cardToken);
 
     // Balance 100.00; 150.00 exceeds it
     const rejected = await processor.processPayment('txn-over', 'tenant-1', 'customer-1', CARD_ID, 150, 'USD');
@@ -285,8 +299,8 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
     const adapter = new SimulatedSgtCardAdapter(
       fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
     );
-    const token = await activatedCardToken(adapter);
-    const { processor, cardsRepository } = await buildProcessor(adapter, token);
+    const cardToken = await activatedCardToken(adapter);
+    const { processor, cardsRepository } = await buildProcessor(adapter, cardToken);
 
     await processor.processPayment('txn-1', 'tenant-1', 'customer-1', CARD_ID, 100, 'USD');
     await processor.processPayment('txn-2', 'tenant-1', 'customer-1', CARD_ID, 50.5, 'USD');

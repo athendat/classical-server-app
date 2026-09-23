@@ -29,10 +29,10 @@ const SGT_AMOUNT_DIGITS = 12;
  * Only for commercial demos outside production: no request leaves the process.
  *
  * - Card activation always succeeds (AP000) with a Card token derived from the Card id
- *   and the initial Balance from SGT_SIMULATED_INITIAL_BALANCE (minor units).
+ *   and the Card's current Balance (the initial Balance for a Card token not seen yet).
  * - Transfer (Settlement) answers TR000 and the resulting Balance (previous − amount).
- *   Balances live in memory per Card token, starting from the initial Balance the first
- *   time a Card token is settled (so a restart resets every Card to the initial Balance).
+ *   Balances live in memory per Card token, seeded with the initial Balance the first
+ *   time a Card token is seen (so a restart resets every Card to the initial Balance).
  * - Deterministic rejection: an amount ending in 99 cents answers TR001 and keeps the Balance.
  * - Insufficient funds: an amount above the current Balance answers TR001 and keeps the Balance,
  *   so the Balance never goes negative.
@@ -61,9 +61,10 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
     _idNumber: string,
     _tml: string,
     _aut: string,
-    _token?: string,
+    _cardToken?: string,
   ): Promise<Result<SgtActivatePinResponse, Error>> {
-    const token = this.cardTokenFor(cardId);
+    const cardToken = this.cardTokenFor(cardId);
+    const balanceMinor = this.balanceOf(cardToken);
     this.logger.log(`[SIMULATED SGT] activate-pin cardId=${cardId} → ${ACTIVATION_CODES.AP000.code}`);
 
     return Result.ok<SgtActivatePinResponse>({
@@ -71,8 +72,8 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
       message: ACTIVATION_CODES.AP000.message,
       data: {
         activationCode: ACTIVATION_CODES.AP000.code,
-        token,
-        balance: this.formatMinor(this.initialBalanceMinor),
+        token: cardToken,
+        balance: this.formatMinor(balanceMinor),
       },
     });
   }
@@ -86,7 +87,7 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
       return this.reject(request, TRANSFER_CODES.TR001.message);
     }
 
-    const previousMinor = this.balancesByCardToken.get(request.token) ?? this.initialBalanceMinor;
+    const previousMinor = this.balanceOf(request.token);
     if (amountMinor > previousMinor) {
       return this.reject(request, INSUFFICIENT_FUNDS_MESSAGE);
     }
@@ -123,6 +124,14 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
       message,
       data: { transferCode: TRANSFER_CODES.TR001.code },
     });
+  }
+
+  /** Current Balance of a Card token (minor units); an unseen Card token is seeded with the initial Balance */
+  private balanceOf(cardToken: string): number {
+    if (!this.balancesByCardToken.has(cardToken)) {
+      this.balancesByCardToken.set(cardToken, this.initialBalanceMinor);
+    }
+    return this.balancesByCardToken.get(cardToken)!;
   }
 
   /** Deterministic fake Card token per Card */
