@@ -214,11 +214,10 @@ export class SgtCardAdapter implements ISgtCardPort {
         `[SGT /transfer] ← RESPONSE ref=${request.clientReference} ok=${response?.ok} data=${JSON.stringify(response?.data ?? response)}`,
       );
 
-      // TR002: transferencia OK pero balance query falló → considerar como éxito parcial
-      const transferCode = response?.data?.transferCode;
-      const isPartialSuccess = transferCode === 'TR002';
-
-      if (!response?.ok && !isPartialSuccess) {
+      // Una respuesta con transfer code es la respuesta del Issuer (TR000, TR001, TR002, TR003…),
+      // también cuando ok=false: se devuelve tal cual para que la Settlement persista el código.
+      // Sin transfer code no hay respuesta del Issuer sobre la transferencia → fallo.
+      if (!response?.ok && !response?.data?.transferCode) {
         const sgtMessage = this.extractSgtMessage(response);
         this.logger.warn(
           `[SGT /transfer] ✗ REJECTED ref=${request.clientReference}: ${sgtMessage}`,
