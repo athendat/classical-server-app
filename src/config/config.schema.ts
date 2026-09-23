@@ -39,7 +39,7 @@ export const configValidationSchema: joi.ObjectSchema = joi
     // SGT_MODE=simulated replaces the Issuer with an in-process simulator for
     // commercial demos (issue #60); the SGT_* connection variables are then optional.
     SGT_MODE: joi.string().valid(...SGT_MODES).default(DEFAULT_SGT_MODE),
-    SGT_SIMULATED_INITIAL_BALANCE: joi.number().integer().min(0).optional().allow(''),
+    SGT_SIMULATED_INITIAL_BALANCE_MINOR: joi.number().integer().min(0).optional().allow(''),
     SGT_AES_KEY: sgtRequiredWhenLive(),
     SGT_AES_IV: sgtRequiredWhenLive(),
     SGT_URL: sgtRequiredWhenLive(),

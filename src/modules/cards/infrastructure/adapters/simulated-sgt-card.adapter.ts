@@ -12,10 +12,16 @@ import {
 import { ACTIVATION_CODES } from '../../domain/constants/activation-codes.constant';
 import { TRANSFER_CODES } from '../../domain/constants/transfer-codes.constant';
 
-/** Initial Balance (minor units, ADR-0008) when SGT_SIMULATED_INITIAL_BALANCE is not set: 10,000.00 */
+/** Initial Balance (minor units, ADR-0008) when SGT_SIMULATED_INITIAL_BALANCE_MINOR is not set: 10,000.00 */
 export const DEFAULT_SIMULATED_INITIAL_BALANCE_MINOR = 1_000_000;
 
-/** Amounts whose cents are 99 (e.g. 10.99) are rejected by the simulated Issuer with TR001 */
+/**
+ * Minor units per major unit. Assumes a 2-decimal currency (cents), as every amount
+ * on the SGT wire is (ADR-0008; only currency 840 is used).
+ */
+const MINOR_UNITS_PER_MAJOR = 100;
+
+/** Amounts whose cents (last 2 minor-unit digits) are 99, e.g. 10.99, are rejected with TR001 */
 export const SIMULATED_REJECTION_CENTS = 99;
 
 /** TRANSFER_CODES has no insufficient-funds code: the simulator answers TR001 with this message */
@@ -47,7 +53,7 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
 
   constructor(private readonly configService: ConfigService) {
     const configured = parseInt(
-      String(this.configService.get<string | number>('SGT_SIMULATED_INITIAL_BALANCE') ?? ''),
+      String(this.configService.get<string | number>('SGT_SIMULATED_INITIAL_BALANCE_MINOR') ?? ''),
       10,
     );
     this.initialBalanceMinor = Number.isFinite(configured)
@@ -88,7 +94,7 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
       return this.settle(request, this.balanceOf(request.token) + amountMinor);
     }
 
-    if (amountMinor % 100 === SIMULATED_REJECTION_CENTS) {
+    if (amountMinor % MINOR_UNITS_PER_MAJOR === SIMULATED_REJECTION_CENTS) {
       return this.reject(request, TRANSFER_CODES.TR001.message);
     }
 

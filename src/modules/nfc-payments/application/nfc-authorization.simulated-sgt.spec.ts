@@ -73,7 +73,7 @@ describe('NfcAuthorizationService with the simulated Issuer (SGT_MODE=simulated)
   beforeEach(async () => {
     const adapter = new SimulatedSgtCardAdapter({
       get: jest.fn((key: string) =>
-        key === 'SGT_SIMULATED_INITIAL_BALANCE' ? '250000' : undefined,
+        key === 'SGT_SIMULATED_INITIAL_BALANCE_MINOR' ? '250000' : undefined,
       ),
     } as unknown as ConfigService);
     const activation = await adapter.activatePin(CARD_ID, '4242424242424242', 'pb', '85010112345', 't', 'a');

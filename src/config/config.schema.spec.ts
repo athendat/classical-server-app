@@ -137,11 +137,11 @@ describe('configValidationSchema — SGT_MODE', () => {
     expect(error).toBeUndefined();
   });
 
-  it('accepts an empty SGT_SIMULATED_INITIAL_BALANCE (the simulator uses its default)', () => {
+  it('accepts an empty SGT_SIMULATED_INITIAL_BALANCE_MINOR (the simulator uses its default)', () => {
     const { error } = configValidationSchema.validate({
       ...baseEnv,
       SGT_MODE: 'simulated',
-      SGT_SIMULATED_INITIAL_BALANCE: '',
+      SGT_SIMULATED_INITIAL_BALANCE_MINOR: '',
     });
     expect(error).toBeUndefined();
   });

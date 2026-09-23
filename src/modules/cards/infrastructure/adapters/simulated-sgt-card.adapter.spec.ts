@@ -92,7 +92,7 @@ describe('SimulatedSgtCardAdapter — Card activation through CardsService', () 
 
   it('activates the Card (AP000) with a Card token and the configured initial Balance', async () => {
     const { service, cardsRepository } = await buildCardsService(
-      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE_MINOR: '250000' }),
     );
 
     const response = await service.registerCard(createCardDto);
@@ -182,7 +182,7 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
 
   it('settles a confirmed QR Transaction with TR000 and lowers the cached Balance by the amount', async () => {
     const adapter = new SimulatedSgtCardAdapter(
-      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE_MINOR: '250000' }),
     );
     const cardToken = await activatedCardToken(adapter);
     const { processor, cardsRepository, transactionsRepository, eventEmitter } =
@@ -232,7 +232,7 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
 
   it('reports the current Balance, not the initial one, when a settled Card is activated again', async () => {
     const adapter = new SimulatedSgtCardAdapter(
-      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE_MINOR: '250000' }),
     );
     const cardToken = await activatedCardToken(adapter);
     const { processor } = await buildProcessor(adapter, cardToken);
@@ -246,7 +246,7 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
 
   it('rejects with TR001 (insufficient funds) an amount above the Balance, leaving the Balance untouched', async () => {
     const adapter = new SimulatedSgtCardAdapter(
-      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE_MINOR: '10000' }),
     );
     const cardToken = await activatedCardToken(adapter);
     const { processor, cardsRepository, transactionsRepository } = await buildProcessor(adapter, cardToken);
@@ -272,7 +272,7 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
 
   it('credits the Balance on a refund', async () => {
     const adapter = new SimulatedSgtCardAdapter(
-      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE_MINOR: '10000' }),
     );
 
     const result = await adapter.transfer({
@@ -295,7 +295,7 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
 
   it('answers insufficient funds without any Balance on the wire', async () => {
     const adapter = new SimulatedSgtCardAdapter(
-      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE_MINOR: '10000' }),
     );
 
     const result = await adapter.transfer({
@@ -320,7 +320,7 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
 
   it('keeps lowering the Balance across consecutive Settlements of the same Card', async () => {
     const adapter = new SimulatedSgtCardAdapter(
-      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE_MINOR: '250000' }),
     );
     const cardToken = await activatedCardToken(adapter);
     const { processor, cardsRepository } = await buildProcessor(adapter, cardToken);
