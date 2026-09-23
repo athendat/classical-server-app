@@ -1,11 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { AsyncContextService } from 'src/common/context/async-context.service';
 import { Result } from 'src/common/types/result.type';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
+import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
+import { TenantVaultService } from 'src/modules/tenants/infrastructure/services/tenant-vault.service';
+import { TransactionPaymentProcessor } from 'src/modules/transactions/application/services/transaction-payment.processor';
+import { TransactionStatus } from 'src/modules/transactions/domain/entities/transaction.entity';
+import { TransactionsRepository } from 'src/modules/transactions/infrastructure/adapters/transactions.repository';
 
 import { CardsService } from '../../application/cards.service';
 import { CreateCardDto } from '../../dto/create-card.dto';
@@ -110,5 +116,107 @@ describe('SimulatedSgtCardAdapter — Card activation through CardsService', () 
     expect(first.getValue().data?.activationCode).toBe('AP000');
     expect(first.getValue().data?.token).toBe(again.getValue().data?.token);
     expect(first.getValue().data?.token).not.toBe(other.getValue().data?.token);
+  });
+});
+
+describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProcessor', () => {
+  const CARD_ID = 'card-qr-1';
+
+  async function buildProcessor(adapter: SimulatedSgtCardAdapter, cardToken: string) {
+    const cardsRepository = {
+      findById: jest.fn().mockResolvedValue({
+        id: CARD_ID,
+        status: CardStatusEnum.ACTIVE,
+        token: cardToken,
+      }),
+      update: jest.fn(),
+    };
+    const transactionsRepository = {
+      updateStatus: jest.fn().mockImplementation(async (id, status, updates) => ({
+        id,
+        status,
+        ...updates,
+      })),
+    };
+    const eventEmitter = { emit: jest.fn() };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TransactionPaymentProcessor,
+        { provide: AuditService, useValue: { logAllow: jest.fn(), logError: jest.fn() } },
+        { provide: CardsRepository, useValue: cardsRepository },
+        {
+          provide: CardVaultAdapter,
+          useValue: { getPinblock: jest.fn().mockResolvedValue(Result.ok('stored-pinblock')) },
+        },
+        { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: INJECTION_TOKENS.CARD_SGT_PORT, useValue: adapter },
+        {
+          provide: TenantsRepository,
+          useValue: { findById: jest.fn().mockResolvedValue({ id: 'tenant-1', code: 'T001' }) },
+        },
+        {
+          provide: TenantVaultService,
+          useValue: { getPan: jest.fn().mockResolvedValue(Result.ok('9200000000000001')) },
+        },
+        { provide: TransactionsRepository, useValue: transactionsRepository },
+        {
+          provide: UsersRepository,
+          useValue: { findByIdRaw: jest.fn().mockResolvedValue({ idNumber: '85010112345' }) },
+        },
+      ],
+    }).compile();
+
+    return {
+      processor: module.get(TransactionPaymentProcessor),
+      cardsRepository,
+      transactionsRepository,
+      eventEmitter,
+    };
+  }
+
+  async function activatedCardToken(adapter: SimulatedSgtCardAdapter): Promise<string> {
+    const activation = await adapter.activatePin(CARD_ID, '4242424242424242', 'pb', '85010112345', 't', 'a');
+    return activation.getValue().data!.token!;
+  }
+
+  it('settles a confirmed QR Transaction with TR000 and lowers the cached Balance by the amount', async () => {
+    const adapter = new SimulatedSgtCardAdapter(
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
+    );
+    const token = await activatedCardToken(adapter);
+    const { processor, cardsRepository, transactionsRepository, eventEmitter } =
+      await buildProcessor(adapter, token);
+
+    // Domain amount in major units (ADR-0008): 15.25
+    const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', CARD_ID, 15.25, 'USD');
+
+    expect(result.success).toBe(true);
+    expect(result.status).toBe(TransactionStatus.SUCCESS);
+    expect(result.transferCode).toBe('TR000');
+    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
+      'txn-1',
+      TransactionStatus.SUCCESS,
+      expect.objectContaining({ sgtTransferCode: 'TR000' }),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'transaction.processed',
+      expect.objectContaining({ transactionId: 'txn-1', status: 'success' }),
+    );
+    // 2500.00 − 15.25
+    expect(cardsRepository.update).toHaveBeenCalledWith(CARD_ID, { balance: 2484.75 });
+  });
+
+  it('keeps lowering the Balance across consecutive Settlements of the same Card', async () => {
+    const adapter = new SimulatedSgtCardAdapter(
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
+    );
+    const token = await activatedCardToken(adapter);
+    const { processor, cardsRepository } = await buildProcessor(adapter, token);
+
+    await processor.processPayment('txn-1', 'tenant-1', 'customer-1', CARD_ID, 100, 'USD');
+    await processor.processPayment('txn-2', 'tenant-1', 'customer-1', CARD_ID, 50.5, 'USD');
+
+    expect(cardsRepository.update).toHaveBeenLastCalledWith(CARD_ID, { balance: 2349.5 });
   });
 });

@@ -10,6 +10,7 @@ import {
   SgtTransferResponse,
 } from '../../domain/ports/sgt-card.port';
 import { ACTIVATION_CODES } from '../../domain/constants/activation-codes.constant';
+import { TRANSFER_CODES } from '../../domain/constants/transfer-codes.constant';
 
 /** Initial Balance (minor units, ADR-0008) when SGT_SIMULATED_INITIAL_BALANCE is not set: 10,000.00 */
 export const DEFAULT_SIMULATED_INITIAL_BALANCE_MINOR = 1_000_000;
@@ -23,11 +24,16 @@ const SGT_AMOUNT_DIGITS = 12;
  *
  * - Card activation always succeeds (AP000) with a Card token derived from the Card id
  *   and the initial Balance from SGT_SIMULATED_INITIAL_BALANCE (minor units).
+ * - Transfer (Settlement) answers TR000 and the resulting Balance (previous − amount).
+ *   Balances live in memory per Card token, starting from the initial Balance the first
+ *   time a Card token is settled (so a restart resets every Card to the initial Balance).
  */
 @Injectable()
 export class SimulatedSgtCardAdapter implements ISgtCardPort {
   private readonly logger = new Logger(SimulatedSgtCardAdapter.name);
   private readonly initialBalanceMinor: number;
+  /** Balance per Card token, in minor units. In memory: a restart resets every Card to the initial Balance. */
+  private readonly balancesByCardToken = new Map<string, number>();
 
   constructor(private readonly configService: ConfigService) {
     const configured = parseInt(
@@ -63,9 +69,25 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
   }
 
   async transfer(
-    _request: SgtTransferRequest,
+    request: SgtTransferRequest,
   ): Promise<Result<SgtTransferResponse, Error>> {
-    return Result.fail<SgtTransferResponse>(new Error('Not implemented'));
+    const amountMinor = parseInt(request.amount, 10);
+    const previousMinor = this.balancesByCardToken.get(request.token) ?? this.initialBalanceMinor;
+    const balanceMinor = previousMinor - amountMinor;
+    this.balancesByCardToken.set(request.token, balanceMinor);
+
+    this.logger.log(
+      `[SIMULATED SGT] transfer ref=${request.clientReference} amount=${request.amount} → ${TRANSFER_CODES.TR000.code}`,
+    );
+
+    return Result.ok<SgtTransferResponse>({
+      ok: true,
+      message: TRANSFER_CODES.TR000.message,
+      data: {
+        transferCode: TRANSFER_CODES.TR000.code,
+        balance: this.formatMinor(balanceMinor),
+      },
+    });
   }
 
   /** Deterministic fake Card token per Card */
