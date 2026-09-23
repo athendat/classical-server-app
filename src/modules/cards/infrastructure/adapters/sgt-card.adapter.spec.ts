@@ -177,6 +177,39 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
     expect(result.getError().message).toBe('No se recibió respuesta del servidor');
   });
 
+  it('returns TR002 with ok=false (transfer done, Balance query failed) as an Issuer answer', async () => {
+    const body = { ok: false, message: 'Consulta de saldo fallida', data: { transferCode: 'TR002' } };
+    httpService.post.mockResolvedValue(body);
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
+  it('fails on TR003: SGT could not reach the Issuer, so there is no Issuer answer', async () => {
+    httpService.post.mockResolvedValue({
+      ok: false,
+      message: 'Error de comunicación',
+      data: { transferCode: 'TR003' },
+    });
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails on a transfer code that is not an Issuer answer code, e.g. a proxy error body', async () => {
+    const body = { ok: false, message: 'Bad Gateway', data: { transferCode: 'GW502' } };
+    const httpError = new HttpException(body, HttpStatus.BAD_GATEWAY);
+    (httpError as any).response = { status: HttpStatus.BAD_GATEWAY, data: body };
+    httpService.post.mockRejectedValue(httpError);
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isFailure).toBe(true);
+  });
+
   it('fails when SGT answers ok=false without a transfer code', async () => {
     httpService.post.mockResolvedValue({ ok: false, message: 'Error en los parámetros enviados' });
 
