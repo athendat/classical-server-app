@@ -207,6 +207,29 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
     expect(cardsRepository.update).toHaveBeenCalledWith(CARD_ID, { balance: 2484.75 });
   });
 
+  it('rejects with TR001 when the amount ends in 99 cents, leaving the Transaction failed and the Balance untouched', async () => {
+    const adapter = new SimulatedSgtCardAdapter(fakeConfig());
+    const token = await activatedCardToken(adapter);
+    const { processor, cardsRepository, transactionsRepository, eventEmitter } =
+      await buildProcessor(adapter, token);
+
+    const result = await processor.processPayment('txn-99', 'tenant-1', 'customer-1', CARD_ID, 10.99, 'USD');
+
+    expect(result.success).toBe(false);
+    expect(result.status).toBe(TransactionStatus.FAILED);
+    expect(result.transferCode).toBe('TR001');
+    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
+      'txn-99',
+      TransactionStatus.FAILED,
+      expect.objectContaining({ sgtTransferCode: 'TR001' }),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'transaction.processed',
+      expect.objectContaining({ transactionId: 'txn-99', status: 'failed' }),
+    );
+    expect(cardsRepository.update).not.toHaveBeenCalled();
+  });
+
   it('keeps lowering the Balance across consecutive Settlements of the same Card', async () => {
     const adapter = new SimulatedSgtCardAdapter(
       fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),

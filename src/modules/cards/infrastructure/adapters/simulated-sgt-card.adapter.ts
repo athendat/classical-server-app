@@ -15,6 +15,9 @@ import { TRANSFER_CODES } from '../../domain/constants/transfer-codes.constant';
 /** Initial Balance (minor units, ADR-0008) when SGT_SIMULATED_INITIAL_BALANCE is not set: 10,000.00 */
 export const DEFAULT_SIMULATED_INITIAL_BALANCE_MINOR = 1_000_000;
 
+/** Amounts whose cents are 99 (e.g. 10.99) are rejected by the simulated Issuer with TR001 */
+export const SIMULATED_REJECTION_CENTS = 99;
+
 /** Amounts on the SGT wire are 12-digit minor units (ADR-0005, ADR-0008) */
 const SGT_AMOUNT_DIGITS = 12;
 
@@ -27,6 +30,7 @@ const SGT_AMOUNT_DIGITS = 12;
  * - Transfer (Settlement) answers TR000 and the resulting Balance (previous − amount).
  *   Balances live in memory per Card token, starting from the initial Balance the first
  *   time a Card token is settled (so a restart resets every Card to the initial Balance).
+ * - Deterministic rejection: an amount ending in 99 cents answers TR001 and keeps the Balance.
  */
 @Injectable()
 export class SimulatedSgtCardAdapter implements ISgtCardPort {
@@ -72,6 +76,19 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
     request: SgtTransferRequest,
   ): Promise<Result<SgtTransferResponse, Error>> {
     const amountMinor = parseInt(request.amount, 10);
+
+    if (amountMinor % 100 === SIMULATED_REJECTION_CENTS) {
+      this.logger.log(
+        `[SIMULATED SGT] transfer ref=${request.clientReference} amount=${request.amount} → ${TRANSFER_CODES.TR001.code}`,
+      );
+      // Returned as ok(ok=false, TR001) so the Settlement records the Issuer's rejection code
+      return Result.ok<SgtTransferResponse>({
+        ok: false,
+        message: TRANSFER_CODES.TR001.message,
+        data: { transferCode: TRANSFER_CODES.TR001.code },
+      });
+    }
+
     const previousMinor = this.balancesByCardToken.get(request.token) ?? this.initialBalanceMinor;
     const balanceMinor = previousMinor - amountMinor;
     this.balancesByCardToken.set(request.token, balanceMinor);
