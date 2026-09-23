@@ -227,6 +227,16 @@ export class SgtCardAdapter implements ISgtCardPort {
 
       return Result.ok<SgtTransferResponse>(response);
     } catch (error: any) {
+      // SGT puede responder el rechazo del Issuer con un estado HTTP no-2xx:
+      // si el cuerpo trae transfer code, sigue siendo la respuesta del Issuer.
+      const issuerAnswer = error?.response?.data as SgtTransferResponse | undefined;
+      if (issuerAnswer?.data?.transferCode) {
+        this.logger.warn(
+          `[SGT /transfer] ← RESPONSE ref=${request.clientReference} status=${error?.response?.status} ok=${issuerAnswer.ok} data=${JSON.stringify(issuerAnswer.data)}`,
+        );
+        return Result.ok<SgtTransferResponse>(issuerAnswer);
+      }
+
       const msg = this.extractSgtMessage(error);
       this.logger.error(
         `[SGT /transfer] ✗ ERROR ref=${request.clientReference}: ${msg} raw=${JSON.stringify(error?.response?.data ?? error?.message ?? error)}`,

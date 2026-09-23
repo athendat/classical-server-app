@@ -147,4 +147,21 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
       data: { transferCode: 'TR001', isoResponseCode: '51' },
     });
   });
+
+  it('recovers the Issuer rejection when SGT answers it with a non-2xx HTTP status', async () => {
+    const body = {
+      ok: false,
+      message: 'Transacción denegada por el emisor',
+      data: { transferCode: 'TR001', isoResponseCode: '05' },
+    };
+    // Same shape HttpService throws on a non-2xx: HttpException with the Axios response attached
+    const httpError = new HttpException(body, HttpStatus.UNPROCESSABLE_ENTITY);
+    (httpError as any).response = { status: HttpStatus.UNPROCESSABLE_ENTITY, data: body };
+    httpService.post.mockRejectedValue(httpError);
+
+    const result = await adapter.transfer(transferRequest);
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
 });
