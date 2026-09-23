@@ -18,6 +18,9 @@ export const DEFAULT_SIMULATED_INITIAL_BALANCE_MINOR = 1_000_000;
 /** Amounts whose cents are 99 (e.g. 10.99) are rejected by the simulated Issuer with TR001 */
 export const SIMULATED_REJECTION_CENTS = 99;
 
+/** TRANSFER_CODES has no insufficient-funds code: the simulator answers TR001 with this message */
+const INSUFFICIENT_FUNDS_MESSAGE = 'Transferencia rechazada: fondos insuficientes';
+
 /** Amounts on the SGT wire are 12-digit minor units (ADR-0005, ADR-0008) */
 const SGT_AMOUNT_DIGITS = 12;
 
@@ -31,6 +34,8 @@ const SGT_AMOUNT_DIGITS = 12;
  *   Balances live in memory per Card token, starting from the initial Balance the first
  *   time a Card token is settled (so a restart resets every Card to the initial Balance).
  * - Deterministic rejection: an amount ending in 99 cents answers TR001 and keeps the Balance.
+ * - Insufficient funds: an amount above the current Balance answers TR001 and keeps the Balance,
+ *   so the Balance never goes negative.
  */
 @Injectable()
 export class SimulatedSgtCardAdapter implements ISgtCardPort {
@@ -78,18 +83,13 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
     const amountMinor = parseInt(request.amount, 10);
 
     if (amountMinor % 100 === SIMULATED_REJECTION_CENTS) {
-      this.logger.log(
-        `[SIMULATED SGT] transfer ref=${request.clientReference} amount=${request.amount} → ${TRANSFER_CODES.TR001.code}`,
-      );
-      // Returned as ok(ok=false, TR001) so the Settlement records the Issuer's rejection code
-      return Result.ok<SgtTransferResponse>({
-        ok: false,
-        message: TRANSFER_CODES.TR001.message,
-        data: { transferCode: TRANSFER_CODES.TR001.code },
-      });
+      return this.reject(request, TRANSFER_CODES.TR001.message);
     }
 
     const previousMinor = this.balancesByCardToken.get(request.token) ?? this.initialBalanceMinor;
+    if (amountMinor > previousMinor) {
+      return this.reject(request, INSUFFICIENT_FUNDS_MESSAGE);
+    }
     const balanceMinor = previousMinor - amountMinor;
     this.balancesByCardToken.set(request.token, balanceMinor);
 
@@ -104,6 +104,24 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
         transferCode: TRANSFER_CODES.TR000.code,
         balance: this.formatMinor(balanceMinor),
       },
+    });
+  }
+
+  /**
+   * TR001 rejection, Balance untouched and no Balance on the wire. Returned as
+   * ok(ok=false, TR001) so the Settlement records the Issuer's rejection code.
+   */
+  private reject(
+    request: SgtTransferRequest,
+    message: string,
+  ): Result<SgtTransferResponse, Error> {
+    this.logger.log(
+      `[SIMULATED SGT] transfer ref=${request.clientReference} amount=${request.amount} → ${TRANSFER_CODES.TR001.code} (${message})`,
+    );
+    return Result.ok<SgtTransferResponse>({
+      ok: false,
+      message,
+      data: { transferCode: TRANSFER_CODES.TR001.code },
     });
   }
 

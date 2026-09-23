@@ -230,6 +230,57 @@ describe('SimulatedSgtCardAdapter — Settlement through TransactionPaymentProce
     expect(cardsRepository.update).not.toHaveBeenCalled();
   });
 
+  it('rejects with TR001 (insufficient funds) an amount above the Balance, leaving the Balance untouched', async () => {
+    const adapter = new SimulatedSgtCardAdapter(
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
+    );
+    const token = await activatedCardToken(adapter);
+    const { processor, cardsRepository, transactionsRepository } = await buildProcessor(adapter, token);
+
+    // Balance 100.00; 150.00 exceeds it
+    const rejected = await processor.processPayment('txn-over', 'tenant-1', 'customer-1', CARD_ID, 150, 'USD');
+
+    expect(rejected.status).toBe(TransactionStatus.FAILED);
+    expect(rejected.transferCode).toBe('TR001');
+    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
+      'txn-over',
+      TransactionStatus.FAILED,
+      expect.objectContaining({ sgtTransferCode: 'TR001' }),
+    );
+    expect(cardsRepository.update).not.toHaveBeenCalled();
+
+    // The whole Balance can still be spent: it ends at exactly 0, never negative
+    const exact = await processor.processPayment('txn-all', 'tenant-1', 'customer-1', CARD_ID, 100, 'USD');
+
+    expect(exact.status).toBe(TransactionStatus.SUCCESS);
+    expect(cardsRepository.update).toHaveBeenCalledWith(CARD_ID, { balance: 0 });
+  });
+
+  it('answers insufficient funds without any Balance on the wire', async () => {
+    const adapter = new SimulatedSgtCardAdapter(
+      fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '10000' }),
+    );
+
+    const result = await adapter.transfer({
+      token: 'SIM-CARD-TOKEN',
+      pin: 'pb',
+      amount: '000000015000',
+      settlementAmount: '000000014625',
+      cardholderAmount: '000000000375',
+      beneficiaryAccount: '9200000000000001',
+      clientReference: 'TXN-over',
+      type: 'payment',
+      merchantId: '00000000000T001',
+      idNumber: '85010112345',
+    });
+
+    const response = result.getValue();
+    expect(response.ok).toBe(false);
+    expect(response.data?.transferCode).toBe('TR001');
+    expect(response.message).toMatch(/insuficientes/i);
+    expect(response.data?.balance).toBeUndefined();
+  });
+
   it('keeps lowering the Balance across consecutive Settlements of the same Card', async () => {
     const adapter = new SimulatedSgtCardAdapter(
       fakeConfig({ SGT_SIMULATED_INITIAL_BALANCE: '250000' }),
