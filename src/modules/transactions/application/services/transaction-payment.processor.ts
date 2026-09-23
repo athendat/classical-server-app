@@ -282,12 +282,9 @@ export class TransactionPaymentProcessor {
           updatedTransaction,
         };
       } else {
-        // Transferencia rechazada o error de comunicación: se prefiere el mensaje del Issuer
+        // Transferencia rechazada o error de comunicación
         const transferCodeInfo = TRANSFER_CODES[transferCode as keyof typeof TRANSFER_CODES];
-        const errorMsg =
-          sgtResponse.message?.trim() ||
-          transferCodeInfo?.message ||
-          `Código SGT desconocido: ${transferCode}`;
+        const errorMsg = transferCodeInfo?.message || `Código SGT desconocido: ${transferCode}`;
 
         const updatedTransaction = await this.transactionsRepository.updateStatus(
           transactionId,

@@ -2,7 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
+import { Result } from 'src/common/types/result.type';
 import { AuditService } from 'src/modules/audit/application/audit.service';
+import { CardStatusEnum } from 'src/modules/cards/domain/enums/card-status.enum';
 import { CardsRepository } from 'src/modules/cards/infrastructure/adapters/card.repository';
 import { CardVaultAdapter } from 'src/modules/cards/infrastructure/adapters/card-vault.adapter';
 import { TenantsRepository } from 'src/modules/tenants/infrastructure/adapters/tenant.repository';
@@ -11,8 +13,6 @@ import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 import { TransactionStatus } from '../../domain/entities/transaction.entity';
 import { TransactionsRepository } from '../../infrastructure/adapters/transactions.repository';
 import { TransactionPaymentProcessor } from './transaction-payment.processor';
-import { Result } from 'src/common/types/result.type';
-import { CardStatusEnum } from 'src/modules/cards/domain/enums/card-status.enum';
 
 describe('TransactionPaymentProcessor', () => {
   let processor: TransactionPaymentProcessor;
@@ -148,7 +148,7 @@ describe('TransactionPaymentProcessor — Issuer rejection at Settlement', () =>
     processor = module.get<TransactionPaymentProcessor>(TransactionPaymentProcessor);
   });
 
-  it("records the Issuer's transfer code and ISO code and reports the Issuer's message", async () => {
+  it("records the Issuer's transfer code and ISO code and reports the transfer code's message, not SGT's raw text", async () => {
     sgtCardPort.transfer.mockResolvedValue(
       Result.ok({
         ok: false,
@@ -165,7 +165,7 @@ describe('TransactionPaymentProcessor — Issuer rejection at Settlement', () =>
         status: TransactionStatus.FAILED,
         transferCode: 'TR001',
         isoResponseCode: '51',
-        error: 'Fondos insuficientes',
+        error: 'Transferencia rechazada',
       }),
     );
     expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
@@ -179,22 +179,7 @@ describe('TransactionPaymentProcessor — Issuer rejection at Settlement', () =>
     );
     expect(eventEmitter.emit).toHaveBeenCalledWith(
       'transaction.processed',
-      expect.objectContaining({ transactionId: 'txn-1', status: 'failed', error: 'Fondos insuficientes' }),
-    );
-  });
-
-  it('falls back to the transfer code message when the Issuer sends no message', async () => {
-    sgtCardPort.transfer.mockResolvedValue(
-      Result.ok({ ok: false, message: '', data: { transferCode: 'TR001', isoResponseCode: '05' } }),
-    );
-
-    const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', 'card-1', 15, 'USD');
-
-    expect(result.error).toBe('Transferencia rechazada');
-    expect(transactionsRepository.updateStatus).toHaveBeenCalledWith(
-      'txn-1',
-      TransactionStatus.FAILED,
-      expect.objectContaining({ sgtTransferCode: 'TR001', sgtIsoResponseCode: '05' }),
+      expect.objectContaining({ transactionId: 'txn-1', status: 'failed', error: 'Transferencia rechazada' }),
     );
   });
 });
