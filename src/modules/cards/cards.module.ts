@@ -14,6 +14,8 @@ import { CardController } from './infrastructure/controllers/card.controller';
 import { CardVaultAdapter } from './infrastructure/adapters/card-vault.adapter';
 import { CardsRepository } from './infrastructure/adapters/card.repository';
 import { SgtCardAdapter } from './infrastructure/adapters/sgt-card.adapter';
+import { sgtCardPortProvider } from './infrastructure/adapters/sgt-card-port.provider';
+import { SimulatedSgtCardAdapter } from './infrastructure/adapters/simulated-sgt-card.adapter';
 import { SgtPinblockAdapter } from './infrastructure/adapters/sgt-pinblock.adapter';
 
 
@@ -46,10 +48,9 @@ import { UsersModule } from '../users/users.module';
       provide: INJECTION_TOKENS.SGT_PINBLOCK_PORT,
       useClass: SgtPinblockAdapter,
     },
-    {
-      provide: INJECTION_TOKENS.CARD_SGT_PORT,
-      useClass: SgtCardAdapter,
-    },
+    SgtCardAdapter,
+    SimulatedSgtCardAdapter,
+    sgtCardPortProvider,
   ],
   exports: [
     CardsService,

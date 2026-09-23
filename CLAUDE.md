@@ -373,3 +373,17 @@ The `AuditModule` logs all endpoint calls:
 | `src/modules/auth/auth.service.ts` | JWT generation, validation, anti-replay logic |
 | `src/modules/cards/cards.service.ts` | Card operations: create, update, activate, block |
 | `src/modules/vault/vault.service.ts` | Vault integration for secure key storage |
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues in `athendat/classical-server-app` (the `upstream` remote), managed with the `gh` CLI. External pull requests are **not** a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical vocabulary, unmapped: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. Neither exists yet — created lazily by `/domain-modeling`. See `docs/agents/domain.md`.

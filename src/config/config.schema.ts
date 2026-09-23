@@ -1,6 +1,16 @@
 // Third´s Modules
 import * as joi from 'joi';
 
+import { DEFAULT_SGT_MODE, SGT_MODES, SgtMode } from 'src/modules/cards/domain/constants/sgt-mode.constant';
+
+/** An SGT connection variable: required with SGT_MODE=live, optional with SGT_MODE=simulated. */
+const sgtRequiredWhenLive = () =>
+  joi.string().when('SGT_MODE', {
+    is: 'simulated' satisfies SgtMode,
+    then: joi.optional().allow(''),
+    otherwise: joi.required(),
+  });
+
 /**
  * Joi schema for environment variable validation.
  *
@@ -26,11 +36,15 @@ export const configValidationSchema: joi.ObjectSchema = joi
     SA_PWD: joi.string().required(),
     SEED_ENABLED: joi.string().optional(),
     SEED_ENABLED_VAULT: joi.string().optional(),
-    SGT_AES_KEY: joi.string().required(),
-    SGT_AES_IV: joi.string().required(),
-    SGT_URL: joi.string().required(),
-    SGT_HMAC_SECRET: joi.string().required(),
-    SGT_CLIENT_ID: joi.string().required(),
+    // SGT_MODE=simulated replaces the Issuer with an in-process simulator for
+    // commercial demos (issue #60); the SGT_* connection variables are then optional.
+    SGT_MODE: joi.string().valid(...SGT_MODES).default(DEFAULT_SGT_MODE),
+    SGT_SIMULATED_INITIAL_BALANCE_MINOR: joi.number().integer().min(0).optional().allow(''),
+    SGT_AES_KEY: sgtRequiredWhenLive(),
+    SGT_AES_IV: sgtRequiredWhenLive(),
+    SGT_URL: sgtRequiredWhenLive(),
+    SGT_HMAC_SECRET: sgtRequiredWhenLive(),
+    SGT_CLIENT_ID: sgtRequiredWhenLive(),
     SMS_API_URL: joi.string().required(),
     SMS_TOKEN: joi.string().required(),
     VAULT_ADDR: joi.string().required(),
@@ -54,6 +68,12 @@ export const configValidationSchema: joi.ObjectSchema = joi
     if (!hasToken && !hasAppRole) {
       return helpers.message(
         'Vault auth misconfigured: set VAULT_TOKEN or (VAULT_ROLE_ID + VAULT_SECRET_ID)' as never,
+      );
+    }
+    // The simulated Issuer (issue #60) must never run in production (ADR-0005).
+    if (value.SGT_MODE === ('simulated' satisfies SgtMode) && value.ENVIRONMENT === 'PRODUCTION') {
+      return helpers.message(
+        'SGT_MODE=simulated is not allowed with ENVIRONMENT=PRODUCTION' as never,
       );
     }
     return value;

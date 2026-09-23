@@ -13,3 +13,7 @@ SGT dictates the integration contract, and the platform follows it through a hex
 A fixed key and IV make the PIN encryption deterministic, which allows a dictionary attack, and CBC provides no integrity. Moving to an authenticated cipher needs SGT to agree, plus a period where both formats are accepted (#53, #54).
 
 [HMAC_AUTH_GUIDE.md](../integration-guides/HMAC_AUTH_GUIDE.md) describes SGT's side of this contract. This server does not validate inbound HMAC.
+
+## Simulated Issuer outside production
+
+Because SGT sits behind `CARD_SGT_PORT`, it can be replaced by an in-process simulator (`SGT_MODE=simulated`, #60) for commercial demos where SGT is not reachable. Only the Issuer is simulated; the rest of the QR and NFC flows (Confirmation, Authorization, the single Settlement path, Webhooks, audit) run for real. The simulator is allowed only outside production: config validation refuses `SGT_MODE=simulated` with `ENVIRONMENT=PRODUCTION`, and the app logs a warning at startup when it is on. The default is `SGT_MODE=live`.
