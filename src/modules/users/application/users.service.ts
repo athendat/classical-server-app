@@ -449,7 +449,7 @@ export class UsersService implements IUsersService {
     const requestId = this.asyncContextService.getRequestId();
     const userId = this.asyncContextService.getActorId()!;
     this.logger.log(
-      `[${requestId}] Fetching all users: page=${queryParams.page}, limit=${queryParams.limit}, search=${queryParams.search || 'none'}`,
+      `[${requestId}] Fetching all users: page=${queryParams.page}, limit=${queryParams.limit}, search=${queryParams.search ? `${queryParams.search.length} chars` : 'none'}`,
     );
     try {
       // Campos permitidos para búsqueda
@@ -466,8 +466,9 @@ export class UsersService implements IUsersService {
         searchFields,
       );
 
+      // Solo las claves: el filtro lleva el término de búsqueda, que puede ser un idNumber
       this.logger.log(
-        `[${requestId}] MongoDB filter: ${JSON.stringify(mongoFilter)}`,
+        `[${requestId}] MongoDB filter keys: ${Object.keys(mongoFilter).join(', ') || 'none'}`,
       );
       this.logger.log(
         `[${requestId}] Query options: ${JSON.stringify(options)}`,

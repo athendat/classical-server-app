@@ -111,7 +111,7 @@ export class UsersRepository implements IUsersPort {
   }> {
     try {
       this.logger.log(
-        `Finding Users with filter: ${JSON.stringify(filter)}, skip=${options.skip}, limit=${options.limit}`,
+        `Finding Users with filter keys: ${Object.keys(filter).join(', ') || 'none'}, skip=${options.skip}, limit=${options.limit}`,
       );
 
       // Ejecutar query en paralelo: obtener documentos y contar total
