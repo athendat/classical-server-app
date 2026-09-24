@@ -262,5 +262,26 @@ describe('CardsService', () => {
         }),
       );
     });
+
+    it('answers 502 with the AP004 message and keeps the Card REGISTERED when the Issuer gives no answer', async () => {
+      sgtCardPort.activatePin.mockResolvedValue(
+        Result.fail(new Error('No se recibió respuesta del servidor')),
+      );
+
+      const response = await service.retryActivation('card-123');
+
+      expect(response.statusCode).toBe(HttpStatus.BAD_GATEWAY);
+      expect(response.errors).toBe('Error de comunicación');
+      expect(response.message).toBe('No se pudo establecer comunicación con el emisor');
+      expect(JSON.stringify(response)).not.toContain('No se recibió respuesta');
+      expect(cardsRepository.update).not.toHaveBeenCalled();
+      expect(auditService.logError).toHaveBeenCalledWith(
+        'SGT_RETRY_ACTIVATE_PIN_FAILED',
+        'card',
+        'card-123',
+        expect.objectContaining({ message: 'No se recibió respuesta del servidor' }),
+        expect.objectContaining({ module: 'cards', actorId: 'user-123' }),
+      );
+    });
   });
 });

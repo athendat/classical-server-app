@@ -664,10 +664,11 @@ export class CardsService {
           },
         );
 
+        // Sin respuesta del Issuer: el fallo no es del cliente
         return ApiResponse.fail<CardResponseDto>(
-          HttpStatus.BAD_REQUEST,
-          sgtError.message,
-          'La activación no pudo completarse',
+          HttpStatus.BAD_GATEWAY,
+          ACTIVATION_CODES.AP004.message,
+          ACTIVATION_CODES.AP004.description,
         );
       }
 
