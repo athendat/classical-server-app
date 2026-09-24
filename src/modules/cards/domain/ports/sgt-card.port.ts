@@ -4,6 +4,11 @@ import { Result } from 'src/common/types/result.type';
  * Datos internos de la respuesta de activación de PIN del SGT
  */
 export interface SgtActivatePinData {
+  /**
+   * Código de activación: AP000=éxito, AP001=rechazada, AP002=registrada/activación fallida,
+   * AP003=activada/balance fallido, AP004=error comunicación.
+   * Solo AP000 a AP003 son respuesta del Issuer; `activatePin()` devuelve AP004 como `Result.fail`.
+   */
   activationCode: string;
   isoResponseCode?: string;
   token?: string;
@@ -84,6 +89,13 @@ export interface ISgtCardPort {
    * Auth: HMAC-SHA256
    *
    * @param token - Token del PAN recibido en un registro previo (AP002), para reintento de activación
+   *
+   * Contrato del resultado:
+   * - `Result.ok`: el Issuer respondió, con activation code AP000, AP001, AP002 o AP003. Incluye
+   *   los rechazos del Issuer (AP001) y las respuestas con `ok: false`, sea cual sea el estado HTTP;
+   *   el llamador decide por `data.activationCode`.
+   * - `Result.fail`: no hay respuesta del Issuer: error de transporte, timeout, AP004
+   *   (el SGT no pudo comunicarse con el Issuer) o activation code desconocido o ausente.
    */
   activatePin(
     cardId: string,
