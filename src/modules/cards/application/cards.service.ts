@@ -21,7 +21,7 @@ import { ApiResponse } from 'src/common/types/api-response.type';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { buildMongoQuery } from 'src/common/helpers';
 import type { ISgtCardPort, SgtActivatePinResponse } from '../domain/ports/sgt-card.port';
-import { ACTIVATION_CODES } from '../domain/constants/activation-codes.constant';
+import { ACTIVATION_CODES, ActivationCode } from '../domain/constants/activation-codes.constant';
 
 /**
  * Card Service - Application layer for card operations
@@ -177,7 +177,7 @@ export class CardsService {
       // AP001: Registro rechazado por el emisor
       if (activationCode === ACTIVATION_CODES.AP001.code) {
         this.logger.warn(`[${requestId}] SGT registration rejected for card ${cardId}`);
-        this.auditIssuerRejection('SGT_ACTIVATE_PIN_REJECTED', cardId, userId, sgtResponse);
+        this.auditIssuerRejection('SGT_ACTIVATE_PIN_REJECTED', cardId, userId, activationCode, sgtResponse);
         await this.rollbackVaultSecrets(cardId, requestId, userId);
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_REQUEST,
@@ -689,7 +689,7 @@ export class CardsService {
       // AP001: Registro rechazado por el emisor
       if (activationCode === ACTIVATION_CODES.AP001.code) {
         this.logger.warn(`[${requestId}] SGT retry rejected for card ${cardId}`);
-        this.auditIssuerRejection('SGT_RETRY_ACTIVATE_PIN_REJECTED', cardId, userId, sgtResponse);
+        this.auditIssuerRejection('SGT_RETRY_ACTIVATE_PIN_REJECTED', cardId, userId, activationCode, sgtResponse);
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_REQUEST,
           ACTIVATION_CODES.AP001.message,
@@ -781,16 +781,17 @@ export class CardsService {
 
   /** Audita un rechazo del Issuer con su activation code, su código ISO y el texto del SGT */
   private auditIssuerRejection(
-    action: string,
+    action: 'SGT_ACTIVATE_PIN_REJECTED' | 'SGT_RETRY_ACTIVATE_PIN_REJECTED',
     cardId: string,
     userId: string,
+    activationCode: ActivationCode,
     sgtResponse: SgtActivatePinResponse,
   ): void {
     this.auditService.logError(
       action,
       'card',
       cardId,
-      { code: sgtResponse.data!.activationCode, message: sgtResponse.message },
+      { code: activationCode, message: sgtResponse.message },
       {
         module: 'cards',
         severity: 'HIGH',
@@ -799,7 +800,7 @@ export class CardsService {
         changes: {
           after: {
             sgt: {
-              activationCode: sgtResponse.data?.activationCode,
+              activationCode,
               isoResponseCode: sgtResponse.data?.isoResponseCode,
             },
           },
