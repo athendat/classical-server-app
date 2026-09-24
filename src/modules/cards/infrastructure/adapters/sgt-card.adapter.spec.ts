@@ -317,6 +317,18 @@ describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
     expect(result.getValue()).toEqual(body);
   });
 
+  it.each([
+    ['AP002', { ok: false, message: 'Registro exitoso, activación fallida', data: { activationCode: 'AP002', token: 'CARDTOKEN0001' } }],
+    ['AP003', { ok: false, message: 'Consulta de balance fallida', data: { activationCode: 'AP003', token: 'CARDTOKEN0001' } }],
+  ])('returns %s through a non-2xx HTTP status as an Issuer answer', async (_code, body) => {
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.UNPROCESSABLE_ENTITY, body));
+
+    const result = await activate();
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
   it('fails on AP004: SGT could not reach the Issuer, so there is no Issuer answer', async () => {
     const body = { ok: false, message: 'Error de comunicación', data: { activationCode: 'AP004' } };
     httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.GATEWAY_TIMEOUT, body));
