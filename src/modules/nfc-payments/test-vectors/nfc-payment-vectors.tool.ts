@@ -158,9 +158,22 @@ export function generateNfcPaymentVectors(): NfcPaymentVectors {
   };
 }
 
-/** Generates fresh vectors and writes them as pretty-printed JSON. */
-export function writeNfcPaymentVectors(outPath: string): NfcPaymentVectors {
-  const vectors = generateNfcPaymentVectors();
+/**
+ * Generates fresh vectors, validates them in memory and only then writes
+ * them as pretty-printed JSON. Invalid vectors throw and leave `outPath`
+ * untouched. `generate` is a seam for tests.
+ */
+export function writeNfcPaymentVectors(
+  outPath: string,
+  generate: () => NfcPaymentVectors = generateNfcPaymentVectors,
+): NfcPaymentVectors {
+  const vectors = generate();
+  const mismatches = validateNfcPaymentVectors(vectors);
+  if (mismatches.length > 0) {
+    throw new Error(
+      `Generated NFC vectors failed validation, ${outPath} not written: ${mismatches.join(', ')}`,
+    );
+  }
   fs.writeFileSync(outPath, JSON.stringify(vectors, null, 2), 'utf-8');
   return vectors;
 }

@@ -85,6 +85,28 @@ describe('NFC Payment Test Vectors', () => {
     }
   });
 
+  it('refuses to write vectors that fail validation, leaving the target untouched', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nfc-vectors-'));
+    const outPath = path.join(dir, 'nfc-payment-vectors.json');
+    const invalidGeneration = (): NfcPaymentVectors => {
+      const vectors = versionedVectors();
+      vectors.ephemeral_keys[3].expected_public_key_hex = flipLastByte(
+        vectors.ephemeral_keys[3].expected_public_key_hex,
+      );
+      return vectors;
+    };
+    try {
+      fs.writeFileSync(outPath, VERSIONED_VECTORS, 'utf-8');
+
+      expect(() => writeNfcPaymentVectors(outPath, invalidGeneration)).toThrow(
+        'ephemeral_keys[3].expected_public_key_hex',
+      );
+      expect(fs.readFileSync(outPath, 'utf-8')).toBe(VERSIONED_VECTORS);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('leaves the versioned vectors file unchanged', () => {
     expect(fs.readFileSync(VECTORS_PATH, 'utf-8')).toBe(VERSIONED_VECTORS);
   });
