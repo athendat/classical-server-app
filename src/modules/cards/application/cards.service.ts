@@ -186,17 +186,6 @@ export class CardsService {
         );
       }
 
-      // AP004: Error de comunicación con el emisor
-      if (activationCode === ACTIVATION_CODES.AP004.code) {
-        this.logger.error(`[${requestId}] SGT communication error for card ${cardId}`);
-        await this.rollbackVaultSecrets(cardId, requestId, userId);
-        return ApiResponse.fail<CardResponseDto>(
-          HttpStatus.BAD_GATEWAY,
-          ACTIVATION_CODES.AP004.message,
-          ACTIVATION_CODES.AP004.description,
-        );
-      }
-
       // Determinar estado según código de activación
       // AP002: Registro exitoso, activación fallida → REGISTERED (reintento pendiente)
       // AP000/AP003: Activación exitosa → ACTIVE
@@ -705,16 +694,6 @@ export class CardsService {
           HttpStatus.BAD_REQUEST,
           ACTIVATION_CODES.AP001.message,
           ACTIVATION_CODES.AP001.description,
-        );
-      }
-
-      // AP004: Error de comunicación con el emisor
-      if (activationCode === ACTIVATION_CODES.AP004.code) {
-        this.logger.error(`[${requestId}] SGT communication error on retry for card ${cardId}`);
-        return ApiResponse.fail<CardResponseDto>(
-          HttpStatus.BAD_GATEWAY,
-          ACTIVATION_CODES.AP004.message,
-          ACTIVATION_CODES.AP004.description,
         );
       }
 
