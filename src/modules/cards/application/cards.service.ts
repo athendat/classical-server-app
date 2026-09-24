@@ -132,7 +132,7 @@ export class CardsService {
         const sgtError = sgtResult.getError();
 
         this.logger.warn(
-          `[${requestId}] SGT rejected card ${cardId}: ${sgtError.message}`,
+          `[${requestId}] SGT activation failed for card ${cardId}: kind=${sgtError.kind}`,
         );
 
         this.auditService.logError(
@@ -646,7 +646,7 @@ export class CardsService {
         const sgtError = sgtResult.getError();
 
         this.logger.warn(
-          `[${requestId}] SGT retry activation failed for card ${cardId}: ${sgtError.message}`,
+          `[${requestId}] SGT retry activation failed for card ${cardId}: kind=${sgtError.kind}`,
         );
 
         this.auditService.logError(
