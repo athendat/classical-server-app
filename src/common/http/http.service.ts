@@ -1,5 +1,5 @@
 // Nest Modules
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { HttpService as AxiosHttpService } from '@nestjs/axios';
 
 // Third-Party Modules
@@ -11,6 +11,8 @@ import { firstValueFrom } from 'rxjs';
  */
 @Injectable()
 export class HttpService {
+  private readonly logger = new Logger(HttpService.name);
+
   /**
    * Constructor
    *
@@ -114,8 +116,13 @@ export class HttpService {
    * @param error
    */
   #handleError(error: AxiosError): never {
-    console.log({ error });
-    console.log({ response: error.response });
+    // Solo método, URL sin query y estado: la solicitud, la respuesta y sus
+    // cabeceras pueden llevar PAN, PIN blocks o credenciales (ADR-0012)
+    const method = error.config?.method?.toUpperCase() ?? 'HTTP';
+    const url = error.config?.url?.split('?')[0] ?? 'unknown url';
+    this.logger.warn(
+      `${method} ${url} failed: ${error.response ? `status=${error.response.status}` : (error.code ?? 'no response')}`,
+    );
 
     if (error.response) {
       // El servidor respondió con un estado diferente de 2xx
