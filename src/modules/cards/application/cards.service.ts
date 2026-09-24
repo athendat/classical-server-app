@@ -150,6 +150,15 @@ export class CardsService {
 
         await this.rollbackVaultSecrets(cardId, requestId, userId);
 
+        // Fallo local antes de llamar al SGT: error interno
+        if (sgtError.kind === 'LOCAL_FAILURE') {
+          return ApiResponse.fail<CardResponseDto>(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            'Error interno del servidor',
+            'La tarjeta no pudo ser registrada',
+          );
+        }
+
         // Sin respuesta del Issuer: el fallo no es del cliente
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_GATEWAY,
