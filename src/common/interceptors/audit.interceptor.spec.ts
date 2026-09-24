@@ -89,4 +89,41 @@ describe('AuditInterceptor', () => {
       }),
     ).toEqual([]);
   });
+
+  it("records an admin user search in the audit trail without the Customer's idNumber or PAN from the query string", async () => {
+    const asyncContext = {
+      getRequestId: () => 'req-2',
+      setHttpMetadata: jest.fn(),
+    };
+    const interceptor = new AuditInterceptor(
+      asyncContext as any,
+      { emit: jest.fn() } as any,
+    );
+    const req = {
+      method: 'GET',
+      path: '/users',
+      query: { search: ID_NUMBER, page: '2', pan: PAN },
+      body: {},
+      get: () => undefined,
+      headers: {},
+      ip: '127.0.0.1',
+      socket: {},
+    };
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => req,
+        getResponse: () => ({ statusCode: 200, json: jest.fn() }),
+      }),
+    } as unknown as ExecutionContext;
+
+    await lastValueFrom(
+      interceptor.intercept(context, { handle: () => of(undefined) }),
+    );
+
+    const auditText = serializeForLog(asyncContext.setHttpMetadata.mock.calls);
+    expect(auditText).toContain('page');
+    expect(findLeakedSecrets(auditText, { idNumber: ID_NUMBER, PAN })).toEqual(
+      [],
+    );
+  });
 });

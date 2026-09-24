@@ -74,6 +74,9 @@ export class AuditInterceptor implements NestInterceptor {
   // Campos sensibles demasiado cortos para buscarlos como subcadena ('aut' está en 'author')
   private readonly sensitiveExactFields = ['tml', 'aut'];
 
+  // Parámetros de búsqueda de texto libre: su valor puede ser cualquier dato del Customer
+  private readonly freeTextQueryFields = ['search', 'q'];
+
   constructor(
     private readonly asyncContext: AsyncContextService,
     private readonly eventEmitter: EventEmitter2,
@@ -171,7 +174,7 @@ export class AuditInterceptor implements NestInterceptor {
       path: req.path,
       query:
         req.query && Object.keys(req.query).length > 0
-          ? (req.query as Record<string, any>)
+          ? this.redactQuery(req.query as Record<string, any>)
           : undefined,
       body: this.redactSensitiveData(req.body),
       headers: {
@@ -230,6 +233,20 @@ export class AuditInterceptor implements NestInterceptor {
       statusCode,
       body: this.redactSensitiveData(capturedBody),
     };
+  }
+
+  /**
+   * Redactar el query string: mismas claves sensibles que el body y, además, el
+   * texto libre de búsqueda (puede ser un idNumber, un PAN o un teléfono)
+   */
+  private redactQuery(query: Record<string, any>): Record<string, any> {
+    const redacted = this.redactSensitiveData({ ...query });
+    for (const key of Object.keys(redacted)) {
+      if (this.freeTextQueryFields.includes(key.toLowerCase())) {
+        redacted[key] = '***REDACTED***';
+      }
+    }
+    return redacted;
   }
 
   /**
