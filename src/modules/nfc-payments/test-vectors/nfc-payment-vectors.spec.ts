@@ -56,6 +56,18 @@ describe('NFC Payment Test Vectors', () => {
   });
 
   it.each([
+    ['hash', 'sha512'],
+    ['root_info', 'nfc-payment-v2'],
+    ['key_info_prefix', 'nfc-payment-key-v2:'],
+    ['output_length', 64],
+  ] as const)('fails when the hkdf parameter %s disagrees with the server', (field, value) => {
+    const vectors = versionedVectors();
+    (vectors.hkdf as Record<string, string | number>)[field] = value;
+
+    expect(validateNfcPaymentVectors(vectors)).toEqual([`hkdf.${field}`]);
+  });
+
+  it.each([
     'expected_private_key_hex',
     'expected_public_key_hex',
     'sample_payload_hex',

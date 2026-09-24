@@ -49,6 +49,14 @@ const SALT_HEX = 'bb'.repeat(16);
 const FIRST_COUNTER = 0;
 const LAST_COUNTER = 10;
 
+/** The server's HKDF parameters, as the vectors record them. */
+const HKDF_PARAMETERS: NfcPaymentVectors['hkdf'] = {
+  hash: NFC_PAYMENT_CONSTANTS.HKDF_HASH,
+  root_info: NFC_PAYMENT_CONSTANTS.HKDF_ROOT_INFO,
+  key_info_prefix: NFC_PAYMENT_CONSTANTS.HKDF_KEY_INFO_PREFIX,
+  output_length: NFC_PAYMENT_CONSTANTS.HKDF_OUTPUT_LENGTH,
+};
+
 const hkdf = new HkdfKeyDerivationAdapter();
 const ecdsa = new EcdsaSignatureAdapter();
 const tlv = new TlvCodecAdapter();
@@ -81,6 +89,13 @@ const samplePayload = (counter: number): Buffer =>
  */
 export function validateNfcPaymentVectors(vectors: NfcPaymentVectors): string[] {
   const mismatches: string[] = [];
+
+  for (const field of Object.keys(HKDF_PARAMETERS) as (keyof NfcPaymentVectors['hkdf'])[]) {
+    if (vectors.hkdf[field] !== HKDF_PARAMETERS[field]) {
+      mismatches.push(`hkdf.${field}`);
+    }
+  }
+
   const seed = vectors.root_seed_derivation;
 
   const rootSeed = hkdf.deriveRootSeed(
@@ -143,12 +158,7 @@ export function generateNfcPaymentVectors(): NfcPaymentVectors {
 
   return {
     description: 'NFC Payment crypto test vectors for cross-platform validation',
-    hkdf: {
-      hash: NFC_PAYMENT_CONSTANTS.HKDF_HASH,
-      root_info: NFC_PAYMENT_CONSTANTS.HKDF_ROOT_INFO,
-      key_info_prefix: NFC_PAYMENT_CONSTANTS.HKDF_KEY_INFO_PREFIX,
-      output_length: NFC_PAYMENT_CONSTANTS.HKDF_OUTPUT_LENGTH,
-    },
+    hkdf: { ...HKDF_PARAMETERS },
     root_seed_derivation: {
       shared_secret_hex: SHARED_SECRET_HEX,
       salt_hex: SALT_HEX,
