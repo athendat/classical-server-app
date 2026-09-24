@@ -9,7 +9,8 @@ import type { Request, Response, NextFunction } from 'express';
 export class LoggingMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     console.log(`\n[LOGGING-MIDDLEWARE] INCOMING REQUEST: ${req.method} ${req.path}`);
-    console.log(`[LOGGING-MIDDLEWARE] Full URL: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+    // Sin query string: puede llevar datos del Customer (p. ej. ?search=<idNumber>)
+    console.log(`[LOGGING-MIDDLEWARE] Full URL: ${req.protocol}://${req.get('host')}${req.originalUrl.split('?')[0]}`);
     console.log(`[LOGGING-MIDDLEWARE] Headers: Content-Type=${req.get('content-type')}, x-api-key=${req.get('x-api-key') ? 'YES' : 'NO'}`);
     
     if (req.method === 'OPTIONS') {
