@@ -133,16 +133,18 @@ describe('CardsService', () => {
     jest.clearAllMocks();
   });
 
-  it('debe rechazar el registro y no persistir la tarjeta cuando SGT responde error', async () => {
+  it('answers 502 with the AP004 message, rolls Vault back and saves no Card when the Issuer gives no answer', async () => {
     sgtCardPort.activatePin.mockResolvedValue(
-      Result.fail(new Error('Error en los parámetros enviados')),
+      Result.fail(new Error('No se recibió respuesta del servidor')),
     );
 
     const response = await service.registerCard(createCardDto);
 
     expect(response.ok).toBe(false);
-    expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-    expect(response.errors).toBe('Error en los parámetros enviados');
+    expect(response.statusCode).toBe(HttpStatus.BAD_GATEWAY);
+    expect(response.errors).toBe('Error de comunicación');
+    expect(response.message).toBe('No se pudo establecer comunicación con el emisor');
+    expect(JSON.stringify(response)).not.toContain('No se recibió respuesta');
     expect(cardsRepository.create).not.toHaveBeenCalled();
     expect(cardVaultAdapter.deletePanAndPinblock).toHaveBeenCalledTimes(1);
     expect(auditService.logError).toHaveBeenCalledWith(
