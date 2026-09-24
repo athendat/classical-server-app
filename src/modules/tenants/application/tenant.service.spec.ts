@@ -2,6 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 
 import { TenantsService } from './tenant.service';
 import { Result } from '../../../common/types/result.type';
+import { captureLogs, findLeakedSecrets } from '../../../common/testing/log-capture';
 
 /**
  * Issue #46 — `GET /tenants/my-tenant` (getTenantByUser) devolvía 500
@@ -80,5 +81,57 @@ describe('TenantsService.getTenantByUser', () => {
         expect(res.data?.unmaskPan).toBe('1234567812345678');
         expect(res.data?.maskedPan).toBe('**** 5678');
         expect(vaultService.maskPan).toHaveBeenCalledWith('1234567812345678');
+    });
+});
+
+describe('TenantsService.updateTenant — Tenant PAN custody (#67)', () => {
+    const TENANT_PAN = '9200123456780001';
+
+    it('updating a Tenant with its PAN writes the PAN to no log or audit entry', async () => {
+        const tenant = {
+            id: 'tenant-1',
+            code: '00000001',
+            businessName: 'ATHENDAT',
+            businessAddress: { address: 'Calle 23', city: 'La Habana', state: '', zipCode: '', country: 'CU' },
+            email: 'a@b.com',
+            userId: 'user-1',
+        };
+        const auditService = { logAllow: jest.fn(), logDeny: jest.fn(), logError: jest.fn() };
+        const tenantsRepository = {
+            findById: jest.fn().mockResolvedValue(tenant),
+            update: jest.fn().mockResolvedValue(tenant),
+        };
+        const vaultService = {
+            getPan: jest.fn().mockResolvedValue(Result.ok(TENANT_PAN)),
+            maskPan: jest.fn((pan: string) => `**** ${pan.slice(-4)}`),
+        };
+        const service = new TenantsService(
+            { getRequestId: () => 'req-1', getActorId: () => 'user-1', getActor: () => ({ id: 'user-1' }) } as any,
+            auditService as any,
+            { emit: jest.fn() } as any, // eventEmitter
+            {} as any, // lifecycleRepository
+            {} as any, // oauth2CredentialsService
+            {} as any, // tenantSequenceAdapter
+            tenantsRepository as any,
+            vaultService as any,
+            {} as any, // webhooksService
+            {} as any, // usersRepository
+        );
+        const logs = captureLogs();
+
+        try {
+            const response = await service.updateTenant(
+                'tenant-1',
+                { businessName: 'ATHENDAT SA', pan: TENANT_PAN } as any,
+                { sub: 'user-1' } as any,
+            );
+
+            expect(response.statusCode).toBe(HttpStatus.OK);
+            expect(auditService.logAllow).toHaveBeenCalledWith('TENANT_UPDATED', 'tenant', 'tenant-1', expect.anything());
+            const logText = logs.text(auditService.logAllow.mock.calls, auditService.logError.mock.calls);
+            expect(findLeakedSecrets(logText, { 'Tenant PAN': TENANT_PAN })).toEqual([]);
+        } finally {
+            logs.restore();
+        }
     });
 });

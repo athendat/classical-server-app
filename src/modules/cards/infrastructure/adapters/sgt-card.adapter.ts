@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 
 import { HttpService } from 'src/common/http/http.service';
+import { maskPan, maskCardToken } from 'src/common/helpers/mask-secret';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { Result } from 'src/common/types/result.type';
 import {
@@ -90,8 +91,6 @@ export class SgtCardAdapter implements ISgtCardPort {
         body.token = token;
       }
 
-      this.logger.log(`[SgtCardAdapter] activate pin request body ${JSON.stringify(body)}`);
-
       const timestamp = new Date().toISOString();
       const payload = JSON.stringify(body) + timestamp;
 
@@ -136,7 +135,7 @@ export class SgtCardAdapter implements ISgtCardPort {
       return Result.ok<SgtActivatePinResponse>(response);
     } catch (error: any) {
       const msg = this.extractSgtMessage(error);
-      this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`, error);
+      this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`);
       return Result.fail<SgtActivatePinResponse>(
         error instanceof Error && error.message === msg ? error : new Error(msg),
       );
@@ -205,8 +204,8 @@ export class SgtCardAdapter implements ISgtCardPort {
         `[SGT /transfer] → REQUEST ref=${request.clientReference} url=${baseUrl}/transfer payload=${JSON.stringify({
           ...body,
           pin: '***',
-          token: body.token.slice(0, 4) + '****',
-          beneficiaryAccount: body.beneficiaryAccount.slice(0, 6) + '****' + body.beneficiaryAccount.slice(-4),
+          token: maskCardToken(body.token),
+          beneficiaryAccount: maskPan(body.beneficiaryAccount),
           idNumber: '***',
         })}`,
       );
@@ -224,7 +223,7 @@ export class SgtCardAdapter implements ISgtCardPort {
       // Sin respuesta del Issuer (TR003, código desconocido o ausente) → fallo
       const sgtMessage = this.extractSgtMessage(response);
       this.logger.warn(
-        `[SGT /transfer] ✗ NO ISSUER ANSWER ref=${request.clientReference}: ${sgtMessage} body=${JSON.stringify(response)}`,
+        `[SGT /transfer] ✗ NO ISSUER ANSWER ref=${request.clientReference}: ${sgtMessage} transferCode=${(response as SgtTransferResponse | undefined)?.data?.transferCode}`,
       );
       return Result.fail<SgtTransferResponse>(new Error(sgtMessage));
     } catch (error: any) {
@@ -237,8 +236,7 @@ export class SgtCardAdapter implements ISgtCardPort {
 
       const msg = this.extractSgtMessage(error);
       this.logger.error(
-        `[SGT /transfer] ✗ ERROR ref=${request.clientReference}: ${msg} raw=${JSON.stringify(error?.response?.data ?? error?.message ?? error)}`,
-        error,
+        `[SGT /transfer] ✗ ERROR ref=${request.clientReference}: ${msg} status=${error?.response?.status ?? error?.status ?? 'none'}`,
       );
       return Result.fail<SgtTransferResponse>(
         error instanceof Error && error.message === msg ? error : new Error(msg),
@@ -262,7 +260,7 @@ export class SgtCardAdapter implements ISgtCardPort {
     answer: SgtTransferResponse,
     httpStatus?: number,
   ): Result<SgtTransferResponse, Error> {
-    const line = `[SGT /transfer] ← RESPONSE ref=${request.clientReference}${httpStatus ? ` status=${httpStatus}` : ''} ok=${answer.ok} data=${JSON.stringify(answer.data)}`;
+    const line = `[SGT /transfer] ← RESPONSE ref=${request.clientReference}${httpStatus ? ` status=${httpStatus}` : ''} ok=${answer.ok} transferCode=${answer.data?.transferCode} isoResponseCode=${answer.data?.isoResponseCode}`;
     if (answer.data?.transferCode === TRANSFER_CODES.TR001.code) {
       this.logger.warn(`${line} ✗ REJECTED by Issuer`);
     } else {

@@ -69,7 +69,6 @@ export class AuditLogService {
   async findAll(queryParams: QueryParams<AuditFilterParams>): Promise<ApiResponse<any[]>> {
     const requestId = this.asyncContext.getRequestId();
     const userId = this.asyncContext.getActorId();
-    console.log({ queryParams })
     try {
       this.logger.log(
         `[${requestId}] Fetching audit logs for user: ${userId} - page=${queryParams.page}, limit=${queryParams.limit}`,

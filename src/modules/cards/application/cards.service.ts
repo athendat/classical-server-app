@@ -161,7 +161,7 @@ export class CardsService {
       const activationCode = sgtResponse.data?.activationCode;
 
       this.logger.log(
-        `[${requestId}] SGT response for card ${cardId}: ${JSON.stringify(sgtResponse)}`,
+        `[${requestId}] SGT response for card ${cardId}: ok=${sgtResponse.ok}, activationCode=${activationCode}`,
       );
 
       // AP001: Registro rechazado por el emisor
@@ -228,7 +228,7 @@ export class CardsService {
         actorId: userId,
         changes: {
           after: {
-            card: savedCard,
+            card: this.toAuditCard(savedCard),
           },
         },
       });
@@ -511,6 +511,14 @@ export class CardsService {
   }
 
   /**
+   * Card as recorded in the audit trail: without TML, AUT or the Card token
+   */
+  private toAuditCard(card: Partial<Card>): Partial<Card> {
+    const { tml: _tml, aut: _aut, token: _token, ...auditable } = card;
+    return auditable;
+  }
+
+  /**
    * Mask PAN for response (last 4 digits visible)
    */
   private maskPan(lastFour: string | undefined): string {
@@ -665,7 +673,7 @@ export class CardsService {
       const activationCode = sgtResponse.data?.activationCode;
 
       this.logger.log(
-        `[${requestId}] SGT retry response for card ${cardId}: ${JSON.stringify(sgtResponse)}`,
+        `[${requestId}] SGT retry response for card ${cardId}: ok=${sgtResponse.ok}, activationCode=${activationCode}`,
       );
 
       // AP001: Registro rechazado por el emisor

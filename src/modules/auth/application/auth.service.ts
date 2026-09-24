@@ -95,7 +95,10 @@ export class AuthService {
         password,
       );
 
-      this.logger.log(`[Login] Validation result: ${JSON.stringify(validation)}`);
+      // Nunca el usuario completo: incluye el idNumber del Customer
+      this.logger.log(
+        `[Login] Validation result: valid=${validation.valid}, userId=${validation.user?.id}, reason=${validation.reason}`,
+      );
 
       if (!validation.valid) {
         // Manejar caso especial: teléfono no confirmado

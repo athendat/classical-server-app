@@ -84,7 +84,6 @@ export class CardVaultAdapter implements ICardVaultPort {
       }
 
       const data = result.getValue().data;
-      console.log({ data });
       const pinblock = data.data?.pinblock as string | undefined;
 
       if (!pinblock) {
