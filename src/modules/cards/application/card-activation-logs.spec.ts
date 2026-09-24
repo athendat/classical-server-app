@@ -22,8 +22,8 @@ import { Iso4PinblockService } from '../infrastructure/services/iso4-pinblock.se
 
 const PIN = '1234';
 const PAN = '4539578763621486';
-/** ISO-4 PIN block of PIN 1234 with PAN 4539578763621486 (041234FFFFFFFFFF XOR 0000578763621486) */
-const ISO4_PINBLOCK = '041263789C9DEB79';
+/** Stored PIN block of PIN 1234 with PAN 4539578763621486 (041234FFFFFFFFFF XOR 0000578763621486) */
+const STORED_PIN_BLOCK = '041263789C9DEB79';
 /** SGT PIN block in the clear for PIN 1234: "00" + "04" + ASCII-hex("1234") + "FF" + padding */
 const SGT_PLAIN_PINBLOCK = '000431323334FF000000000000000000';
 const PIN_ASCII_HEX = '31323334';
@@ -70,7 +70,7 @@ describe('Card activation writes no Card secret to the logs', () => {
       savePanAndPinblock: jest.fn().mockResolvedValue(Result.ok()),
       deletePanAndPinblock: jest.fn().mockResolvedValue(Result.ok()),
       getPan: jest.fn().mockResolvedValue(Result.ok(PAN)),
-      getPinblock: jest.fn().mockResolvedValue(Result.ok(ISO4_PINBLOCK)),
+      getPinblock: jest.fn().mockResolvedValue(Result.ok(STORED_PIN_BLOCK)),
     };
     cardsRepository = {
       findByUserId: jest.fn().mockResolvedValue([]),
@@ -127,7 +127,7 @@ describe('Card activation writes no Card secret to the logs', () => {
   const secretsSentTo = (sgtBody: Record<string, string>): Record<string, string> => ({
     PIN,
     'PIN in ASCII-hex': PIN_ASCII_HEX,
-    'ISO-4 PIN block': ISO4_PINBLOCK,
+    'Stored PIN block': STORED_PIN_BLOCK,
     'SGT PIN block in the clear': SGT_PLAIN_PINBLOCK,
     'SGT encrypted PIN block': sgtBody.pin,
     PAN,
@@ -153,7 +153,7 @@ describe('Card activation writes no Card secret to the logs', () => {
     } as any);
 
     expect(response.statusCode).toBe(HttpStatus.CREATED);
-    expect(cardVaultAdapter.savePanAndPinblock).toHaveBeenCalledWith(expect.any(String), PAN, ISO4_PINBLOCK);
+    expect(cardVaultAdapter.savePanAndPinblock).toHaveBeenCalledWith(expect.any(String), PAN, STORED_PIN_BLOCK);
     const sgtBody = axios.post.mock.calls[0][1];
     expect(sgtBody).toEqual(expect.objectContaining({ pan: PAN, idNumber: ID_NUMBER, tml: TML, aut: AUT }));
     expect(sgtBody.pin).toMatch(/^[0-9A-F]{32}$/);

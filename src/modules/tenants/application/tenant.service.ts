@@ -5,7 +5,6 @@ import { HttpStatus } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AsyncContextService } from '../../../common/context/async-context.service';
-import { maskPan } from 'src/common/helpers/mask-secret';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { TenantVaultService } from '../infrastructure/services/tenant-vault.service';
 
@@ -551,7 +550,7 @@ export class TenantsService {
       const changes = Object.fromEntries(
         Object.entries(dto)
           .filter(([, v]) => v !== undefined)
-          .map(([k, v]) => (k === 'pan' ? [k, maskPan(v as string)] : [k, v])),
+          .map(([k, v]) => (k === 'pan' ? [k, this.vaultService.maskPan(v as string)] : [k, v])),
       );
 
       // Actualizar en BD

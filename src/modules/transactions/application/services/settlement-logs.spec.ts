@@ -32,7 +32,7 @@ const CARD_TOKEN = '0400000000701851';
  * Stored PIN block the Settlement reads from Vault. The SGT adapter decodes it with the
  * Card token, so it is built from PIN 1234 and the token: 041234FFFFFFFFFF XOR 0000000000701851.
  */
-const STORED_PINBLOCK = '041234FFFF8FE7AE';
+const STORED_PIN_BLOCK = '041234FFFF8FE7AE';
 const SGT_PLAIN_PINBLOCK = '000431323334FF000000000000000000';
 const PIN_ASCII_HEX = '31323334';
 const TENANT_PAN = '9200123456780001';
@@ -70,7 +70,7 @@ describe('Settlement writes no Card or Tenant secret to the logs', () => {
     } as unknown as ConfigService;
     const vaultClient = {
       readKV: jest.fn().mockResolvedValue(
-        Result.ok({ data: { data: { pan: CARD_PAN, pinblock: STORED_PINBLOCK } } }),
+        Result.ok({ data: { data: { pan: CARD_PAN, pinblock: STORED_PIN_BLOCK } } }),
       ),
     } as unknown as IVaultClient;
     const sgtCardAdapter = new SgtCardAdapter(
@@ -130,7 +130,7 @@ describe('Settlement writes no Card or Tenant secret to the logs', () => {
   });
 
   const secretsSentTo = (sgtBody: Record<string, string>): Record<string, string> => ({
-    'Stored PIN block': STORED_PINBLOCK,
+    'Stored PIN block': STORED_PIN_BLOCK,
     PIN,
     'PIN in ASCII-hex': PIN_ASCII_HEX,
     'SGT PIN block in the clear': SGT_PLAIN_PINBLOCK,

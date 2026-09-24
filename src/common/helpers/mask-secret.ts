@@ -9,6 +9,6 @@ export function maskPan(pan: string | null | undefined): string {
 }
 
 /** Card token → only its 4-character prefix: "0400****" */
-export function maskToken(token: string | null | undefined): string {
-  return token ? `${token.slice(0, 4)}****` : '****';
+export function maskCardToken(cardToken: string | null | undefined): string {
+  return cardToken ? `${cardToken.slice(0, 4)}****` : '****';
 }
