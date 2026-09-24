@@ -1,17 +1,22 @@
 /**
  * NFC Payment test vectors (ADR-0004).
  *
- * Validation of the cross-platform vectors, run by the spec against the
- * versioned nfc-payment-vectors.json. Uses the production adapters so the
- * vectors lock the same bytes the server derives.
+ * Generation and validation of the cross-platform vectors. The spec validates
+ * the versioned nfc-payment-vectors.json; `yarn vectors:nfc` regenerates it.
+ * Both use the production adapters, so the vectors lock the same bytes the
+ * server derives.
  */
 
 import * as crypto from 'crypto';
+import * as fs from 'fs';
 
 import { HkdfKeyDerivationAdapter } from '../infrastructure/adapters/hkdf-key-derivation.adapter';
 import { EcdsaSignatureAdapter } from '../infrastructure/adapters/ecdsa-signature.adapter';
 import { TlvCodecAdapter } from '../infrastructure/adapters/tlv-codec.adapter';
-import { NFC_TLV_TAGS } from '../domain/constants/nfc-payment.constants';
+import {
+  NFC_PAYMENT_CONSTANTS,
+  NFC_TLV_TAGS,
+} from '../domain/constants/nfc-payment.constants';
 
 export interface NfcPaymentCounterVector {
   counter: number;
@@ -36,6 +41,13 @@ export interface NfcPaymentVectors {
   };
   ephemeral_keys: NfcPaymentCounterVector[];
 }
+
+/** Fixed ECDH shared secret and salt the vectors derive their Root seed from. */
+const SHARED_SECRET_HEX = 'aa'.repeat(16);
+const SALT_HEX = 'bb'.repeat(16);
+/** Counters covered by the vectors. */
+const FIRST_COUNTER = 0;
+const LAST_COUNTER = 10;
 
 const hkdf = new HkdfKeyDerivationAdapter();
 const ecdsa = new EcdsaSignatureAdapter();
@@ -103,4 +115,52 @@ export function validateNfcPaymentVectors(vectors: NfcPaymentVectors): string[] 
   });
 
   return mismatches;
+}
+
+/**
+ * Builds the vectors: the Root seed from the fixed shared secret and salt,
+ * then, per Counter, its key pair, a sample TLV payload and a fresh signature.
+ */
+export function generateNfcPaymentVectors(): NfcPaymentVectors {
+  const rootSeed = hkdf.deriveRootSeed(
+    Buffer.from(SHARED_SECRET_HEX, 'hex'),
+    Buffer.from(SALT_HEX, 'hex'),
+  );
+
+  const ephemeralKeys: NfcPaymentCounterVector[] = [];
+  for (let counter = FIRST_COUNTER; counter <= LAST_COUNTER; counter++) {
+    const { privateKey, publicKey } = hkdf.deriveEphemeralKeyPair(rootSeed, counter);
+    const payload = samplePayload(counter);
+
+    ephemeralKeys.push({
+      counter,
+      expected_private_key_hex: privateKeyHex(privateKey),
+      expected_public_key_hex: publicKeyHex(publicKey),
+      sample_payload_hex: payload.toString('hex'),
+      expected_signature_hex: ecdsa.sign(payload, privateKey).toString('hex'),
+    });
+  }
+
+  return {
+    description: 'NFC Payment crypto test vectors for cross-platform validation',
+    hkdf: {
+      hash: NFC_PAYMENT_CONSTANTS.HKDF_HASH,
+      root_info: NFC_PAYMENT_CONSTANTS.HKDF_ROOT_INFO,
+      key_info_prefix: NFC_PAYMENT_CONSTANTS.HKDF_KEY_INFO_PREFIX,
+      output_length: NFC_PAYMENT_CONSTANTS.HKDF_OUTPUT_LENGTH,
+    },
+    root_seed_derivation: {
+      shared_secret_hex: SHARED_SECRET_HEX,
+      salt_hex: SALT_HEX,
+      expected_root_seed_hex: rootSeed.toString('hex'),
+    },
+    ephemeral_keys: ephemeralKeys,
+  };
+}
+
+/** Generates fresh vectors and writes them as pretty-printed JSON. */
+export function writeNfcPaymentVectors(outPath: string): NfcPaymentVectors {
+  const vectors = generateNfcPaymentVectors();
+  fs.writeFileSync(outPath, JSON.stringify(vectors, null, 2), 'utf-8');
+  return vectors;
 }
