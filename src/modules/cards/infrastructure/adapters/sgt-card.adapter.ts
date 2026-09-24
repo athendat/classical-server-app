@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 
 import { HttpService } from 'src/common/http/http.service';
+import { maskPan, maskToken } from 'src/common/helpers/mask-secret';
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { Result } from 'src/common/types/result.type';
 import {
@@ -203,8 +204,8 @@ export class SgtCardAdapter implements ISgtCardPort {
         `[SGT /transfer] → REQUEST ref=${request.clientReference} url=${baseUrl}/transfer payload=${JSON.stringify({
           ...body,
           pin: '***',
-          token: body.token.slice(0, 4) + '****',
-          beneficiaryAccount: body.beneficiaryAccount.slice(0, 6) + '****' + body.beneficiaryAccount.slice(-4),
+          token: maskToken(body.token),
+          beneficiaryAccount: maskPan(body.beneficiaryAccount),
           idNumber: '***',
         })}`,
       );

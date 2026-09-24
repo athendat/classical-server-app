@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
+import { maskPan } from 'src/common/helpers/mask-secret';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 
 import { CardsRepository } from 'src/modules/cards/infrastructure/adapters/card.repository';
@@ -115,7 +116,6 @@ export class TransactionPaymentProcessor {
       // Step 2: Obtener pinblock de la tarjeta desde Vault
       const pinblockResult = await this.cardVaultAdapter.getPinblock(cardId);
       this.logger.log(`Pinblock obtenido para tarjeta: ${cardId}`);
-      console.log({ pinblockResult });
       if (pinblockResult.isFailure) {
         return this.failAndReturn(
           transactionId,
@@ -169,7 +169,7 @@ export class TransactionPaymentProcessor {
       }
 
       const beneficiaryAccount = tenantPanResult.getValue();
-      this.logger.log(`Cuenta beneficiaria del tenant obtenida: ${beneficiaryAccount}`);
+      this.logger.log(`Cuenta beneficiaria del tenant obtenida: ${maskPan(beneficiaryAccount)}`);
 
       // Step 5: Formatear datos para SGT
       // amount viene en dólares (mapToDomain hace * 0.01)
