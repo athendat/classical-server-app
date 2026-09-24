@@ -673,6 +673,15 @@ export class CardsService {
           },
         );
 
+        // Fallo local antes de llamar al SGT: error interno
+        if (sgtError.kind === 'LOCAL_FAILURE') {
+          return ApiResponse.fail<CardResponseDto>(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            'Error interno del servidor',
+            'La activación no pudo completarse',
+          );
+        }
+
         // Sin respuesta del Issuer: el fallo no es del cliente
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_GATEWAY,

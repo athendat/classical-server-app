@@ -279,6 +279,20 @@ describe('CardsService', () => {
       );
     });
 
+    it('answers 500 with a generic message and keeps the Card REGISTERED when activation fails before reaching SGT', async () => {
+      sgtCardPort.activatePin.mockResolvedValue(
+        Result.fail(new SgtActivationError('LOCAL_FAILURE', 'Pinblock must be 16 hex characters')),
+      );
+
+      const response = await service.retryActivation('card-123');
+
+      expect(response.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.errors).toBe('Error interno del servidor');
+      expect(response.message).toBe('La activación no pudo completarse');
+      expect(JSON.stringify(response)).not.toContain('Pinblock');
+      expect(cardsRepository.update).not.toHaveBeenCalled();
+    });
+
     it('answers 502 with the AP004 message and keeps the Card REGISTERED when the Issuer gives no answer', async () => {
       sgtCardPort.activatePin.mockResolvedValue(
         Result.fail(new SgtActivationError('NO_ISSUER_ANSWER', 'No se recibió respuesta del servidor')),
