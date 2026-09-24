@@ -1,10 +1,16 @@
 import { Result } from 'src/common/types/result.type';
+import type { ActivationCode } from '../constants/activation-codes.constant';
 
 /**
  * Datos internos de la respuesta de activación de PIN del SGT
  */
 export interface SgtActivatePinData {
-  activationCode: string;
+  /**
+   * Código de activación: AP000=éxito, AP001=rechazada, AP002=registrada/activación fallida,
+   * AP003=activada/balance fallido, AP004=error comunicación.
+   * Solo AP000 a AP003 son respuesta del Issuer; `activatePin()` devuelve AP004 como `Result.fail`.
+   */
+  activationCode: ActivationCode;
   isoResponseCode?: string;
   token?: string;
   balance?: string;
@@ -19,6 +25,26 @@ export interface SgtActivatePinResponse {
   ok: boolean;
   message: string;
   data?: SgtActivatePinData;
+}
+
+/**
+ * Tipo de fallo de `activatePin()`:
+ * - `NO_ISSUER_ANSWER`: se llamó al SGT y no hubo respuesta del Issuer (AP004, timeout,
+ *   error HTTP o de red, activation code desconocido o ausente).
+ * - `LOCAL_FAILURE`: falló la preparación de la petición antes de llamar al SGT
+ *   (PIN block que no se decodifica o no se cifra, configuración del SGT ausente).
+ */
+export type SgtActivationFailureKind = 'NO_ISSUER_ANSWER' | 'LOCAL_FAILURE';
+
+/** Error de `activatePin()`, con el tipo de fallo para que el llamador distinga el origen */
+export class SgtActivationError extends Error {
+  constructor(
+    public readonly kind: SgtActivationFailureKind,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'SgtActivationError';
+  }
 }
 
 /**
@@ -84,6 +110,15 @@ export interface ISgtCardPort {
    * Auth: HMAC-SHA256
    *
    * @param token - Token del PAN recibido en un registro previo (AP002), para reintento de activación
+   *
+   * Contrato del resultado:
+   * - `Result.ok`: el Issuer respondió, con activation code AP000, AP001, AP002 o AP003. Incluye
+   *   los rechazos del Issuer (AP001) y las respuestas con `ok: false`, sea cual sea el estado HTTP;
+   *   el llamador decide por `data.activationCode`.
+   * - `Result.fail` con un `SgtActivationError`:
+   *   - `kind: 'NO_ISSUER_ANSWER'`: no hay respuesta del Issuer: error de transporte, timeout,
+   *     AP004 (el SGT no pudo comunicarse con el Issuer) o activation code desconocido o ausente.
+   *   - `kind: 'LOCAL_FAILURE'`: el SGT no llegó a llamarse (PIN block o configuración inválidos).
    */
   activatePin(
     cardId: string,
@@ -93,7 +128,7 @@ export interface ISgtCardPort {
     tml: string,
     aut: string,
     token?: string,
-  ): Promise<Result<SgtActivatePinResponse, Error>>;
+  ): Promise<Result<SgtActivatePinResponse, SgtActivationError>>;
 
   /**
    * Realiza una transferencia (pago o devolución) contra el SGT

@@ -9,19 +9,28 @@ import { Result } from 'src/common/types/result.type';
 import {
   ISgtCardPort,
   SgtActivatePinResponse,
+  SgtActivationError,
   SgtTransferRequest,
   SgtTransferResponse,
 } from '../../domain/ports/sgt-card.port';
-import { ACTIVATION_CODES } from '../../domain/constants/activation-codes.constant';
+import { ACTIVATION_CODES, ActivationCode } from '../../domain/constants/activation-codes.constant';
 import { TRANSFER_CODES } from '../../domain/constants/transfer-codes.constant';
 import type { ISgtPinblockPort } from '../../domain/ports/sgt-pinblock.port';
 import { Iso4PinblockService } from '../services/iso4-pinblock.service';
 
 /** Transfer codes con los que responde el Issuer (TR003 = el SGT no llegó al Issuer) */
-const ISSUER_ANSWER_CODES: readonly string[] = [
+const ISSUER_TRANSFER_ANSWER_CODES: readonly string[] = [
   TRANSFER_CODES.TR000.code,
   TRANSFER_CODES.TR001.code,
   TRANSFER_CODES.TR002.code,
+];
+
+/** Activation codes con los que responde el Issuer (AP004 = el SGT no llegó al Issuer) */
+const ISSUER_ACTIVATION_ANSWER_CODES: readonly ActivationCode[] = [
+  ACTIVATION_CODES.AP000.code,
+  ACTIVATION_CODES.AP001.code,
+  ACTIVATION_CODES.AP002.code,
+  ACTIVATION_CODES.AP003.code,
 ];
 
 /**
@@ -57,20 +66,20 @@ export class SgtCardAdapter implements ISgtCardPort {
     tml: string,
     aut: string,
     token?: string,
-  ): Promise<Result<SgtActivatePinResponse, Error>> {
+  ): Promise<Result<SgtActivatePinResponse, SgtActivationError>> {
+    let request: { url: string; body: Record<string, string>; headers: Record<string, string> };
     try {
       // Step 1: Decode ISO-4 pinblock to extract the plain PIN
       const decodeResult = this.iso4PinblockService.decodeIso4Pinblock(pinblock, pan);
       if (decodeResult.isFailure) {
-        this.logger.error(`Failed to decode ISO-4 pinblock for cardId=${cardId}: ${decodeResult.getError().message}`);
-        return Result.fail<SgtActivatePinResponse>(decodeResult.getError());
+        return this.localActivationFailure(cardId, decodeResult.getError());
       }
       const plainPin = decodeResult.getValue();
 
       // Step 2: Encode and encrypt the plain PIN in SGT proprietary format
       const sgtPinblockResult = this.sgtPinblockPort.encodeAndEncrypt(plainPin);
       if (sgtPinblockResult.isFailure) {
-        return Result.fail<SgtActivatePinResponse>(sgtPinblockResult.getError());
+        return this.localActivationFailure(cardId, sgtPinblockResult.getError());
       }
       const encryptedPinblock = sgtPinblockResult.getValue();
 
@@ -105,41 +114,79 @@ export class SgtCardAdapter implements ISgtCardPort {
         'apiKey': apiKey,
       };
 
-      this.logger.log(`Calling SGT /activate-pin for cardId=${cardId}`);
-
-      const response = await this.httpService.post<SgtActivatePinResponse>(
-        `${baseUrl}/activate-pin`,
-        body,
-        { headers },
-      );
-
-      this.logger.log(
-        `SGT /activate-pin responded for cardId=${cardId}: ok=${response?.ok}, activationCode=${response?.data?.activationCode}`,
-      );
-
-      // AP002/AP003: el SGT responde ok=false pero el registro fue exitoso,
-      // el service necesita el activationCode y el token para persistir la tarjeta
-      const activationCode = response?.data?.activationCode;
-      const isPartialSuccess =
-        activationCode === ACTIVATION_CODES.AP002.code ||
-        activationCode === ACTIVATION_CODES.AP003.code;
-
-      if (!response?.ok && !isPartialSuccess) {
-        const sgtMessage = this.extractSgtMessage(response);
-        this.logger.warn(
-          `SGT /activate-pin rejected cardId=${cardId}: ${sgtMessage}`,
-        );
-        return Result.fail<SgtActivatePinResponse>(new Error(sgtMessage));
-      }
-
-      return Result.ok<SgtActivatePinResponse>(response);
-    } catch (error: any) {
-      const msg = this.extractSgtMessage(error);
-      this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`);
-      return Result.fail<SgtActivatePinResponse>(
-        error instanceof Error && error.message === msg ? error : new Error(msg),
+      request = { url: `${baseUrl}/activate-pin`, body, headers };
+    } catch (error: unknown) {
+      return this.localActivationFailure(
+        cardId,
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
+
+    this.logger.log(`Calling SGT /activate-pin for cardId=${cardId}`);
+
+    try {
+      const response: unknown = await this.httpService.post<SgtActivatePinResponse>(
+        request.url,
+        request.body,
+        { headers: request.headers },
+      );
+
+      if (this.isIssuerActivationAnswer(response)) {
+        return this.acceptIssuerActivationAnswer(cardId, response);
+      }
+
+      // Sin respuesta del Issuer (AP004, código desconocido o ausente) → fallo
+      return this.noIssuerActivationAnswer(cardId, response, this.extractSgtMessage(response));
+    } catch (error: any) {
+      // SGT puede responder con un estado HTTP no-2xx: si el cuerpo es una
+      // respuesta del Issuer, se trata igual que con HTTP 2xx.
+      const body: unknown = error?.response?.data;
+      const httpStatus: number | undefined = error?.response?.status ?? error?.status;
+      if (this.isIssuerActivationAnswer(body)) {
+        return this.acceptIssuerActivationAnswer(cardId, body, httpStatus);
+      }
+
+      return this.noIssuerActivationAnswer(cardId, body, this.extractSgtMessage(error), httpStatus);
+    }
+  }
+
+  /** Devuelve la respuesta del Issuer tal cual, para que el servicio de Cards actúe por su código */
+  private acceptIssuerActivationAnswer(
+    cardId: string,
+    answer: SgtActivatePinResponse,
+    httpStatus?: number,
+  ): Result<SgtActivatePinResponse, SgtActivationError> {
+    this.logger.log(
+      `SGT /activate-pin responded for cardId=${cardId}${httpStatus ? ` status=${httpStatus}` : ''}: ok=${answer.ok}, activationCode=${answer.data?.activationCode}, isoResponseCode=${answer.data?.isoResponseCode}`,
+    );
+    return Result.ok<SgtActivatePinResponse, SgtActivationError>(answer);
+  }
+
+  /** Sin respuesta del Issuer: se registran solo el código y el estado HTTP, nunca el texto del SGT */
+  private noIssuerActivationAnswer(
+    cardId: string,
+    body: unknown,
+    sgtMessage: string,
+    httpStatus?: number,
+  ): Result<SgtActivatePinResponse, SgtActivationError> {
+    const activationCode = (body as { data?: { activationCode?: unknown } } | undefined)?.data?.activationCode;
+    this.logger.warn(
+      `SGT /activate-pin gave no Issuer answer for cardId=${cardId}: activationCode=${activationCode} status=${httpStatus ?? 'none'}`,
+    );
+    return Result.fail<SgtActivatePinResponse, SgtActivationError>(
+      new SgtActivationError('NO_ISSUER_ANSWER', sgtMessage),
+    );
+  }
+
+  /** Fallo antes de llamar al SGT: no es una falta de respuesta del Issuer */
+  private localActivationFailure(
+    cardId: string,
+    error: Error,
+  ): Result<SgtActivatePinResponse, SgtActivationError> {
+    this.logger.error(`SGT /activate-pin not called for cardId=${cardId}: local failure`);
+    return Result.fail<SgtActivatePinResponse, SgtActivationError>(
+      new SgtActivationError('LOCAL_FAILURE', error.message),
+    );
   }
 
   /**
@@ -251,7 +298,17 @@ export class SgtCardAdapter implements ISgtCardPort {
    */
   private isIssuerAnswer(body: unknown): body is SgtTransferResponse {
     const transferCode = (body as SgtTransferResponse | undefined)?.data?.transferCode;
-    return ISSUER_ANSWER_CODES.includes(transferCode as string);
+    return ISSUER_TRANSFER_ANSWER_CODES.includes(transferCode as string);
+  }
+
+  /**
+   * Una respuesta del Issuer a la activación es un cuerpo cuyo activation code es AP000 a AP003,
+   * aunque traiga ok=false. AP004 (el SGT no pudo comunicarse con el Issuer), un código
+   * desconocido o ausente no son respuesta del Issuer.
+   */
+  private isIssuerActivationAnswer(body: unknown): body is SgtActivatePinResponse {
+    const activationCode: unknown = (body as { data?: { activationCode?: unknown } } | undefined)?.data?.activationCode;
+    return ISSUER_ACTIVATION_ANSWER_CODES.some((code) => code === activationCode);
   }
 
   /** Devuelve la respuesta del Issuer tal cual, para que la Settlement persista su código */

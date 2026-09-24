@@ -232,3 +232,140 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
     expect(result.getError().message).toBe('Error en los parámetros enviados');
   });
 });
+
+describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
+  let adapter: SgtCardAdapter;
+  let httpService: { post: jest.Mock };
+  let iso4PinblockService: { decodeIso4Pinblock: jest.Mock };
+  let missingConfigKey: string | undefined;
+
+  const activate = () =>
+    adapter.activatePin('card-1', '4539578763621486', 'iso4-pinblock', '85010112345', '00012345', '654321');
+
+  beforeEach(() => {
+    httpService = { post: jest.fn() };
+    missingConfigKey = undefined;
+
+    const configService = {
+      getOrThrow: jest.fn((key: string) => {
+        const values: Record<string, string> = {
+          SGT_URL: 'https://sgt.local',
+          SGT_HMAC_SECRET: 'secret',
+          SGT_CLIENT_ID: 'client-id',
+          SGT_API_KEY: 'api-key',
+        };
+        if (!(key in values) || key === missingConfigKey) throw new Error(`Unknown key: ${key}`);
+        return values[key];
+      }),
+    } as unknown as ConfigService;
+
+    iso4PinblockService = { decodeIso4Pinblock: jest.fn().mockReturnValue(Result.ok('1234')) };
+
+    adapter = new SgtCardAdapter(
+      httpService as unknown as HttpService,
+      configService,
+      { encodeAndEncrypt: jest.fn().mockReturnValue(Result.ok('sgt-pinblock')) } as unknown as ISgtPinblockPort,
+      iso4PinblockService as unknown as Iso4PinblockService,
+    );
+  });
+
+  it('fails as a local failure, without calling SGT, when the stored PIN block cannot be decoded', async () => {
+    iso4PinblockService.decodeIso4Pinblock.mockReturnValue(Result.fail(new Error('Pinblock must be 16 hex characters')));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'LOCAL_FAILURE' }));
+    expect(httpService.post).not.toHaveBeenCalled();
+  });
+
+  it('fails as a local failure, without calling SGT, when the SGT configuration is missing', async () => {
+    missingConfigKey = 'SGT_HMAC_SECRET';
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'LOCAL_FAILURE' }));
+    expect(httpService.post).not.toHaveBeenCalled();
+  });
+
+  it('returns an Issuer rejection (ok=false, AP001) as an answer carrying its activation code and ISO code', async () => {
+    const body = {
+      ok: false,
+      message: 'Registro rechazado por el emisor',
+      data: { activationCode: 'AP001', isoResponseCode: '14' },
+    };
+    httpService.post.mockResolvedValue(body);
+
+    const result = await activate();
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
+  it('recovers the Issuer rejection when SGT answers it with a non-2xx HTTP status', async () => {
+    const body = {
+      ok: false,
+      message: 'Registro rechazado por el emisor',
+      data: { activationCode: 'AP001', isoResponseCode: '14' },
+    };
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.UNPROCESSABLE_ENTITY, body));
+
+    const result = await activate();
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
+  it.each([
+    ['AP002', { ok: false, message: 'Registro exitoso, activación fallida', data: { activationCode: 'AP002', token: 'CARDTOKEN0001' } }],
+    ['AP003', { ok: false, message: 'Consulta de balance fallida', data: { activationCode: 'AP003', token: 'CARDTOKEN0001' } }],
+  ])('returns %s through a non-2xx HTTP status as an Issuer answer', async (_code, body) => {
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.UNPROCESSABLE_ENTITY, body));
+
+    const result = await activate();
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
+  it('fails on AP004: SGT could not reach the Issuer, so there is no Issuer answer', async () => {
+    const body = { ok: false, message: 'Error de comunicación', data: { activationCode: 'AP004' } };
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.GATEWAY_TIMEOUT, body));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'NO_ISSUER_ANSWER' }));
+  });
+
+  it('fails on an activation code that is not an Issuer answer code, e.g. a proxy error body', async () => {
+    const body = { ok: false, message: 'Bad Gateway', data: { activationCode: 'GW502' } };
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.BAD_GATEWAY, body));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails when SGT answers a non-2xx status without a body', async () => {
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.INTERNAL_SERVER_ERROR, undefined));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails when there is no Issuer answer (no response from SGT)', async () => {
+    // What HttpService throws when the request got no response (timeout, connection refused)
+    httpService.post.mockRejectedValue(
+      new HttpException('No se recibió respuesta del servidor', HttpStatus.REQUEST_TIMEOUT),
+    );
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError().message).toBe('No se recibió respuesta del servidor');
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'NO_ISSUER_ANSWER' }));
+  });
+});

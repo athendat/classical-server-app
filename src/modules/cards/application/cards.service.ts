@@ -20,8 +20,8 @@ import { CardStatusEnum } from '../domain/enums/card-status.enum';
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { buildMongoQuery } from 'src/common/helpers';
-import type { ISgtCardPort } from '../domain/ports/sgt-card.port';
-import { ACTIVATION_CODES } from '../domain/constants/activation-codes.constant';
+import type { ISgtCardPort, SgtActivatePinResponse } from '../domain/ports/sgt-card.port';
+import { ACTIVATION_CODES, ActivationCode } from '../domain/constants/activation-codes.constant';
 
 /**
  * Card Service - Application layer for card operations
@@ -132,7 +132,7 @@ export class CardsService {
         const sgtError = sgtResult.getError();
 
         this.logger.warn(
-          `[${requestId}] SGT rejected card ${cardId}: ${sgtError.message}`,
+          `[${requestId}] SGT activation failed for card ${cardId}: kind=${sgtError.kind}`,
         );
 
         this.auditService.logError(
@@ -150,10 +150,20 @@ export class CardsService {
 
         await this.rollbackVaultSecrets(cardId, requestId, userId);
 
+        // Fallo local antes de llamar al SGT: error interno
+        if (sgtError.kind === 'LOCAL_FAILURE') {
+          return ApiResponse.fail<CardResponseDto>(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            'Error interno del servidor',
+            'La tarjeta no pudo ser registrada',
+          );
+        }
+
+        // Sin respuesta del Issuer: el fallo no es del cliente
         return ApiResponse.fail<CardResponseDto>(
-          HttpStatus.BAD_REQUEST,
-          sgtError.message,
-          'La tarjeta no pudo ser registrada',
+          HttpStatus.BAD_GATEWAY,
+          ACTIVATION_CODES.AP004.message,
+          ACTIVATION_CODES.AP004.description,
         );
       }
 
@@ -167,22 +177,12 @@ export class CardsService {
       // AP001: Registro rechazado por el emisor
       if (activationCode === ACTIVATION_CODES.AP001.code) {
         this.logger.warn(`[${requestId}] SGT registration rejected for card ${cardId}`);
+        this.auditIssuerRejection('SGT_ACTIVATE_PIN_REJECTED', cardId, userId, activationCode, sgtResponse);
         await this.rollbackVaultSecrets(cardId, requestId, userId);
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_REQUEST,
           ACTIVATION_CODES.AP001.message,
           ACTIVATION_CODES.AP001.description,
-        );
-      }
-
-      // AP004: Error de comunicación con el emisor
-      if (activationCode === ACTIVATION_CODES.AP004.code) {
-        this.logger.error(`[${requestId}] SGT communication error for card ${cardId}`);
-        await this.rollbackVaultSecrets(cardId, requestId, userId);
-        return ApiResponse.fail<CardResponseDto>(
-          HttpStatus.BAD_GATEWAY,
-          ACTIVATION_CODES.AP004.message,
-          ACTIVATION_CODES.AP004.description,
         );
       }
 
@@ -646,7 +646,7 @@ export class CardsService {
         const sgtError = sgtResult.getError();
 
         this.logger.warn(
-          `[${requestId}] SGT retry activation failed for card ${cardId}: ${sgtError.message}`,
+          `[${requestId}] SGT retry activation failed for card ${cardId}: kind=${sgtError.kind}`,
         );
 
         this.auditService.logError(
@@ -662,10 +662,20 @@ export class CardsService {
           },
         );
 
+        // Fallo local antes de llamar al SGT: error interno
+        if (sgtError.kind === 'LOCAL_FAILURE') {
+          return ApiResponse.fail<CardResponseDto>(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            'Error interno del servidor',
+            'La activación no pudo completarse',
+          );
+        }
+
+        // Sin respuesta del Issuer: el fallo no es del cliente
         return ApiResponse.fail<CardResponseDto>(
-          HttpStatus.BAD_REQUEST,
-          sgtError.message,
-          'La activación no pudo completarse',
+          HttpStatus.BAD_GATEWAY,
+          ACTIVATION_CODES.AP004.message,
+          ACTIVATION_CODES.AP004.description,
         );
       }
 
@@ -679,20 +689,11 @@ export class CardsService {
       // AP001: Registro rechazado por el emisor
       if (activationCode === ACTIVATION_CODES.AP001.code) {
         this.logger.warn(`[${requestId}] SGT retry rejected for card ${cardId}`);
+        this.auditIssuerRejection('SGT_RETRY_ACTIVATE_PIN_REJECTED', cardId, userId, activationCode, sgtResponse);
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_REQUEST,
           ACTIVATION_CODES.AP001.message,
           ACTIVATION_CODES.AP001.description,
-        );
-      }
-
-      // AP004: Error de comunicación con el emisor
-      if (activationCode === ACTIVATION_CODES.AP004.code) {
-        this.logger.error(`[${requestId}] SGT communication error on retry for card ${cardId}`);
-        return ApiResponse.fail<CardResponseDto>(
-          HttpStatus.BAD_GATEWAY,
-          ACTIVATION_CODES.AP004.message,
-          ACTIVATION_CODES.AP004.description,
         );
       }
 
@@ -776,6 +777,36 @@ export class CardsService {
         'Error desconocido',
       );
     }
+  }
+
+  /** Audita un rechazo del Issuer con su activation code, su código ISO y el texto del SGT */
+  private auditIssuerRejection(
+    action: 'SGT_ACTIVATE_PIN_REJECTED' | 'SGT_RETRY_ACTIVATE_PIN_REJECTED',
+    cardId: string,
+    userId: string,
+    activationCode: ActivationCode,
+    sgtResponse: SgtActivatePinResponse,
+  ): void {
+    this.auditService.logError(
+      action,
+      'card',
+      cardId,
+      { code: activationCode, message: sgtResponse.message },
+      {
+        module: 'cards',
+        severity: 'HIGH',
+        tags: ['card', 'sgt', 'issuer-rejection'],
+        actorId: userId,
+        changes: {
+          after: {
+            sgt: {
+              activationCode,
+              isoResponseCode: sgtResponse.data?.isoResponseCode,
+            },
+          },
+        },
+      },
+    );
   }
 
   private async rollbackVaultSecrets(

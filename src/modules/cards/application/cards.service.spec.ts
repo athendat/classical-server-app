@@ -46,6 +46,7 @@ import { UsersRepository } from 'src/modules/users/infrastructure/adapters';
 
 import { CardsService } from './cards.service';
 import { CreateCardDto } from '../dto/create-card.dto';
+import { SgtActivationError } from '../domain/ports/sgt-card.port';
 import { CardStatusEnum, CardTypeEnum } from '../domain/enums';
 import { CardsRepository } from '../infrastructure/adapters/card.repository';
 import { CardVaultAdapter } from '../infrastructure/adapters/card-vault.adapter';
@@ -92,6 +93,8 @@ describe('CardsService', () => {
           useValue: {
             findByUserId: jest.fn().mockResolvedValue([]),
             create: jest.fn(),
+            findById: jest.fn(),
+            update: jest.fn(),
           },
         },
         {
@@ -99,6 +102,8 @@ describe('CardsService', () => {
           useValue: {
             savePanAndPinblock: jest.fn().mockResolvedValue(Result.ok()),
             deletePanAndPinblock: jest.fn().mockResolvedValue(Result.ok()),
+            getPan: jest.fn().mockResolvedValue(Result.ok('4242424242424242')),
+            getPinblock: jest.fn().mockResolvedValue(Result.ok('pinblock')),
           },
         },
         {
@@ -133,16 +138,18 @@ describe('CardsService', () => {
     jest.clearAllMocks();
   });
 
-  it('debe rechazar el registro y no persistir la tarjeta cuando SGT responde error', async () => {
+  it('answers 502 with the AP004 message, rolls Vault back and saves no Card when the Issuer gives no answer', async () => {
     sgtCardPort.activatePin.mockResolvedValue(
-      Result.fail(new Error('Error en los parámetros enviados')),
+      Result.fail(new SgtActivationError('NO_ISSUER_ANSWER', 'No se recibió respuesta del servidor')),
     );
 
     const response = await service.registerCard(createCardDto);
 
     expect(response.ok).toBe(false);
-    expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-    expect(response.errors).toBe('Error en los parámetros enviados');
+    expect(response.statusCode).toBe(HttpStatus.BAD_GATEWAY);
+    expect(response.errors).toBe('Error de comunicación');
+    expect(response.message).toBe('No se pudo establecer comunicación con el emisor');
+    expect(JSON.stringify(response)).not.toContain('No se recibió respuesta');
     expect(cardsRepository.create).not.toHaveBeenCalled();
     expect(cardVaultAdapter.deletePanAndPinblock).toHaveBeenCalledTimes(1);
     expect(auditService.logError).toHaveBeenCalledWith(
@@ -184,5 +191,127 @@ describe('CardsService', () => {
       }),
     );
     expect(cardVaultAdapter.deletePanAndPinblock).not.toHaveBeenCalled();
+  });
+
+  it('answers 500 with a generic message and rolls Vault back when activation fails before reaching SGT', async () => {
+    sgtCardPort.activatePin.mockResolvedValue(
+      Result.fail(new SgtActivationError('LOCAL_FAILURE', 'Pinblock must be 16 hex characters')),
+    );
+
+    const response = await service.registerCard(createCardDto);
+
+    expect(response.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(response.errors).toBe('Error interno del servidor');
+    expect(response.message).toBe('La tarjeta no pudo ser registrada');
+    expect(JSON.stringify(response)).not.toContain('Pinblock');
+    expect(cardsRepository.create).not.toHaveBeenCalled();
+    expect(cardVaultAdapter.deletePanAndPinblock).toHaveBeenCalledWith('card-123');
+  });
+
+  it("answers an Issuer rejection (AP001) with the controlled message, rolls Vault back and audits the Issuer's codes", async () => {
+    sgtCardPort.activatePin.mockResolvedValue(
+      Result.ok({
+        ok: false,
+        message: 'Registro rechazado por el emisor: datos inválidos',
+        data: { activationCode: 'AP001', isoResponseCode: '14' },
+      }),
+    );
+
+    const response = await service.registerCard(createCardDto);
+
+    expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+    expect(response.errors).toBe('Registro rechazado');
+    expect(response.message).toBe('El emisor rechazó el registro de la tarjeta');
+    expect(JSON.stringify(response)).not.toContain('datos inválidos');
+    expect(cardsRepository.create).not.toHaveBeenCalled();
+    expect(cardVaultAdapter.deletePanAndPinblock).toHaveBeenCalledWith('card-123');
+    expect(auditService.logError).toHaveBeenCalledWith(
+      'SGT_ACTIVATE_PIN_REJECTED',
+      'card',
+      'card-123',
+      { code: 'AP001', message: 'Registro rechazado por el emisor: datos inválidos' },
+      expect.objectContaining({
+        module: 'cards',
+        actorId: 'user-123',
+        changes: { after: { sgt: { activationCode: 'AP001', isoResponseCode: '14' } } },
+      }),
+    );
+  });
+
+  describe('retryActivation of a REGISTERED Card', () => {
+    beforeEach(() => {
+      cardsRepository.findById.mockResolvedValue({
+        id: 'card-123',
+        userId: 'user-123',
+        status: CardStatusEnum.REGISTERED,
+        tml: '00012345',
+        aut: '654321',
+        token: 'CARDTOKEN0001',
+      } as any);
+    });
+
+    it("answers an Issuer rejection (AP001) with the controlled message and audits the Issuer's codes", async () => {
+      sgtCardPort.activatePin.mockResolvedValue(
+        Result.ok({
+          ok: false,
+          message: 'Activación rechazada por el emisor: PIN inválido',
+          data: { activationCode: 'AP001', isoResponseCode: '55' },
+        }),
+      );
+
+      const response = await service.retryActivation('card-123');
+
+      expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(response.errors).toBe('Registro rechazado');
+      expect(response.message).toBe('El emisor rechazó el registro de la tarjeta');
+      expect(JSON.stringify(response)).not.toContain('PIN inválido');
+      expect(cardsRepository.update).not.toHaveBeenCalled();
+      expect(auditService.logError).toHaveBeenCalledWith(
+        'SGT_RETRY_ACTIVATE_PIN_REJECTED',
+        'card',
+        'card-123',
+        { code: 'AP001', message: 'Activación rechazada por el emisor: PIN inválido' },
+        expect.objectContaining({
+          module: 'cards',
+          actorId: 'user-123',
+          changes: { after: { sgt: { activationCode: 'AP001', isoResponseCode: '55' } } },
+        }),
+      );
+    });
+
+    it('answers 500 with a generic message and keeps the Card REGISTERED when activation fails before reaching SGT', async () => {
+      sgtCardPort.activatePin.mockResolvedValue(
+        Result.fail(new SgtActivationError('LOCAL_FAILURE', 'Pinblock must be 16 hex characters')),
+      );
+
+      const response = await service.retryActivation('card-123');
+
+      expect(response.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.errors).toBe('Error interno del servidor');
+      expect(response.message).toBe('La activación no pudo completarse');
+      expect(JSON.stringify(response)).not.toContain('Pinblock');
+      expect(cardsRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('answers 502 with the AP004 message and keeps the Card REGISTERED when the Issuer gives no answer', async () => {
+      sgtCardPort.activatePin.mockResolvedValue(
+        Result.fail(new SgtActivationError('NO_ISSUER_ANSWER', 'No se recibió respuesta del servidor')),
+      );
+
+      const response = await service.retryActivation('card-123');
+
+      expect(response.statusCode).toBe(HttpStatus.BAD_GATEWAY);
+      expect(response.errors).toBe('Error de comunicación');
+      expect(response.message).toBe('No se pudo establecer comunicación con el emisor');
+      expect(JSON.stringify(response)).not.toContain('No se recibió respuesta');
+      expect(cardsRepository.update).not.toHaveBeenCalled();
+      expect(auditService.logError).toHaveBeenCalledWith(
+        'SGT_RETRY_ACTIVATE_PIN_FAILED',
+        'card',
+        'card-123',
+        expect.objectContaining({ message: 'No se recibió respuesta del servidor' }),
+        expect.objectContaining({ module: 'cards', actorId: 'user-123' }),
+      );
+    });
   });
 });
