@@ -277,4 +277,56 @@ describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.getValue()).toEqual(body);
   });
+
+  it('recovers the Issuer rejection when SGT answers it with a non-2xx HTTP status', async () => {
+    const body = {
+      ok: false,
+      message: 'Registro rechazado por el emisor',
+      data: { activationCode: 'AP001', isoResponseCode: '14' },
+    };
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.UNPROCESSABLE_ENTITY, body));
+
+    const result = await activate();
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+
+  it('fails on AP004: SGT could not reach the Issuer, so there is no Issuer answer', async () => {
+    const body = { ok: false, message: 'Error de comunicación', data: { activationCode: 'AP004' } };
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.GATEWAY_TIMEOUT, body));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails on an activation code that is not an Issuer answer code, e.g. a proxy error body', async () => {
+    const body = { ok: false, message: 'Bad Gateway', data: { activationCode: 'GW502' } };
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.BAD_GATEWAY, body));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails when SGT answers a non-2xx status without a body', async () => {
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.INTERNAL_SERVER_ERROR, undefined));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+  });
+
+  it('fails when there is no Issuer answer (no response from SGT)', async () => {
+    // What HttpService throws when the request got no response (timeout, connection refused)
+    httpService.post.mockRejectedValue(
+      new HttpException('No se recibió respuesta del servidor', HttpStatus.REQUEST_TIMEOUT),
+    );
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError().message).toBe('No se recibió respuesta del servidor');
+  });
 });

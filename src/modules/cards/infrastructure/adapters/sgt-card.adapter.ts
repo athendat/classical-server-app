@@ -137,6 +137,16 @@ export class SgtCardAdapter implements ISgtCardPort {
       );
       return Result.fail<SgtActivatePinResponse>(new Error(sgtMessage));
     } catch (error: any) {
+      // SGT puede responder con un estado HTTP no-2xx: si el cuerpo es una
+      // respuesta del Issuer, se trata igual que con HTTP 2xx.
+      const answer: unknown = error?.response?.data;
+      if (this.isIssuerActivationAnswer(answer)) {
+        this.logger.log(
+          `SGT /activate-pin responded for cardId=${cardId}: status=${error?.response?.status} ok=${answer.ok}, activationCode=${answer.data?.activationCode}`,
+        );
+        return Result.ok<SgtActivatePinResponse>(answer);
+      }
+
       const msg = this.extractSgtMessage(error);
       this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`);
       return Result.fail<SgtActivatePinResponse>(
