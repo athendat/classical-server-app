@@ -20,7 +20,7 @@ import { CardStatusEnum } from '../domain/enums/card-status.enum';
 import { ApiResponse } from 'src/common/types/api-response.type';
 import { PaginationMeta, QueryParams } from 'src/common/types';
 import { buildMongoQuery } from 'src/common/helpers';
-import type { ISgtCardPort } from '../domain/ports/sgt-card.port';
+import type { ISgtCardPort, SgtActivatePinResponse } from '../domain/ports/sgt-card.port';
 import { ACTIVATION_CODES } from '../domain/constants/activation-codes.constant';
 
 /**
@@ -167,6 +167,7 @@ export class CardsService {
       // AP001: Registro rechazado por el emisor
       if (activationCode === ACTIVATION_CODES.AP001.code) {
         this.logger.warn(`[${requestId}] SGT registration rejected for card ${cardId}`);
+        this.auditIssuerRejection('SGT_ACTIVATE_PIN_REJECTED', cardId, userId, sgtResponse);
         await this.rollbackVaultSecrets(cardId, requestId, userId);
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_REQUEST,
@@ -776,6 +777,35 @@ export class CardsService {
         'Error desconocido',
       );
     }
+  }
+
+  /** Audita un rechazo del Issuer con su activation code, su código ISO y el texto del SGT */
+  private auditIssuerRejection(
+    action: string,
+    cardId: string,
+    userId: string,
+    sgtResponse: SgtActivatePinResponse,
+  ): void {
+    this.auditService.logError(
+      action,
+      'card',
+      cardId,
+      { code: sgtResponse.data!.activationCode, message: sgtResponse.message },
+      {
+        module: 'cards',
+        severity: 'HIGH',
+        tags: ['card', 'sgt', 'issuer-rejection'],
+        actorId: userId,
+        changes: {
+          after: {
+            sgt: {
+              activationCode: sgtResponse.data?.activationCode,
+              isoResponseCode: sgtResponse.data?.isoResponseCode,
+            },
+          },
+        },
+      },
+    );
   }
 
   private async rollbackVaultSecrets(

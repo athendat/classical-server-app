@@ -185,4 +185,34 @@ describe('CardsService', () => {
     );
     expect(cardVaultAdapter.deletePanAndPinblock).not.toHaveBeenCalled();
   });
+
+  it("answers an Issuer rejection (AP001) with the controlled message, rolls Vault back and audits the Issuer's codes", async () => {
+    sgtCardPort.activatePin.mockResolvedValue(
+      Result.ok({
+        ok: false,
+        message: 'Registro rechazado por el emisor: datos inválidos',
+        data: { activationCode: 'AP001', isoResponseCode: '14' },
+      }),
+    );
+
+    const response = await service.registerCard(createCardDto);
+
+    expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+    expect(response.errors).toBe('Registro rechazado');
+    expect(response.message).toBe('El emisor rechazó el registro de la tarjeta');
+    expect(JSON.stringify(response)).not.toContain('datos inválidos');
+    expect(cardsRepository.create).not.toHaveBeenCalled();
+    expect(cardVaultAdapter.deletePanAndPinblock).toHaveBeenCalledWith('card-123');
+    expect(auditService.logError).toHaveBeenCalledWith(
+      'SGT_ACTIVATE_PIN_REJECTED',
+      'card',
+      'card-123',
+      { code: 'AP001', message: 'Registro rechazado por el emisor: datos inválidos' },
+      expect.objectContaining({
+        module: 'cards',
+        actorId: 'user-123',
+        changes: { after: { sgt: { activationCode: 'AP001', isoResponseCode: '14' } } },
+      }),
+    );
+  });
 });
