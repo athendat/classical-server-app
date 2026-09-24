@@ -41,7 +41,8 @@ export class CacheService implements ICacheService {
    * @returns una Promesa que se resuelve en void.
    */
   async set<T>(key: string, value: T, ttl: number = this.ttl): Promise<void> {
-    console.log(`Setting cache key: ${this.rootKey}:${key} with value: ${JSON.stringify(value)} and TTL: ${ttl} seconds`);
+    // Nunca el valor: puede ser una sesión, un código o un secreto (ADR-0012)
+    this.logger.log(`Setting cache key: ${this.rootKey}:${key} with TTL: ${ttl} seconds`);
     // Set key on cache. if ttl is equal to 0, the key will never expire
     // Convertir ttl de segundos a millisegundos
     const ttlInMilliseconds = ttl === 0 ? 0 : ttl * 1000;
