@@ -1,4 +1,5 @@
 import { Result } from 'src/common/types/result.type';
+import type { ActivationCode } from '../constants/activation-codes.constant';
 
 /**
  * Datos internos de la respuesta de activación de PIN del SGT
@@ -9,7 +10,7 @@ export interface SgtActivatePinData {
    * AP003=activada/balance fallido, AP004=error comunicación.
    * Solo AP000 a AP003 son respuesta del Issuer; `activatePin()` devuelve AP004 como `Result.fail`.
    */
-  activationCode: string;
+  activationCode: ActivationCode;
   isoResponseCode?: string;
   token?: string;
   balance?: string;
