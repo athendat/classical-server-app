@@ -5,6 +5,7 @@ import { HttpStatus } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AsyncContextService } from '../../../common/context/async-context.service';
+import { maskPan } from 'src/common/helpers/mask-secret';
 import { AuditService } from 'src/modules/audit/application/audit.service';
 import { TenantVaultService } from '../infrastructure/services/tenant-vault.service';
 
@@ -546,9 +547,11 @@ export class TenantsService {
         updateData.email = dto.email.toLowerCase();
       }
 
-      // Preparar cambios
+      // Preparar cambios (para la auditoría: el PAN del Tenant solo enmascarado, ADR-0012)
       const changes = Object.fromEntries(
-        Object.entries(dto).filter(([, v]) => v !== undefined),
+        Object.entries(dto)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => (k === 'pan' ? [k, maskPan(v as string)] : [k, v])),
       );
 
       // Actualizar en BD
