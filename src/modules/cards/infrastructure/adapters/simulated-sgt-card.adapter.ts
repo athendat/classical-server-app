@@ -6,6 +6,7 @@ import { Result } from 'src/common/types/result.type';
 import {
   ISgtCardPort,
   SgtActivatePinResponse,
+  SgtActivationError,
   SgtTransferRequest,
   SgtTransferResponse,
 } from '../../domain/ports/sgt-card.port';
@@ -69,12 +70,12 @@ export class SimulatedSgtCardAdapter implements ISgtCardPort {
     _tml: string,
     _aut: string,
     _cardToken?: string,
-  ): Promise<Result<SgtActivatePinResponse, Error>> {
+  ): Promise<Result<SgtActivatePinResponse, SgtActivationError>> {
     const cardToken = this.cardTokenFor(cardId);
     const balanceMinor = this.balanceOf(cardToken);
     this.logger.log(`[SIMULATED SGT] activate-pin cardId=${cardId} → ${ACTIVATION_CODES.AP000.code}`);
 
-    return Result.ok<SgtActivatePinResponse>({
+    return Result.ok<SgtActivatePinResponse, SgtActivationError>({
       ok: true,
       message: ACTIVATION_CODES.AP000.message,
       data: {

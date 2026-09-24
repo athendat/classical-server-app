@@ -9,6 +9,7 @@ import { Result } from 'src/common/types/result.type';
 import {
   ISgtCardPort,
   SgtActivatePinResponse,
+  SgtActivationError,
   SgtTransferRequest,
   SgtTransferResponse,
 } from '../../domain/ports/sgt-card.port';
@@ -65,20 +66,20 @@ export class SgtCardAdapter implements ISgtCardPort {
     tml: string,
     aut: string,
     token?: string,
-  ): Promise<Result<SgtActivatePinResponse, Error>> {
+  ): Promise<Result<SgtActivatePinResponse, SgtActivationError>> {
+    let request: { url: string; body: Record<string, string>; headers: Record<string, string> };
     try {
       // Step 1: Decode ISO-4 pinblock to extract the plain PIN
       const decodeResult = this.iso4PinblockService.decodeIso4Pinblock(pinblock, pan);
       if (decodeResult.isFailure) {
-        this.logger.error(`Failed to decode ISO-4 pinblock for cardId=${cardId}: ${decodeResult.getError().message}`);
-        return Result.fail<SgtActivatePinResponse>(decodeResult.getError());
+        return this.localActivationFailure(cardId, decodeResult.getError());
       }
       const plainPin = decodeResult.getValue();
 
       // Step 2: Encode and encrypt the plain PIN in SGT proprietary format
       const sgtPinblockResult = this.sgtPinblockPort.encodeAndEncrypt(plainPin);
       if (sgtPinblockResult.isFailure) {
-        return Result.fail<SgtActivatePinResponse>(sgtPinblockResult.getError());
+        return this.localActivationFailure(cardId, sgtPinblockResult.getError());
       }
       const encryptedPinblock = sgtPinblockResult.getValue();
 
@@ -113,12 +114,21 @@ export class SgtCardAdapter implements ISgtCardPort {
         'apiKey': apiKey,
       };
 
-      this.logger.log(`Calling SGT /activate-pin for cardId=${cardId}`);
+      request = { url: `${baseUrl}/activate-pin`, body, headers };
+    } catch (error: unknown) {
+      return this.localActivationFailure(
+        cardId,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+    }
 
+    this.logger.log(`Calling SGT /activate-pin for cardId=${cardId}`);
+
+    try {
       const response: unknown = await this.httpService.post<SgtActivatePinResponse>(
-        `${baseUrl}/activate-pin`,
-        body,
-        { headers },
+        request.url,
+        request.body,
+        { headers: request.headers },
       );
       const activationCode = (response as SgtActivatePinResponse | undefined)?.data?.activationCode;
 
@@ -127,15 +137,16 @@ export class SgtCardAdapter implements ISgtCardPort {
       );
 
       if (this.isIssuerActivationAnswer(response)) {
-        return Result.ok<SgtActivatePinResponse>(response);
+        return Result.ok<SgtActivatePinResponse, SgtActivationError>(response);
       }
 
       // Sin respuesta del Issuer (AP004, código desconocido o ausente) → fallo
-      const sgtMessage = this.extractSgtMessage(response);
       this.logger.warn(
         `SGT /activate-pin gave no Issuer answer for cardId=${cardId}: activationCode=${activationCode}`,
       );
-      return Result.fail<SgtActivatePinResponse>(new Error(sgtMessage));
+      return Result.fail<SgtActivatePinResponse, SgtActivationError>(
+        new SgtActivationError('NO_ISSUER_ANSWER', this.extractSgtMessage(response)),
+      );
     } catch (error: any) {
       // SGT puede responder con un estado HTTP no-2xx: si el cuerpo es una
       // respuesta del Issuer, se trata igual que con HTTP 2xx.
@@ -144,15 +155,26 @@ export class SgtCardAdapter implements ISgtCardPort {
         this.logger.log(
           `SGT /activate-pin responded for cardId=${cardId}: status=${error?.response?.status} ok=${answer.ok}, activationCode=${answer.data?.activationCode}`,
         );
-        return Result.ok<SgtActivatePinResponse>(answer);
+        return Result.ok<SgtActivatePinResponse, SgtActivationError>(answer);
       }
 
       const msg = this.extractSgtMessage(error);
       this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`);
-      return Result.fail<SgtActivatePinResponse>(
-        error instanceof Error && error.message === msg ? error : new Error(msg),
+      return Result.fail<SgtActivatePinResponse, SgtActivationError>(
+        new SgtActivationError('NO_ISSUER_ANSWER', msg),
       );
     }
+  }
+
+  /** Fallo antes de llamar al SGT: no es una falta de respuesta del Issuer */
+  private localActivationFailure(
+    cardId: string,
+    error: Error,
+  ): Result<SgtActivatePinResponse, SgtActivationError> {
+    this.logger.error(`SGT /activate-pin not called for cardId=${cardId}: local failure`);
+    return Result.fail<SgtActivatePinResponse, SgtActivationError>(
+      new SgtActivationError('LOCAL_FAILURE', error.message),
+    );
   }
 
   /**

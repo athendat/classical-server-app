@@ -236,12 +236,15 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
 describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
   let adapter: SgtCardAdapter;
   let httpService: { post: jest.Mock };
+  let iso4PinblockService: { decodeIso4Pinblock: jest.Mock };
+  let missingConfigKey: string | undefined;
 
   const activate = () =>
     adapter.activatePin('card-1', '4539578763621486', 'iso4-pinblock', '85010112345', '00012345', '654321');
 
   beforeEach(() => {
     httpService = { post: jest.fn() };
+    missingConfigKey = undefined;
 
     const configService = {
       getOrThrow: jest.fn((key: string) => {
@@ -251,17 +254,39 @@ describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
           SGT_CLIENT_ID: 'client-id',
           SGT_API_KEY: 'api-key',
         };
-        if (!(key in values)) throw new Error(`Unknown key: ${key}`);
+        if (!(key in values) || key === missingConfigKey) throw new Error(`Unknown key: ${key}`);
         return values[key];
       }),
     } as unknown as ConfigService;
+
+    iso4PinblockService = { decodeIso4Pinblock: jest.fn().mockReturnValue(Result.ok('1234')) };
 
     adapter = new SgtCardAdapter(
       httpService as unknown as HttpService,
       configService,
       { encodeAndEncrypt: jest.fn().mockReturnValue(Result.ok('sgt-pinblock')) } as unknown as ISgtPinblockPort,
-      { decodeIso4Pinblock: jest.fn().mockReturnValue(Result.ok('1234')) } as unknown as Iso4PinblockService,
+      iso4PinblockService as unknown as Iso4PinblockService,
     );
+  });
+
+  it('fails as a local failure, without calling SGT, when the stored PIN block cannot be decoded', async () => {
+    iso4PinblockService.decodeIso4Pinblock.mockReturnValue(Result.fail(new Error('Pinblock must be 16 hex characters')));
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'LOCAL_FAILURE' }));
+    expect(httpService.post).not.toHaveBeenCalled();
+  });
+
+  it('fails as a local failure, without calling SGT, when the SGT configuration is missing', async () => {
+    missingConfigKey = 'SGT_HMAC_SECRET';
+
+    const result = await activate();
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'LOCAL_FAILURE' }));
+    expect(httpService.post).not.toHaveBeenCalled();
   });
 
   it('returns an Issuer rejection (ok=false, AP001) as an answer carrying its activation code and ISO code', async () => {
@@ -299,6 +324,7 @@ describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
     const result = await activate();
 
     expect(result.isFailure).toBe(true);
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'NO_ISSUER_ANSWER' }));
   });
 
   it('fails on an activation code that is not an Issuer answer code, e.g. a proxy error body', async () => {
@@ -328,5 +354,6 @@ describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.getError().message).toBe('No se recibió respuesta del servidor');
+    expect(result.getError()).toEqual(expect.objectContaining({ kind: 'NO_ISSUER_ANSWER' }));
   });
 });
