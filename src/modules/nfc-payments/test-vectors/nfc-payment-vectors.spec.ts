@@ -17,7 +17,7 @@ import {
 } from './nfc-payment-vectors.tool';
 
 const VECTORS_PATH = path.join(__dirname, 'nfc-payment-vectors.json');
-// Read before any test runs, so the last test can prove the suite wrote nothing.
+// Read before any test runs, so afterAll can prove the suite wrote nothing.
 const VERSIONED_VECTORS = fs.readFileSync(VECTORS_PATH, 'utf-8');
 
 const versionedVectors = (): NfcPaymentVectors =>
@@ -119,7 +119,9 @@ describe('NFC Payment Test Vectors', () => {
     }
   });
 
-  it('leaves the versioned vectors file unchanged', () => {
+  // Runs after every test, whatever their order or -t filter: the suite must
+  // leave the versioned vectors file byte-identical.
+  afterAll(() => {
     expect(fs.readFileSync(VECTORS_PATH, 'utf-8')).toBe(VERSIONED_VECTORS);
   });
 });
