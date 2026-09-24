@@ -130,8 +130,12 @@ export class HttpService {
         error.response.data || 'Error en la solicitud HTTP',
         error.response.status,
       );
-      // Adjuntar el objeto de respuesta de Axios para que esté disponible en los consumidores
-      (httpException as any).response = error.response;
+      // Adjuntar solo estado y cuerpo de la respuesta para los consumidores: la respuesta de
+      // Axios completa lleva la solicitud (config.data, cabeceras con credenciales)
+      (httpException as any).response = {
+        status: error.response.status,
+        data: error.response.data,
+      };
       throw httpException;
     } else if (error.request) {
       // La solicitud se hizo pero no se recibió respuesta
