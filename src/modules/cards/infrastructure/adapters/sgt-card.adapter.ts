@@ -223,7 +223,7 @@ export class SgtCardAdapter implements ISgtCardPort {
       // Sin respuesta del Issuer (TR003, código desconocido o ausente) → fallo
       const sgtMessage = this.extractSgtMessage(response);
       this.logger.warn(
-        `[SGT /transfer] ✗ NO ISSUER ANSWER ref=${request.clientReference}: ${sgtMessage} body=${JSON.stringify(response)}`,
+        `[SGT /transfer] ✗ NO ISSUER ANSWER ref=${request.clientReference}: ${sgtMessage} transferCode=${(response as SgtTransferResponse | undefined)?.data?.transferCode}`,
       );
       return Result.fail<SgtTransferResponse>(new Error(sgtMessage));
     } catch (error: any) {
@@ -236,8 +236,7 @@ export class SgtCardAdapter implements ISgtCardPort {
 
       const msg = this.extractSgtMessage(error);
       this.logger.error(
-        `[SGT /transfer] ✗ ERROR ref=${request.clientReference}: ${msg} raw=${JSON.stringify(error?.response?.data ?? error?.message ?? error)}`,
-        error,
+        `[SGT /transfer] ✗ ERROR ref=${request.clientReference}: ${msg} status=${error?.response?.status ?? error?.status ?? 'none'}`,
       );
       return Result.fail<SgtTransferResponse>(
         error instanceof Error && error.message === msg ? error : new Error(msg),
@@ -261,7 +260,7 @@ export class SgtCardAdapter implements ISgtCardPort {
     answer: SgtTransferResponse,
     httpStatus?: number,
   ): Result<SgtTransferResponse, Error> {
-    const line = `[SGT /transfer] ← RESPONSE ref=${request.clientReference}${httpStatus ? ` status=${httpStatus}` : ''} ok=${answer.ok} data=${JSON.stringify(answer.data)}`;
+    const line = `[SGT /transfer] ← RESPONSE ref=${request.clientReference}${httpStatus ? ` status=${httpStatus}` : ''} ok=${answer.ok} transferCode=${answer.data?.transferCode} isoResponseCode=${answer.data?.isoResponseCode}`;
     if (answer.data?.transferCode === TRANSFER_CODES.TR001.code) {
       this.logger.warn(`${line} ✗ REJECTED by Issuer`);
     } else {

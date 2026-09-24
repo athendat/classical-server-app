@@ -2,7 +2,8 @@ import { HttpService as AxiosHttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test } from '@nestjs/testing';
-import { of } from 'rxjs';
+import { AxiosError, AxiosHeaders } from 'axios';
+import { of, throwError } from 'rxjs';
 
 import { INJECTION_TOKENS } from 'src/common/constants/injection-tokens';
 import { HttpService } from 'src/common/http/http.service';
@@ -163,6 +164,30 @@ describe('Settlement writes no Card or Tenant secret to the logs', () => {
       expect.objectContaining({ token: CARD_TOKEN, beneficiaryAccount: TENANT_PAN, idNumber: ID_NUMBER }),
     );
     expect(sgtBody.pin).toMatch(/^[0-9A-F]{32}$/);
+
+    const logText = logs.text(auditService.logAllow.mock.calls, auditService.logError.mock.calls);
+    expect(findLeakedSecrets(logText, secretsSentTo(sgtBody))).toEqual([]);
+  });
+
+  it('a Settlement whose SGT error body echoes the request logs none of its secrets either', async () => {
+    axios.post.mockImplementation((url: string, body: unknown, { headers }: { headers: Record<string, string> }) => {
+      const config = { url, method: 'post', data: JSON.stringify(body), headers: new AxiosHeaders(headers) };
+      return throwError(
+        () =>
+          new AxiosError('Request failed with status code 502', 'ERR_BAD_RESPONSE', config, {}, {
+            status: 502,
+            statusText: 'Bad Gateway',
+            data: { ok: false, message: 'Error de comunicación', data: { transferCode: 'TR003' }, request: body },
+            headers: {},
+            config,
+          }),
+      );
+    });
+
+    const result = await processor.processPayment('txn-1', 'tenant-1', 'customer-1', 'card-1', 15, 'USD');
+
+    expect(result.success).toBe(false);
+    const sgtBody = axios.post.mock.calls[0][1];
 
     const logText = logs.text(auditService.logAllow.mock.calls, auditService.logError.mock.calls);
     expect(findLeakedSecrets(logText, secretsSentTo(sgtBody))).toEqual([]);
