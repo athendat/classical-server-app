@@ -1,5 +1,8 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpService as AxiosHttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { AxiosError, AxiosHeaders } from 'axios';
+import { throwError } from 'rxjs';
 
 import { HttpService } from 'src/common/http/http.service';
 import { Result } from 'src/common/types/result.type';
@@ -83,6 +86,20 @@ describe.skip('SgtCardAdapter', () => {
   });
 });
 
+/** The error the real HttpService throws when SGT answers with a non-2xx status and this body */
+async function sgtHttpError(status: number, body: unknown): Promise<unknown> {
+  const config = { url: 'https://sgt.local/transfer', method: 'post', headers: new AxiosHeaders() };
+  const axiosError = new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_RESPONSE', config, {}, {
+    status,
+    statusText: '',
+    data: body,
+    headers: {},
+    config,
+  });
+  const axios = { post: jest.fn(() => throwError(() => axiosError)) };
+  return new HttpService(axios as unknown as AxiosHttpService).post(config.url, {}).catch((error: unknown) => error);
+}
+
 describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
   let adapter: SgtCardAdapter;
   let httpService: { post: jest.Mock };
@@ -154,10 +171,8 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
       message: 'Transacción denegada por el emisor',
       data: { transferCode: 'TR001', isoResponseCode: '05' },
     };
-    // Same shape HttpService throws on a non-2xx: HttpException with the Axios response attached
-    const httpError = new HttpException(body, HttpStatus.UNPROCESSABLE_ENTITY);
-    (httpError as any).response = { status: HttpStatus.UNPROCESSABLE_ENTITY, data: body };
-    httpService.post.mockRejectedValue(httpError);
+    // What HttpService throws on a non-2xx: HttpException carrying { status, data }
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.UNPROCESSABLE_ENTITY, body));
 
     const result = await adapter.transfer(transferRequest);
 
@@ -201,9 +216,7 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
 
   it('fails on a transfer code that is not an Issuer answer code, e.g. a proxy error body', async () => {
     const body = { ok: false, message: 'Bad Gateway', data: { transferCode: 'GW502' } };
-    const httpError = new HttpException(body, HttpStatus.BAD_GATEWAY);
-    (httpError as any).response = { status: HttpStatus.BAD_GATEWAY, data: body };
-    httpService.post.mockRejectedValue(httpError);
+    httpService.post.mockRejectedValue(await sgtHttpError(HttpStatus.BAD_GATEWAY, body));
 
     const result = await adapter.transfer(transferRequest);
 
