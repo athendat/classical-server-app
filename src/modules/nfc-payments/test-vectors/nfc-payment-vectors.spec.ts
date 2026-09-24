@@ -1,124 +1,127 @@
 /**
  * Test Vectors: NFC Payment Crypto
  *
- * Generates and validates cross-platform test vectors for HKDF key derivation,
- * ephemeral key pairs, TLV encoding, and ECDSA signatures.
+ * Validates the versioned cross-platform test vectors (ADR-0004) for HKDF key
+ * derivation, ephemeral key pairs, TLV encoding, and ECDSA signatures.
+ * This spec never writes the vectors file.
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import { Test, TestingModule } from '@nestjs/testing';
-import { HkdfKeyDerivationAdapter } from '../infrastructure/adapters/hkdf-key-derivation.adapter';
-import { EcdsaSignatureAdapter } from '../infrastructure/adapters/ecdsa-signature.adapter';
-import { TlvCodecAdapter } from '../infrastructure/adapters/tlv-codec.adapter';
+import {
+  NfcPaymentVectors,
+  generateNfcPaymentVectors,
+  validateNfcPaymentVectors,
+  writeNfcPaymentVectors,
+} from './nfc-payment-vectors.tool';
 
 const VECTORS_PATH = path.join(__dirname, 'nfc-payment-vectors.json');
+// Read before any test runs, so afterAll can prove the suite wrote nothing.
+const VERSIONED_VECTORS = fs.readFileSync(VECTORS_PATH, 'utf-8');
+
+const versionedVectors = (): NfcPaymentVectors =>
+  JSON.parse(VERSIONED_VECTORS) as NfcPaymentVectors;
+
+/** Flips the last byte of a hex string, so the value stays well-formed. */
+const flipLastByte = (hex: string): string =>
+  hex.slice(0, -2) + (parseInt(hex.slice(-2), 16) ^ 0x01).toString(16).padStart(2, '0');
+
+/**
+ * Vectors text with line endings normalized and the randomized ECDSA
+ * signatures masked, so two generations can be compared byte for byte.
+ */
+const withoutSignatures = (json: string): string =>
+  json
+    .replace(/\r\n/g, '\n')
+    .replace(/"expected_signature_hex": "[0-9a-f]+"/g, '"expected_signature_hex": "<signature>"');
 
 describe('NFC Payment Test Vectors', () => {
-  let hkdfAdapter: HkdfKeyDerivationAdapter;
-  let ecdsaAdapter: EcdsaSignatureAdapter;
-  let tlvAdapter: TlvCodecAdapter;
+  it('validates the versioned vectors: root seed, Counter keys, TLV payload and signature', () => {
+    const vectors = versionedVectors();
 
-  beforeAll(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [HkdfKeyDerivationAdapter, EcdsaSignatureAdapter, TlvCodecAdapter],
-    }).compile();
-
-    hkdfAdapter = module.get<HkdfKeyDerivationAdapter>(HkdfKeyDerivationAdapter);
-    ecdsaAdapter = module.get<EcdsaSignatureAdapter>(EcdsaSignatureAdapter);
-    tlvAdapter = module.get<TlvCodecAdapter>(TlvCodecAdapter);
+    expect(vectors.ephemeral_keys).toHaveLength(11);
+    expect(validateNfcPaymentVectors(vectors)).toEqual([]);
   });
 
-  it('should generate test vectors for counters 0-10', () => {
-    const sharedSecret = Buffer.from('aa'.repeat(16), 'hex');
-    const salt = Buffer.from('bb'.repeat(16), 'hex');
-    const rootSeed = hkdfAdapter.deriveRootSeed(sharedSecret, salt);
+  it('fails when the versioned root seed is altered', () => {
+    const vectors = versionedVectors();
+    vectors.root_seed_derivation.expected_root_seed_hex = flipLastByte(
+      vectors.root_seed_derivation.expected_root_seed_hex,
+    );
 
-    const ephemeralKeys: any[] = [];
+    expect(validateNfcPaymentVectors(vectors)).toContain(
+      'root_seed_derivation.expected_root_seed_hex',
+    );
+  });
 
-    for (let counter = 0; counter <= 10; counter++) {
-      const { privateKey, publicKey } = hkdfAdapter.deriveEphemeralKeyPair(rootSeed, counter);
+  it.each([
+    ['hash', 'sha512'],
+    ['root_info', 'nfc-payment-v2'],
+    ['key_info_prefix', 'nfc-payment-key-v2:'],
+    ['output_length', 64],
+  ] as const)('fails when the hkdf parameter %s disagrees with the server', (field, value) => {
+    const vectors = versionedVectors();
+    (vectors.hkdf as Record<string, string | number>)[field] = value;
 
-      // Export keys for the vector
-      const privDer = privateKey.export({ format: 'der', type: 'pkcs8' }) as Buffer;
-      // Extract the 32-byte scalar from PKCS8 DER (last 32 bytes of the 67-byte structure)
-      const privateKeyHex = privDer.subarray(privDer.length - 32).toString('hex');
+    expect(validateNfcPaymentVectors(vectors)).toEqual([`hkdf.${field}`]);
+  });
 
-      const spkiDer = publicKey.export({ format: 'der', type: 'spki' }) as Buffer;
-      // Extract uncompressed point (65 bytes) from SPKI DER (after 26-byte header)
-      const publicKeyHex = spkiDer.subarray(26).toString('hex');
+  it.each([
+    'expected_private_key_hex',
+    'expected_public_key_hex',
+    'sample_payload_hex',
+    'expected_signature_hex',
+  ] as const)('fails when a Counter vector %s is altered', (field) => {
+    const vectors = versionedVectors();
+    vectors.ephemeral_keys[3][field] = flipLastByte(vectors.ephemeral_keys[3][field]);
 
-      // Create a sample payload for this counter
-      const samplePayload = tlvAdapter.encode([
-        { tag: 0x01, value: Buffer.from('card-001') },
-        { tag: 0x02, value: Buffer.from('1000') },
-        { tag: 0x07, value: Buffer.from(counter.toString()) },
-      ]);
+    expect(validateNfcPaymentVectors(vectors)).toContain(`ephemeral_keys[3].${field}`);
+  });
 
-      const signature = ecdsaAdapter.sign(samplePayload, privateKey);
+  it('generates vectors that pass validation', () => {
+    expect(validateNfcPaymentVectors(generateNfcPaymentVectors())).toEqual([]);
+  });
 
-      ephemeralKeys.push({
-        counter,
-        expected_private_key_hex: privateKeyHex,
-        expected_public_key_hex: publicKeyHex,
-        sample_payload_hex: samplePayload.toString('hex'),
-        expected_signature_hex: signature.toString('hex'),
-      });
+  it('writes the vectors in the versioned format, differing only in signatures', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nfc-vectors-'));
+    const outPath = path.join(dir, 'nfc-payment-vectors.json');
+    try {
+      writeNfcPaymentVectors(outPath);
+      const written = fs.readFileSync(outPath, 'utf-8');
+
+      expect(validateNfcPaymentVectors(JSON.parse(written))).toEqual([]);
+      expect(withoutSignatures(written)).toBe(withoutSignatures(VERSIONED_VECTORS));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
 
-    const vectors = {
-      description: 'NFC Payment crypto test vectors for cross-platform validation',
-      hkdf: {
-        hash: 'sha256',
-        root_info: 'nfc-payment',
-        key_info_prefix: 'nfc-payment-key:',
-        output_length: 32,
-      },
-      root_seed_derivation: {
-        shared_secret_hex: sharedSecret.toString('hex'),
-        salt_hex: salt.toString('hex'),
-        expected_root_seed_hex: rootSeed.toString('hex'),
-      },
-      ephemeral_keys: ephemeralKeys,
+  it('refuses to write vectors that fail validation, leaving the target untouched', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nfc-vectors-'));
+    const outPath = path.join(dir, 'nfc-payment-vectors.json');
+    const invalidGeneration = (): NfcPaymentVectors => {
+      const vectors = versionedVectors();
+      vectors.ephemeral_keys[3].expected_public_key_hex = flipLastByte(
+        vectors.ephemeral_keys[3].expected_public_key_hex,
+      );
+      return vectors;
     };
+    try {
+      fs.writeFileSync(outPath, VERSIONED_VECTORS, 'utf-8');
 
-    fs.writeFileSync(VECTORS_PATH, JSON.stringify(vectors, null, 2), 'utf-8');
-
-    // Verify the file was written
-    expect(fs.existsSync(VECTORS_PATH)).toBe(true);
-    const written = JSON.parse(fs.readFileSync(VECTORS_PATH, 'utf-8'));
-    expect(written.ephemeral_keys).toHaveLength(11);
+      expect(() => writeNfcPaymentVectors(outPath, invalidGeneration)).toThrow(
+        'ephemeral_keys[3].expected_public_key_hex',
+      );
+      expect(fs.readFileSync(outPath, 'utf-8')).toBe(VERSIONED_VECTORS);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
-  it('should validate all test vectors from JSON', () => {
-    const vectors = JSON.parse(fs.readFileSync(VECTORS_PATH, 'utf-8'));
-
-    // Validate root seed derivation
-    const sharedSecret = Buffer.from(vectors.root_seed_derivation.shared_secret_hex, 'hex');
-    const salt = Buffer.from(vectors.root_seed_derivation.salt_hex, 'hex');
-    const rootSeed = hkdfAdapter.deriveRootSeed(sharedSecret, salt);
-    expect(rootSeed.toString('hex')).toBe(vectors.root_seed_derivation.expected_root_seed_hex);
-
-    // Validate each ephemeral key and signature
-    for (const vector of vectors.ephemeral_keys) {
-      const { privateKey, publicKey } = hkdfAdapter.deriveEphemeralKeyPair(rootSeed, vector.counter);
-
-      // Validate private key
-      const privDer = privateKey.export({ format: 'der', type: 'pkcs8' }) as Buffer;
-      const privateKeyHex = privDer.subarray(privDer.length - 32).toString('hex');
-      expect(privateKeyHex).toBe(vector.expected_private_key_hex);
-
-      // Validate public key
-      const spkiDer = publicKey.export({ format: 'der', type: 'spki' }) as Buffer;
-      const publicKeyHex = spkiDer.subarray(26).toString('hex');
-      expect(publicKeyHex).toBe(vector.expected_public_key_hex);
-
-      // Validate signature verification (ECDSA signatures are non-deterministic,
-      // so we verify the stored signature against the stored payload)
-      const payload = Buffer.from(vector.sample_payload_hex, 'hex');
-      const signature = Buffer.from(vector.expected_signature_hex, 'hex');
-      const isValid = ecdsaAdapter.verify(payload, signature, publicKey);
-      expect(isValid).toBe(true);
-    }
+  // Runs after every test, whatever their order or -t filter: the suite must
+  // leave the versioned vectors file byte-identical.
+  afterAll(() => {
+    expect(fs.readFileSync(VECTORS_PATH, 'utf-8')).toBe(VERSIONED_VECTORS);
   });
 });
