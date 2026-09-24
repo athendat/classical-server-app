@@ -92,6 +92,8 @@ describe('CardsService', () => {
           useValue: {
             findByUserId: jest.fn().mockResolvedValue([]),
             create: jest.fn(),
+            findById: jest.fn(),
+            update: jest.fn(),
           },
         },
         {
@@ -99,6 +101,8 @@ describe('CardsService', () => {
           useValue: {
             savePanAndPinblock: jest.fn().mockResolvedValue(Result.ok()),
             deletePanAndPinblock: jest.fn().mockResolvedValue(Result.ok()),
+            getPan: jest.fn().mockResolvedValue(Result.ok('4242424242424242')),
+            getPinblock: jest.fn().mockResolvedValue(Result.ok('pinblock')),
           },
         },
         {
@@ -216,5 +220,47 @@ describe('CardsService', () => {
         changes: { after: { sgt: { activationCode: 'AP001', isoResponseCode: '14' } } },
       }),
     );
+  });
+
+  describe('retryActivation of a REGISTERED Card', () => {
+    beforeEach(() => {
+      cardsRepository.findById.mockResolvedValue({
+        id: 'card-123',
+        userId: 'user-123',
+        status: CardStatusEnum.REGISTERED,
+        tml: '00012345',
+        aut: '654321',
+        token: 'CARDTOKEN0001',
+      } as any);
+    });
+
+    it("answers an Issuer rejection (AP001) with the controlled message and audits the Issuer's codes", async () => {
+      sgtCardPort.activatePin.mockResolvedValue(
+        Result.ok({
+          ok: false,
+          message: 'Activación rechazada por el emisor: PIN inválido',
+          data: { activationCode: 'AP001', isoResponseCode: '55' },
+        }),
+      );
+
+      const response = await service.retryActivation('card-123');
+
+      expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(response.errors).toBe('Registro rechazado');
+      expect(response.message).toBe('El emisor rechazó el registro de la tarjeta');
+      expect(JSON.stringify(response)).not.toContain('PIN inválido');
+      expect(cardsRepository.update).not.toHaveBeenCalled();
+      expect(auditService.logError).toHaveBeenCalledWith(
+        'SGT_RETRY_ACTIVATE_PIN_REJECTED',
+        'card',
+        'card-123',
+        { code: 'AP001', message: 'Activación rechazada por el emisor: PIN inválido' },
+        expect.objectContaining({
+          module: 'cards',
+          actorId: 'user-123',
+          changes: { after: { sgt: { activationCode: 'AP001', isoResponseCode: '55' } } },
+        }),
+      );
+    });
   });
 });

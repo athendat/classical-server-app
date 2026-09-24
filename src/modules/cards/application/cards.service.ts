@@ -681,6 +681,7 @@ export class CardsService {
       // AP001: Registro rechazado por el emisor
       if (activationCode === ACTIVATION_CODES.AP001.code) {
         this.logger.warn(`[${requestId}] SGT retry rejected for card ${cardId}`);
+        this.auditIssuerRejection('SGT_RETRY_ACTIVATE_PIN_REJECTED', cardId, userId, sgtResponse);
         return ApiResponse.fail<CardResponseDto>(
           HttpStatus.BAD_REQUEST,
           ACTIVATION_CODES.AP001.message,
