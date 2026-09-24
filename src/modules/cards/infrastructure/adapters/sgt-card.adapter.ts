@@ -90,8 +90,6 @@ export class SgtCardAdapter implements ISgtCardPort {
         body.token = token;
       }
 
-      this.logger.log(`[SgtCardAdapter] activate pin request body ${JSON.stringify(body)}`);
-
       const timestamp = new Date().toISOString();
       const payload = JSON.stringify(body) + timestamp;
 
@@ -136,7 +134,7 @@ export class SgtCardAdapter implements ISgtCardPort {
       return Result.ok<SgtActivatePinResponse>(response);
     } catch (error: any) {
       const msg = this.extractSgtMessage(error);
-      this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`, error);
+      this.logger.error(`SGT /activate-pin failed for cardId=${cardId}: ${msg}`);
       return Result.fail<SgtActivatePinResponse>(
         error instanceof Error && error.message === msg ? error : new Error(msg),
       );
