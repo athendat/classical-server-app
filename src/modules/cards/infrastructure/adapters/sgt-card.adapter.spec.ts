@@ -232,3 +232,49 @@ describe('SgtCardAdapter.transfer (Settlement at the Issuer)', () => {
     expect(result.getError().message).toBe('Error en los parámetros enviados');
   });
 });
+
+describe('SgtCardAdapter.activatePin (Card activation at the Issuer)', () => {
+  let adapter: SgtCardAdapter;
+  let httpService: { post: jest.Mock };
+
+  const activate = () =>
+    adapter.activatePin('card-1', '4539578763621486', 'iso4-pinblock', '85010112345', '00012345', '654321');
+
+  beforeEach(() => {
+    httpService = { post: jest.fn() };
+
+    const configService = {
+      getOrThrow: jest.fn((key: string) => {
+        const values: Record<string, string> = {
+          SGT_URL: 'https://sgt.local',
+          SGT_HMAC_SECRET: 'secret',
+          SGT_CLIENT_ID: 'client-id',
+          SGT_API_KEY: 'api-key',
+        };
+        if (!(key in values)) throw new Error(`Unknown key: ${key}`);
+        return values[key];
+      }),
+    } as unknown as ConfigService;
+
+    adapter = new SgtCardAdapter(
+      httpService as unknown as HttpService,
+      configService,
+      { encodeAndEncrypt: jest.fn().mockReturnValue(Result.ok('sgt-pinblock')) } as unknown as ISgtPinblockPort,
+      { decodeIso4Pinblock: jest.fn().mockReturnValue(Result.ok('1234')) } as unknown as Iso4PinblockService,
+    );
+  });
+
+  it('returns an Issuer rejection (ok=false, AP001) as an answer carrying its activation code and ISO code', async () => {
+    const body = {
+      ok: false,
+      message: 'Registro rechazado por el emisor',
+      data: { activationCode: 'AP001', isoResponseCode: '14' },
+    };
+    httpService.post.mockResolvedValue(body);
+
+    const result = await activate();
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue()).toEqual(body);
+  });
+});
