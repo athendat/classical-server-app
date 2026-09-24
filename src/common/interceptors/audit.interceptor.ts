@@ -67,7 +67,12 @@ export class AuditInterceptor implements NestInterceptor {
     'jwe',
     'jwt',
     'bearer',
+    'idNumber',
+    'beneficiaryAccount',
   ];
+
+  // Campos sensibles demasiado cortos para buscarlos como subcadena ('aut' está en 'author')
+  private readonly sensitiveExactFields = ['tml', 'aut'];
 
   constructor(
     private readonly asyncContext: AsyncContextService,
@@ -228,6 +233,18 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   /**
+   * Una clave es sensible si contiene un campo sensible o es exactamente uno de los cortos
+   */
+  private isSensitiveKey(key: string): boolean {
+    const lowerKey = key.toLowerCase();
+    return (
+      this.sensitiveFields.some((field) =>
+        lowerKey.includes(field.toLowerCase()),
+      ) || this.sensitiveExactFields.includes(lowerKey)
+    );
+  }
+
+  /**
    * Redactar campos sensibles de objetos con límites de tamaño
    */
   private redactSensitiveData(obj: any, depth = 0): any {
@@ -314,11 +331,7 @@ export class AuditInterceptor implements NestInterceptor {
           const serialized = this.serializeValue(value[key], depth + 1);
 
           // Redactar campos sensibles
-          if (
-            this.sensitiveFields.some((field) =>
-              key.toLowerCase().includes(field.toLowerCase()),
-            )
-          ) {
+          if (this.isSensitiveKey(key)) {
             result[key] = '***REDACTED***';
           } else {
             result[key] = serialized;
@@ -356,11 +369,7 @@ export class AuditInterceptor implements NestInterceptor {
             const val = value[key];
             const serialized = this.serializeValue(val, depth + 1);
 
-            if (
-              this.sensitiveFields.some((field) =>
-                key.toLowerCase().includes(field.toLowerCase()),
-              )
-            ) {
+            if (this.isSensitiveKey(key)) {
               result[key] = '***REDACTED***';
             } else {
               result[key] = serialized;
@@ -392,11 +401,7 @@ export class AuditInterceptor implements NestInterceptor {
         continue;
       }
 
-      if (
-        this.sensitiveFields.some((field) =>
-          key.toLowerCase().includes(field.toLowerCase()),
-        )
-      ) {
+      if (this.isSensitiveKey(key)) {
         obj[key] = '***REDACTED***';
       } else if (typeof obj[key] === 'object' && obj[key] !== null) {
         this.walkAndRedact(obj[key], depth + 1);
