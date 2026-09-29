@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
+import { computeStaleModuleIndicators } from 'src/modules/modules/seeds/compute-modules-plan';
 import { SYSTEM_MODULES } from 'src/modules/modules/seeds/system-modules';
 import { SYSTEM_ROLES } from 'src/modules/roles/seeds/system-roles';
 import { UsersService } from 'src/modules/users/application/users.service';
@@ -62,13 +63,27 @@ export class SystemBootstrapService implements OnModuleInit {
     this.logger.log('📦 PHASE 1: Bootstrap modules...');
 
     try {
-      const count = await this.moduleModel.countDocuments().exec();
-
-      if (count > 0) {
+      // Always reconcile: deactivate stale modules whose indicator no longer
+      // appears in SYSTEM_MODULES (e.g. when a frontend route is removed).
+      // The upsert below keeps existing-and-still-listed modules current.
+      const dbModules = await this.moduleModel
+        .find({}, { indicator: 1, _id: 0 })
+        .lean()
+        .exec();
+      const staleIndicators = computeStaleModuleIndicators(
+        dbModules.map((m: { indicator: string }) => m.indicator),
+        SYSTEM_MODULES.map((m) => m.indicator),
+      );
+      if (staleIndicators.length > 0) {
+        const result = await this.moduleModel
+          .updateMany(
+            { indicator: { $in: staleIndicators } },
+            { $set: { status: 'inactive' } },
+          )
+          .exec();
         this.logger.log(
-          `   ⏭️  Modules collection already has ${count} documents - skipping seed`,
+          `   🧹 Deactivated ${result.modifiedCount ?? 0} stale module(s): ${staleIndicators.join(', ')}`,
         );
-        return;
       }
 
       let seedCount = 0;
