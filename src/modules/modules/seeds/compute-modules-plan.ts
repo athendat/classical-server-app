@@ -16,5 +16,5 @@ export function computeStaleModuleIndicators(
       stale.add(indicator);
     }
   }
-  return Array.from(stale);
+  return Array.from(stale).sort();
 }
